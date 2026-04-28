@@ -1,0 +1,29 @@
+{
+  "name": "SmartOffice.Hub (.NET 8)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [2805],
+  "portsAttributes": {
+    "2805": {
+      "label": "SmartOffice.Hub",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "humao.rest-client"
+      ],
+      "settings": {
+        "dotnet.server.useOmnisharp": false
+      }
+    }
+  },
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true
+}

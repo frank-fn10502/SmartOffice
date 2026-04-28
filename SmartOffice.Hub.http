@@ -1,0 +1,57 @@
+@SmartOffice.Hub_HostAddress = http://localhost:2805
+
+### Request Outlook folders
+POST {{SmartOffice.Hub_HostAddress}}/api/outlook/request-folders
+Accept: application/json
+
+### Poll next command as Outlook Add-in
+GET {{SmartOffice.Hub_HostAddress}}/api/outlook/poll
+Accept: application/json
+
+### Push folders from Outlook Add-in
+POST {{SmartOffice.Hub_HostAddress}}/api/outlook/push-folders
+Content-Type: application/json
+
+[
+  {
+    "name": "Mailbox",
+    "folderPath": "\\\\Mailbox",
+    "itemCount": 0,
+    "subFolders": [
+      {
+        "name": "Inbox",
+        "folderPath": "\\\\Mailbox\\\\Inbox",
+        "itemCount": 3,
+        "subFolders": []
+      }
+    ]
+  }
+]
+
+### Request Outlook mails
+POST {{SmartOffice.Hub_HostAddress}}/api/outlook/request-mails
+Content-Type: application/json
+
+{
+  "folderPath": "\\\\Mailbox\\\\Inbox",
+  "range": "1d",
+  "maxCount": 10
+}
+
+### Get cached mails
+GET {{SmartOffice.Hub_HostAddress}}/api/outlook/mails
+Accept: application/json
+
+### Send chat message
+POST {{SmartOffice.Hub_HostAddress}}/api/outlook/chat
+Content-Type: application/json
+
+{
+  "source": "web",
+  "text": "Please summarize the selected mails."
+}
+
+### Get add-in status
+GET {{SmartOffice.Hub_HostAddress}}/api/outlook/admin/status
+Accept: application/json
+
