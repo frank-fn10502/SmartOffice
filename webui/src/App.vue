@@ -70,6 +70,7 @@ const chatText = ref('')
 const loadingFolders = ref(false)
 const loadingMails = ref(false)
 const chatPanelRef = ref<HTMLElement | null>(null)
+const mailHtmlSandbox = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox'
 
 const visibleFolders = computed(() => {
   return folders.value.flatMap((root) => {
@@ -420,7 +421,8 @@ onMounted(async () => {
                 <iframe
                   v-if="htmlMailIndexes.has(index)"
                   class="mail-html"
-                  sandbox=""
+                  :sandbox="mailHtmlSandbox"
+                  referrerpolicy="no-referrer"
                   :srcdoc="mail.bodyHtml || mail.body"
                 />
                 <pre v-else class="mail-text">{{ mail.body }}</pre>
