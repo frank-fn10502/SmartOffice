@@ -3,6 +3,8 @@ set -euo pipefail
 
 # 建立並推送多架構 manifest
 # 將 x86-linux 和 arm64 的 image 聯繫在同一個 manifest 下
+# 注意：單架構 image 目前由 docker buildx 推送為 OCI image index，
+# 因此這裡需使用 docker buildx imagetools create，而不是 docker manifest create。
 # 版號從 .env.docker 檔案讀取，並同步推送 latest
 #
 # 用法:
@@ -33,17 +35,11 @@ echo ""
 for MANIFEST_TAG in "${MANIFEST_TAGS[@]}"; do
   MANIFEST_IMAGE="${DOCKER_HUB_REPO}:${MANIFEST_TAG}"
 
-  echo "建立 manifest: ${MANIFEST_IMAGE}"
-  docker manifest create "${MANIFEST_IMAGE}" \
+  echo "建立並推送 manifest: ${MANIFEST_IMAGE}"
+  docker buildx imagetools create \
+    --tag "${MANIFEST_IMAGE}" \
     "${X86_IMAGE}" \
-    "${ARM64_IMAGE}" \
-    --force
-
-  docker manifest annotate "${MANIFEST_IMAGE}" "${X86_IMAGE}" --arch amd64 --os linux
-  docker manifest annotate "${MANIFEST_IMAGE}" "${ARM64_IMAGE}" --arch arm64 --os linux
-
-  echo "推送 manifest 到 Docker Hub: ${MANIFEST_IMAGE}"
-  docker manifest push "${MANIFEST_IMAGE}" --purge
+    "${ARM64_IMAGE}"
   echo ""
 done
 
