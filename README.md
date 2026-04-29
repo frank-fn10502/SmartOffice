@@ -58,93 +58,90 @@ Web UI 透過 SignalR 接收更新：
 - `/hub/notifications`
 - 事件包含 `FoldersUpdated`、`MailsUpdated`、`NewChatMessage`、`AddinStatus`、`AddinLog`。
 
-## 本機執行
+## 預設開發與執行方式
 
-需求：
+目前專案的標準流程是：
+
+- 本機編輯程式碼
+- 用 container 編譯 Vue/Vite 與 .NET
+- 用 container 執行 SmartOffice.Hub
+
+也就是說，開發環境的重點不是先在每台機器上安裝完整的前端與 .NET 建置工具，而是優先使用專案提供的 Docker image。
+
+### 1. 先從 Docker Hub 下載 image
+
+預設 Docker Hub repository：`frank10502/smart-office-dev`
+
+```bash
+./scripts/pull-from-dockerhub.sh
+```
+
+這個 script 會下載專案使用的 build image，並同步拉取 `latest` tag。image 提供 `linux/amd64` 與 `linux/arm64` multi-arch manifest，Docker 會自動選擇可用版本。
+
+### 2. 用 container 編譯前端與 .NET
+
+```bash
+./scripts/build-in-container.sh
+```
+
+這個 script 會在 container 內完成整個建置流程：
+
+- 處理 `webui` 的 npm dependencies
+- 執行 Vue/Vite build，產出 static html 到 `wwwroot`
+- 執行 `dotnet build`
+
+如果本機還沒有對應的 image，script 會依照 `.devcontainer/Dockerfile` 自動建立。
+
+`.devcontainer/Dockerfile` 目前固定的主要工具鏈是：
 
 - .NET 8 SDK
+- Node.js 22 LTS
 
-啟動 Hub：
-
-```bash
-dotnet run
-```
-
-預設 `http` launch profile 目前監聽：
-
-```text
-http://localhost:2805
-```
-
-預設 profile 不啟用 Hub 端 Add-in mock，適合在工作電腦由 Outlook Add-in 直接連線。離線開發時可改用 mock profile：
+如需調整 image tag 或 build configuration，可使用：
 
 ```bash
-dotnet run --launch-profile http-mock
+SMARTOFFICE_BUILD_IMAGE=smartoffice-hub-devcontainer:local CONFIGURATION=Release ./scripts/build-in-container.sh
 ```
+
+### 3. 用 container 執行 Hub
+
+```bash
+./scripts/start-dev-container.sh
+```
+
+這個 script 會先確認前端 static 檔案與 build 結果是否可用，必要時會先執行 `./scripts/build-in-container.sh`，然後再用 container 啟動 Hub。
+
+預設會使用 `Mock` environment 啟動，適合開發時檢查 Web UI 與 API。
 
 常用網址：
 
 - Dashboard：`http://localhost:2805/`
 - Swagger：`http://localhost:2805/swagger`
 
-## 開發模式
-
-本專案支援三種開發方式。
-
-### 本機模式 Host Mode
-
-使用本機已安裝的 .NET SDK：
+停止 container：
 
 ```bash
-dotnet run
-dotnet build
+./scripts/stop-dev-container.sh
 ```
 
-如果本機已經有相容的 .NET 8 SDK，這是最直接的模式。
+如果希望連 editor terminal、SDK 與工具鏈都放在 container 內，也可以使用 `.devcontainer`。詳細說明請參考 `.devcontainer/README.md`。
 
-### 快速模式 Quick Mode
+## 本機開發（需要自行處理環境）
 
-Quick Mode 保持 editor 與日常開發環境在本機，只把 compilation 放進暫存 Docker container。
+如果不使用上面的 container 流程，而要改成純本機開發，就必須自己把開發機環境補齊。
 
-```bash
-./scripts/build-in-container.sh
-```
+請至少比照 `.devcontainer/Dockerfile` 準備：
 
-這是目前偏好的 build workflow，適合不想在本機安裝或維護 .NET SDK 的情境。腳本會在需要時從 `.devcontainer/Dockerfile` 建立 reusable local image，接著用暫存 container 執行 compilation。build container 結束後會被移除。這個腳本只做 build 驗證，不會改變 runtime profile；實際 F5 是否連真 Add-in 由 `Properties/launchSettings.json` 的 profile 決定。
+- .NET 8 SDK
+- Node.js 22 LTS
+- `webui` 所需的 npm dependencies
 
-如果不想在本機先 build Docker image，也可以直接從 Docker Hub 下載已準備好的 build image。這些 image 會同時提供 `linux/amd64` 與 `linux/arm64` multi-arch manifest，Docker 會自動選擇適合目前環境的版本。
+本機最常見的方式，通常是：
 
-下載 image：
+- 用 Visual Studio 20xx 開啟專案處理 .NET / ASP.NET Core
+- 另外執行 `./scripts/build-in-container.sh`，先把前端編譯成 `wwwroot` 下的 static html
 
-```bash
-./scripts/pull-from-dockerhub.sh
-```
-
-這個腳本會：
-
-- 從 Docker Hub 下載專案提供的 build image
-- 同步下載最新的 `latest` tag
-- 重新標記成本機預設 build image：`smartoffice-hub-devcontainer-node22:local`
-
-預設 Docker Hub repository：`frank10502/smart-office-dev`
-
-一般使用者只需要執行 `./scripts/pull-from-dockerhub.sh`，不需要自行判斷平台或手動指定 tag。
-
-可以調整 local image tag 或 build configuration：
-
-```bash
-SMARTOFFICE_BUILD_IMAGE=smartoffice-hub-devcontainer:local CONFIGURATION=Release ./scripts/build-in-container.sh
-```
-
-### 完整容器模式 Full Container Mode
-
-可選的 `.devcontainer` 資料夾讓 VS Code 將整個 workspace 重新開在 .NET 8 development container 裡。
-
-當你希望 editor terminal、SDK 與 C# tooling 都在 Docker 裡執行時，使用這個模式。devcontainer 會使用 `.devcontainer/Dockerfile`，讓未來 native package 與 tooling 可以集中維護。
-
-devcontainer 不會自動執行 `dotnet restore`。restore 與 run command 需要手動執行，避免開啟 container 時意外下載 package。
-
-請參考 `.devcontainer/README.md`。
+換句話說，就算是本機開發，實務上也常常仍然會用 build script 來處理前端產物，再交給 Visual Studio 20xx 處理 .NET 端。
 
 ## API 說明
 
