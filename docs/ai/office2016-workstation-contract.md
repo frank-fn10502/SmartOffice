@@ -20,8 +20,8 @@
 建議流程：
 
 1. 在開發機啟動 Hub，確認 `http://localhost:2805/swagger` 可用。
-2. 工作機 Add-in 只呼叫 `/api/outlook/poll`、`/api/outlook/push-folders`、`/api/outlook/push-mails`、`/api/outlook/admin/log`。
-3. Web UI、AI 或 MCP client 只透過 `/api/outlook/request-folders`、`/api/outlook/request-mails` enqueue command。
+2. 工作機 Add-in 只呼叫 `/api/outlook/poll`、`/api/outlook/push-folders`、`/api/outlook/push-mails`、`/api/outlook/push-rules`、`/api/outlook/push-calendar`、`/api/outlook/admin/log`。
+3. Web UI、AI 或 MCP client 只透過 `/api/outlook/request-folders`、`/api/outlook/request-mails`、`/api/outlook/request-rules`、`/api/outlook/request-calendar` enqueue command。
 4. 每次 Add-in 收到 command 都記錄 `commandId`、`type`、Office API call、轉換後 JSON sample。
 5. 格式不符合，或開發機需要真實資料校準 Web UI、mock、Add-in mapping、檔案寫入或 protocol 時，請依 `docs/ai/office2016-test-report.md` 回傳工作機測試回報。
 
@@ -103,6 +103,70 @@ Add-in 後續會在 `GET /api/outlook/poll` 收到：
 - `1w`
 - `1m`
 
+## Enqueue Rule Fetch
+
+Request：
+
+```http
+POST /api/outlook/request-rules
+```
+
+Response：
+
+```json
+{
+  "status": "queued"
+}
+```
+
+Add-in 後續會在 `GET /api/outlook/poll` 收到：
+
+```json
+{
+  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "type": "fetch_rules",
+  "mailsRequest": null,
+  "calendarRequest": null
+}
+```
+
+## Enqueue Calendar Fetch
+
+Request：
+
+```http
+POST /api/outlook/request-calendar
+Content-Type: application/json
+```
+
+```json
+{
+  "daysForward": 14
+}
+```
+
+Response：
+
+```json
+{
+  "commandId": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "status": "queued"
+}
+```
+
+Add-in 後續會在 `GET /api/outlook/poll` 收到：
+
+```json
+{
+  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "type": "fetch_calendar",
+  "mailsRequest": null,
+  "calendarRequest": {
+    "daysForward": 14
+  }
+}
+```
+
 ## Poll No Command
 
 Request：
@@ -173,12 +237,18 @@ Content-Type: application/json
 [
   {
     "subject": "[redacted] sample subject",
+    "id": "[redacted stable Outlook entry id if available]",
     "senderName": "Sample Sender",
     "senderEmail": "sender@example.invalid",
     "receivedTime": "2026-04-29T09:30:00+08:00",
     "body": "[redacted plain text body]",
     "bodyHtml": "<p>[redacted html body]</p>",
-    "folderPath": "\\\\Mailbox - User\\Inbox"
+    "folderPath": "\\\\Mailbox - User\\Inbox",
+    "categories": "Customer, Follow-up",
+    "isRead": false,
+    "isMarkedAsTask": true,
+    "importance": "high",
+    "sensitivity": "normal"
   }
 ]
 ```
@@ -196,6 +266,72 @@ Response：
 - `receivedTime` 請回傳 ISO 8601 字串；如果 Office 2016 interop 只能取得 local `DateTime`，請在測試回報寫明 timezone 與轉換方式。
 - `body` 與 `bodyHtml` 可能含有敏感 business data；除非已獲授權，測試回報只放已匿名化的最小可用 sample。
 - 如果 `MailItem.Body`、`HTMLBody`、`SenderEmailAddress` 或 `ReceivedTime` 在特定帳號型態下行為不同，請附上觀察結果與官方 API link。
+- `id` 如果可以取得，建議使用 Outlook `EntryID` 或其他可重新定位 item 的穩定值；如果無法穩定取得，可以留空。
+- `categories`、`isRead`、`isMarkedAsTask`、`importance`、`sensitivity` 是 Web UI 與 AI 操作建議需要的 metadata；如果 Office 2016 工作機取不到，請留預設值並在測試回報說明。
+
+## Push Rules
+
+Request：
+
+```http
+POST /api/outlook/push-rules
+Content-Type: application/json
+```
+
+```json
+[
+  {
+    "name": "Move customer mail",
+    "enabled": true,
+    "executionOrder": 1,
+    "ruleType": "receive",
+    "conditions": ["sender contains example.com"],
+    "actions": ["move to \\\\Mailbox - User\\Customers"],
+    "exceptions": []
+  }
+]
+```
+
+Response：
+
+```json
+{
+  "count": 1
+}
+```
+
+## Push Calendar
+
+Request：
+
+```http
+POST /api/outlook/push-calendar
+Content-Type: application/json
+```
+
+```json
+[
+  {
+    "id": "[redacted appointment id if available]",
+    "subject": "[redacted meeting subject]",
+    "start": "2026-04-30T10:00:00+08:00",
+    "end": "2026-04-30T11:00:00+08:00",
+    "location": "Meeting Room",
+    "organizer": "Sample Organizer",
+    "requiredAttendees": "Sample Attendee",
+    "isRecurring": false,
+    "busyStatus": "busy"
+  }
+]
+```
+
+Response：
+
+```json
+{
+  "count": 1
+}
+```
 
 ## Add-in Log
 

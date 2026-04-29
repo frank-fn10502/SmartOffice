@@ -76,6 +76,18 @@ select {
   margin: 14px auto;
 }
 
+.outlook-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+  gap: 14px;
+  width: min(1440px, calc(100vw - 28px));
+  margin: 14px auto;
+}
+
+.outlook-layout .panel:first-child {
+  grid-row: span 2;
+}
+
 .swagger-layout {
   width: min(1440px, calc(100vw - 28px));
   height: calc(100vh - 82px);
@@ -423,9 +435,58 @@ select {
   font-style: italic;
 }
 
+.workspace-list {
+  overflow: auto;
+  min-height: 0;
+  padding: 0 14px 14px;
+}
+
+.workspace-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.workspace-item-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.workspace-item-main strong {
+  overflow: hidden;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-item-main span,
+.rule-detail {
+  color: #667085;
+  font-size: 0.84rem;
+}
+
+.marker-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.marker-tags .el-tag {
+  gap: 4px;
+}
+
+.rule-detail {
+  display: grid;
+  gap: 4px;
+  line-height: 1.45;
+}
+
 @media (max-width: 900px) {
   .topbar,
-  .normal-layout {
+  .normal-layout,
+  .outlook-layout {
     align-items: stretch;
     grid-template-columns: 1fr;
   }
@@ -440,7 +501,8 @@ select {
 
   .folder-panel,
   .mail-panel,
-  .chat-panel {
+  .chat-panel,
+  .outlook-layout .panel:first-child {
     grid-column: 1;
     grid-row: auto;
     min-height: 320px;

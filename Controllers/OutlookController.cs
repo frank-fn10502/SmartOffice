@@ -54,6 +54,31 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
+        /// Web UI、AI 或 MCP client 要求 Outlook rule list。
+        /// </summary>
+        [HttpPost("request-rules")]
+        public IActionResult RequestRules()
+        {
+            _commandQueue.Enqueue(new PendingCommand { Type = "fetch_rules" });
+            return Ok(new { status = "queued" });
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 要求 Outlook calendar events。
+        /// </summary>
+        [HttpPost("request-calendar")]
+        public IActionResult RequestCalendar([FromBody] FetchCalendarRequest? req)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "fetch_calendar",
+                CalendarRequest = req ?? new FetchCalendarRequest()
+            };
+            _commandQueue.Enqueue(cmd);
+            return Ok(new { commandId = cmd.Id, status = "queued" });
+        }
+
+        /// <summary>
         /// Web UI 取得 cached mails。
         /// </summary>
         [HttpGet("mails")]
@@ -69,6 +94,24 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetFolders()
         {
             return Ok(_mailStore.GetFolders());
+        }
+
+        /// <summary>
+        /// Web UI 取得 cached Outlook rules。
+        /// </summary>
+        [HttpGet("rules")]
+        public IActionResult GetRules()
+        {
+            return Ok(_mailStore.GetRules());
+        }
+
+        /// <summary>
+        /// Web UI 取得 cached Outlook calendar events。
+        /// </summary>
+        [HttpGet("calendar")]
+        public IActionResult GetCalendar()
+        {
+            return Ok(_mailStore.GetCalendarEvents());
         }
 
         /// <summary>
@@ -133,6 +176,34 @@ namespace SmartOffice.Hub.Controllers
             await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
             await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
             return Ok(new { count = folders.Count });
+        }
+
+        /// <summary>
+        /// Outlook Add-in push rule list。
+        /// </summary>
+        [HttpPost("push-rules")]
+        public async Task<IActionResult> PushRules([FromBody] List<OutlookRuleDto> rules)
+        {
+            _mailStore.SetRules(rules);
+            _addinStatus.RecordPush("rules", rules.Count);
+            await _hub.Clients.All.SendAsync("RulesUpdated", rules);
+            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
+            return Ok(new { count = rules.Count });
+        }
+
+        /// <summary>
+        /// Outlook Add-in push calendar events。
+        /// </summary>
+        [HttpPost("push-calendar")]
+        public async Task<IActionResult> PushCalendar([FromBody] List<CalendarEventDto> events)
+        {
+            _mailStore.SetCalendarEvents(events);
+            _addinStatus.RecordPush("calendar", events.Count);
+            await _hub.Clients.All.SendAsync("CalendarUpdated", events);
+            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
+            return Ok(new { count = events.Count });
         }
 
         // ===================== Admin endpoints =====================

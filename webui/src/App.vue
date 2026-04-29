@@ -2,12 +2,16 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import * as signalR from '@microsoft/signalr'
 import {
+  Calendar,
   ChatDotRound,
   Connection,
   Document,
+  Flag,
   Folder,
   Monitor,
+  PriceTag,
   Refresh,
+  Tickets,
 } from '@element-plus/icons-vue'
 import FolderNode from './components/FolderNode.vue'
 
@@ -19,6 +23,7 @@ interface FolderDto {
 }
 
 interface MailItemDto {
+  id: string
   subject: string
   senderName: string
   senderEmail: string
@@ -26,6 +31,33 @@ interface MailItemDto {
   body: string
   bodyHtml: string
   folderPath: string
+  categories: string
+  isRead: boolean
+  isMarkedAsTask: boolean
+  importance: string
+  sensitivity: string
+}
+
+interface OutlookRuleDto {
+  name: string
+  enabled: boolean
+  executionOrder: number
+  ruleType: string
+  conditions: string[]
+  actions: string[]
+  exceptions: string[]
+}
+
+interface CalendarEventDto {
+  id: string
+  subject: string
+  start: string
+  end: string
+  location: string
+  organizer: string
+  requiredAttendees: string
+  isRecurring: boolean
+  busyStatus: string
 }
 
 interface ChatMessageDto {
@@ -48,12 +80,14 @@ interface AddinLogEntry {
   timestamp: string
 }
 
-type AppView = 'normal' | 'admin' | 'swagger'
+type AppView = 'normal' | 'outlook' | 'admin' | 'swagger'
 
 const activeView = ref<AppView>('normal')
 const signalRState = ref<'connected' | 'reconnecting' | 'disconnected'>('disconnected')
 const folders = ref<FolderDto[]>([])
 const mails = ref<MailItemDto[]>([])
+const rules = ref<OutlookRuleDto[]>([])
+const calendarEvents = ref<CalendarEventDto[]>([])
 const chatMessages = ref<ChatMessageDto[]>([])
 const addinStatus = ref<AddinStatusDto>({
   connected: false,
@@ -69,8 +103,17 @@ const mailCount = ref(10)
 const chatText = ref('')
 const loadingFolders = ref(false)
 const loadingMails = ref(false)
+const loadingRules = ref(false)
+const loadingCalendar = ref(false)
 const chatPanelRef = ref<HTMLElement | null>(null)
 const mailHtmlSandbox = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox'
+
+const mailStats = computed(() => ({
+  unread: mails.value.filter((mail) => !mail.isRead).length,
+  flagged: mails.value.filter((mail) => mail.isMarkedAsTask).length,
+  highImportance: mails.value.filter((mail) => mail.importance === 'high').length,
+  categorized: mails.value.filter((mail) => Boolean(mail.categories)).length,
+}))
 
 const visibleFolders = computed(() => {
   return folders.value.flatMap((root) => {
@@ -215,6 +258,14 @@ async function loadCachedMails() {
   mails.value = await getJson<MailItemDto[]>('/api/outlook/mails')
 }
 
+async function loadCachedRules() {
+  rules.value = await getJson<OutlookRuleDto[]>('/api/outlook/rules')
+}
+
+async function loadCachedCalendar() {
+  calendarEvents.value = await getJson<CalendarEventDto[]>('/api/outlook/calendar')
+}
+
 async function requestMails() {
   loadingMails.value = true
   openMailIndexes.value = new Set()
@@ -231,6 +282,32 @@ async function requestMails() {
     }, 30000)
   } finally {
     loadingMails.value = false
+  }
+}
+
+async function requestRules() {
+  loadingRules.value = true
+  try {
+    await postJson('/api/outlook/request-rules')
+    await pollUntil(async () => {
+      await loadCachedRules()
+      return rules.value.length > 0
+    }, 30000)
+  } finally {
+    loadingRules.value = false
+  }
+}
+
+async function requestCalendar() {
+  loadingCalendar.value = true
+  try {
+    await postJson('/api/outlook/request-calendar', { daysForward: 14 })
+    await pollUntil(async () => {
+      await loadCachedCalendar()
+      return calendarEvents.value.length > 0
+    }, 30000)
+  } finally {
+    loadingCalendar.value = false
   }
 }
 
@@ -303,6 +380,14 @@ async function connectSignalR() {
     mails.value = items
     loadingMails.value = false
   })
+  connection.on('RulesUpdated', (items: OutlookRuleDto[]) => {
+    rules.value = items
+    loadingRules.value = false
+  })
+  connection.on('CalendarUpdated', (items: CalendarEventDto[]) => {
+    calendarEvents.value = items
+    loadingCalendar.value = false
+  })
   connection.on('NewChatMessage', async (message: ChatMessageDto) => {
     chatMessages.value = [...chatMessages.value, message]
     await scrollChatToBottom()
@@ -324,7 +409,14 @@ async function connectSignalR() {
 
 onMounted(async () => {
   await connectSignalR()
-  await Promise.allSettled([loadCachedFolders(), loadCachedMails(), loadChat(), refreshAdminData()])
+  await Promise.allSettled([
+    loadCachedFolders(),
+    loadCachedMails(),
+    loadCachedRules(),
+    loadCachedCalendar(),
+    loadChat(),
+    refreshAdminData(),
+  ])
   if (folders.value.length === 0) await requestFolders()
 })
 </script>
@@ -346,6 +438,7 @@ onMounted(async () => {
             :model-value="activeView"
             :options="[
               { label: 'Normal', value: 'normal' },
+              { label: 'Outlook', value: 'outlook' },
               { label: 'Admin', value: 'admin' },
               { label: 'Swagger', value: 'swagger' },
             ]"
@@ -454,6 +547,114 @@ onMounted(async () => {
           <div class="chat-input">
             <el-input v-model="chatText" placeholder="Send message..." @keydown.enter="sendChat" />
             <el-button type="primary" @click="sendChat">Send</el-button>
+          </div>
+        </section>
+      </main>
+
+      <main v-else-if="activeView === 'outlook'" class="outlook-layout">
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <el-icon><PriceTag /></el-icon>
+              <span>Mail Markers</span>
+            </div>
+            <el-button :icon="Refresh" :loading="loadingMails" @click="requestMails">Refresh Mails</el-button>
+          </div>
+
+          <div class="status-grid">
+            <div class="status-item">
+              <span class="status-label">Unread</span>
+              <strong>{{ mailStats.unread }}</strong>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Flagged</span>
+              <strong>{{ mailStats.flagged }}</strong>
+            </div>
+            <div class="status-item">
+              <span class="status-label">High Importance</span>
+              <strong>{{ mailStats.highImportance }}</strong>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Categorized</span>
+              <strong>{{ mailStats.categorized }}</strong>
+            </div>
+          </div>
+
+          <div class="workspace-list">
+            <p v-if="mails.length === 0" class="hint">No cached mails yet.</p>
+            <article v-for="(mail, index) in mails" :key="mail.id || `${mail.receivedTime}-${index}`" class="workspace-item">
+              <div class="workspace-item-main">
+                <strong>{{ mail.subject }}</strong>
+                <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+              </div>
+              <div class="marker-tags">
+                <el-tag :type="mail.isRead ? 'info' : 'warning'" effect="plain">
+                  {{ mail.isRead ? 'Read' : 'Unread' }}
+                </el-tag>
+                <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
+                  <el-icon><Flag /></el-icon>
+                  Flag
+                </el-tag>
+                <el-tag v-if="mail.importance === 'high'" type="danger" effect="plain">High</el-tag>
+                <el-tag v-if="mail.categories" type="success" effect="plain">{{ mail.categories }}</el-tag>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <el-icon><Tickets /></el-icon>
+              <span>Rules</span>
+              <el-tag effect="plain">{{ rules.length }}</el-tag>
+            </div>
+            <el-button :icon="Refresh" :loading="loadingRules" @click="requestRules">Fetch Rules</el-button>
+          </div>
+
+          <div class="workspace-list">
+            <p v-if="rules.length === 0" class="hint">No cached rules yet.</p>
+            <article v-for="rule in rules" :key="`${rule.executionOrder}-${rule.name}`" class="workspace-item">
+              <div class="workspace-item-main">
+                <strong>{{ rule.executionOrder }}. {{ rule.name }}</strong>
+                <span>{{ rule.ruleType }} · {{ rule.enabled ? 'Enabled' : 'Disabled' }}</span>
+              </div>
+              <div class="rule-detail">
+                <span>When: {{ rule.conditions.join('; ') || '-' }}</span>
+                <span>Do: {{ rule.actions.join('; ') || '-' }}</span>
+                <span v-if="rule.exceptions.length">Except: {{ rule.exceptions.join('; ') }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <el-icon><Calendar /></el-icon>
+              <span>Calendar</span>
+              <el-tag effect="plain">{{ calendarEvents.length }}</el-tag>
+            </div>
+            <el-button :icon="Refresh" :loading="loadingCalendar" @click="requestCalendar">Fetch Calendar</el-button>
+          </div>
+
+          <div class="workspace-list">
+            <p v-if="calendarEvents.length === 0" class="hint">No cached calendar events yet.</p>
+            <article v-for="event in calendarEvents" :key="event.id || `${event.start}-${event.subject}`" class="workspace-item">
+              <div class="workspace-item-main">
+                <strong>{{ event.subject }}</strong>
+                <span>{{ formatDateTime(event.start) }} - {{ formatTime(event.end) }}</span>
+              </div>
+              <div class="rule-detail">
+                <span>Location: {{ event.location || '-' }}</span>
+                <span>Organizer: {{ event.organizer || '-' }}</span>
+                <span>Attendees: {{ event.requiredAttendees || '-' }}</span>
+              </div>
+              <div class="marker-tags">
+                <el-tag effect="plain">{{ event.busyStatus || 'unknown' }}</el-tag>
+                <el-tag v-if="event.isRecurring" type="warning" effect="plain">Recurring</el-tag>
+              </div>
+            </article>
           </div>
         </section>
       </main>

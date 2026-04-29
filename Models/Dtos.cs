@@ -2,6 +2,7 @@ namespace SmartOffice.Hub.Models
 {
     public class MailItemDto
     {
+        public string Id { get; set; } = string.Empty;
         public string Subject { get; set; } = string.Empty;
         public string SenderName { get; set; } = string.Empty;
         public string SenderEmail { get; set; } = string.Empty;
@@ -9,6 +10,11 @@ namespace SmartOffice.Hub.Models
         public string Body { get; set; } = string.Empty;
         public string BodyHtml { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
+        public string Categories { get; set; } = string.Empty;
+        public bool IsRead { get; set; }
+        public bool IsMarkedAsTask { get; set; }
+        public string Importance { get; set; } = "normal";
+        public string Sensitivity { get; set; } = "normal";
     }
 
     public class ChatMessageDto
@@ -34,14 +40,44 @@ namespace SmartOffice.Hub.Models
         public int MaxCount { get; set; } = 10;
     }
 
+    public class FetchCalendarRequest
+    {
+        public int DaysForward { get; set; } = 14;
+    }
+
+    public class OutlookRuleDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public bool Enabled { get; set; }
+        public int ExecutionOrder { get; set; }
+        public string RuleType { get; set; } = "receive";
+        public List<string> Conditions { get; set; } = new();
+        public List<string> Actions { get; set; } = new();
+        public List<string> Exceptions { get; set; } = new();
+    }
+
+    public class CalendarEventDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Subject { get; set; } = string.Empty;
+        public DateTime Start { get; set; }
+        public DateTime End { get; set; }
+        public string Location { get; set; } = string.Empty;
+        public string Organizer { get; set; } = string.Empty;
+        public string RequiredAttendees { get; set; } = string.Empty;
+        public bool IsRecurring { get; set; }
+        public string BusyStatus { get; set; } = string.Empty;
+    }
+
     /// <summary>
     /// Hub 替 Outlook Add-in queue 的 pending command。
     /// </summary>
     public class PendingCommand
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_folders"。
+        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_folders"、"fetch_rules"、"fetch_calendar"。
         public FetchMailsRequest? MailsRequest { get; set; }
+        public FetchCalendarRequest? CalendarRequest { get; set; }
     }
 
     public class AddinLogEntry

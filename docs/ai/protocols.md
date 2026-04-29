@@ -39,7 +39,7 @@ dotnet run --launch-profile http-mock
 
 這些 mock 位於 SmartOffice.Hub 內，模擬的是 Add-in connection，不是前端假資料。
 
-- `OutlookMockAddinWorker`：目前的 Outlook mock，會從 Outlook 專用 `CommandQueue` 取出 command、產生 mock folders/mails、寫入 Hub cache，並 broadcast `FoldersUpdated`、`MailsUpdated`、`AddinStatus` 與 `AddinLog`。
+- `OutlookMockAddinWorker`：目前的 Outlook mock，會從 Outlook 專用 `CommandQueue` 取出 command、產生 mock folders/mails/rules/calendar events、寫入 Hub cache，並 broadcast `FoldersUpdated`、`MailsUpdated`、`RulesUpdated`、`CalendarUpdated`、`AddinStatus` 與 `AddinLog`。
 
 新增 Word、PTT 或其他 Add-in mock 時，請新增獨立 worker 與自己的 protocol boundary。不要抽共同 Add-in interface，因為不同 Office / tool Add-in 的 command、state、payload 與 execution model 可能不同。Web UI 必須仍然呼叫既有 Hub API，不要在前端硬塞 mock data。
 
@@ -53,8 +53,12 @@ dotnet run --launch-profile http-mock
 
 - `POST /request-folders`：enqueue folder fetch command。
 - `POST /request-mails`：enqueue mail fetch command。
+- `POST /request-rules`：enqueue Outlook rule fetch command。
+- `POST /request-calendar`：enqueue Outlook calendar fetch command。
 - `GET /folders`：讀取 cached folders。
 - `GET /mails`：讀取 cached mails。
+- `GET /rules`：讀取 cached Outlook rules。
+- `GET /calendar`：讀取 cached Outlook calendar events。
 - `POST /chat`：新增並 broadcast chat message。
 - `GET /chat`：讀取 cached chat messages。
 
@@ -63,6 +67,8 @@ dotnet run --launch-profile http-mock
 - `GET /poll`：long-poll 取得一筆 pending command。
 - `POST /push-folders`：取代 cached folders 並 broadcast update。
 - `POST /push-mails`：取代 cached mails 並 broadcast update。
+- `POST /push-rules`：取代 cached Outlook rules 並 broadcast update。
+- `POST /push-calendar`：取代 cached Outlook calendar events 並 broadcast update。
 
 ## Admin Endpoint
 
@@ -82,6 +88,8 @@ SignalR endpoint：
 
 - `FoldersUpdated`
 - `MailsUpdated`
+- `RulesUpdated`
+- `CalendarUpdated`
 - `NewChatMessage`
 - `AddinStatus`
 - `AddinLog`

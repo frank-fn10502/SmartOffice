@@ -8,6 +8,8 @@ namespace SmartOffice.Hub.Services
         private readonly object _lock = new();
         private List<MailItemDto> _mails = new();
         private List<FolderDto> _folders = new();
+        private List<OutlookRuleDto> _rules = new();
+        private List<CalendarEventDto> _calendarEvents = new();
 
         public void SetMails(List<MailItemDto> mails)
         {
@@ -27,6 +29,26 @@ namespace SmartOffice.Hub.Services
         public List<FolderDto> GetFolders()
         {
             lock (_lock) { return new List<FolderDto>(_folders); }
+        }
+
+        public void SetRules(List<OutlookRuleDto> rules)
+        {
+            lock (_lock) { _rules = new List<OutlookRuleDto>(rules); }
+        }
+
+        public List<OutlookRuleDto> GetRules()
+        {
+            lock (_lock) { return new List<OutlookRuleDto>(_rules); }
+        }
+
+        public void SetCalendarEvents(List<CalendarEventDto> events)
+        {
+            lock (_lock) { _calendarEvents = new List<CalendarEventDto>(events); }
+        }
+
+        public List<CalendarEventDto> GetCalendarEvents()
+        {
+            lock (_lock) { return new List<CalendarEventDto>(_calendarEvents); }
         }
     }
 
