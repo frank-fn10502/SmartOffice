@@ -31,20 +31,24 @@ http://localhost:2805/swagger
 
 ## Web UI 檢查
 
-如果修改既有 static Web UI，請啟動 app 後檢查：
+如果修改 Web UI，請用 Docker 啟動 Hub 後檢查：
+
+```bash
+./scripts/start-dev-container.sh
+```
 
 ```text
 http://localhost:2805/
 ```
 
-如果修改 Vue Web UI source，請執行：
+檢查完請停止 container：
+
+```bash
+./scripts/stop-dev-container.sh
+```
+
+只需要 build 驗證時，請執行：
 
 ```bash
 ./scripts/build-in-container.sh
-```
-
-目前 Vue build output 在：
-
-```text
-http://localhost:2805/dist/
 ```

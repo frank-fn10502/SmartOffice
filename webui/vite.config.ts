@@ -5,7 +5,7 @@ import { defineConfig } from 'vite'
 import ElementPlus from 'unplugin-element-plus/vite'
 
 export default defineConfig({
-  base: '/dist/',
+  base: '/',
   plugins: [
     vue(),
     ElementPlus(),
@@ -26,7 +26,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../wwwroot/dist',
+    outDir: '../wwwroot',
     emptyOutDir: true,
   },
 })

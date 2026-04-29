@@ -1,5 +1,6 @@
 using SmartOffice.Hub.Hubs;
 using SmartOffice.Hub.Services;
+using SmartOffice.Hub.Services.MockAddins;
 
 namespace SmartOffice.Hub
 {
@@ -20,6 +21,11 @@ namespace SmartOffice.Hub
             builder.Services.AddSingleton<ChatStore>();
             builder.Services.AddSingleton<CommandQueue>();
             builder.Services.AddSingleton<AddinStatusStore>();
+            builder.Services.Configure<AddinMockOptions>(
+                builder.Configuration.GetSection("AddinMocks"));
+            if (builder.Configuration.GetValue<bool>("AddinMocks:Enabled")
+                && builder.Configuration.GetValue<bool>("AddinMocks:Outlook:Enabled"))
+                builder.Services.AddHostedService<OutlookMockAddinWorker>();
 
             builder.Services.AddCors(options =>
             {

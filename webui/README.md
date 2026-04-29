@@ -2,7 +2,7 @@
 
 這個資料夾是新的 Vue 3 + Vite Web UI source。
 
-目前它只是前端 toolchain baseline，尚未取代既有 `wwwroot/index.html` dashboard。
+它取代了既有手寫 `wwwroot/index.html` dashboard。
 
 ## Stack
 
@@ -13,10 +13,22 @@
 
 ## 指令
 
-不要在 host 直接執行 npm 指令。日常驗證請從 repository root 執行：
+不要在 host 直接執行 npm 指令。啟動可瀏覽的 Hub + Web UI：
 
 ```bash
-./scripts/build-in-container.sh
+./scripts/start-dev-container.sh
+```
+
+開啟：
+
+```text
+http://localhost:2805/
+```
+
+停止：
+
+```bash
+./scripts/stop-dev-container.sh
 ```
 
 需要互動式前端開發時，請在 devcontainer 裡執行：
@@ -42,8 +54,11 @@ http://localhost:2805
 production build output 目前輸出到：
 
 ```text
-../wwwroot/dist/
+../wwwroot/
 ```
+
+`wwwroot/` 是 build output 目錄，Vite build 會清空後重建。
+`start-dev-container.sh` 會在缺少 `webui/node_modules/` 或 `wwwroot/index.html` 時自動準備。`webui/node_modules/` 會留在 workspace 作為 cache，並由 `.gitignore` 排除，不要 commit。
 
 ## Dependency 原則
 

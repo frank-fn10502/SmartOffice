@@ -40,19 +40,20 @@ Web UI 採用 `Vue 3 + Vite + Element Plus`。
 webui/
 ```
 
-目前導入階段的 build output 放在：
+build output 放在：
 
 ```text
-wwwroot/dist/
+wwwroot/
 ```
 
-這是為了避免尚未移植完成時覆蓋既有 `wwwroot/index.html`。等 Vue UI 完成並切換為正式入口後，再調整 Vite `outDir` 或 ASP.NET Core static file routing。
+`wwwroot/` 是 Vue/Vite 產物目錄，build 時會清空後重建。不要在 `wwwroot/` 放手寫檔案，包括 README；修改 UI 時請改 `webui/src/`。
 
 ## Dependency 原則
 
 - `node_modules/` 不可 commit。
 - 不要在 host 直接執行 `npm install`、`npm run build` 或其他 npm script。
 - npm install/build 必須透過 devcontainer、`./scripts/build-in-container.sh`，或明確的 Docker container 執行。
+- `webui/node_modules/` 可留在 workspace 作為 Docker 內 npm install/cache 的結果，但必須由 `.gitignore` 排除，不可 commit。
 - 使用 npm lockfile 固定 dependency resolution。
 - SignalR client 不再從 CDN 載入；改使用 npm dependency 並 bundle 進本機 build output。
 - API 使用原生 `fetch`，不要預設加入 Axios 或 data fetching framework。
@@ -62,10 +63,10 @@ wwwroot/dist/
 ## 預期指令
 
 ```bash
-./scripts/build-in-container.sh
+./scripts/start-dev-container.sh
 ```
 
-Docker Quick Mode 會在 `webui/package.json` 存在時執行前端 build，再執行 .NET build。腳本會把 `webui/node_modules` 掛到 Docker volume，避免 npm packages 寫入 repository 工作目錄。
+`start-dev-container.sh` 是人類使用的主要入口；缺少 `webui/node_modules/` 或 `wwwroot/index.html` 時會自動呼叫 Docker build flow。`build-in-container.sh` 保留給 CI 或只需要 build 驗證的情境。
 
 需要互動式前端開發時，請在 devcontainer 內執行：
 

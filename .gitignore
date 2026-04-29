@@ -18,7 +18,7 @@ TestResults/
 node_modules/
 webui/node_modules/
 webui/dist/
-wwwroot/dist/
+wwwroot/*
 
 # OS 檔案
 .DS_Store

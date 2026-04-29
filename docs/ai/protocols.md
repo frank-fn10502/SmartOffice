@@ -13,6 +13,28 @@ Outlook Add-in 目前使用 polling protocol：
 
 除非要同步替換所有 caller，否則請保持這個 pattern。
 
+## Add-in Mocks
+
+Development 環境可啟用 Hub 端 Add-in mock：
+
+```json
+{
+  "AddinMocks": {
+    "Enabled": true,
+    "ResponseDelayMilliseconds": 400,
+    "Outlook": {
+      "Enabled": true
+    }
+  }
+}
+```
+
+這些 mock 位於 SmartOffice.Hub 內，模擬的是 Add-in connection，不是前端假資料。
+
+- `OutlookMockAddinWorker`：目前的 Outlook mock，會從 Outlook 專用 `CommandQueue` 取出 command、產生 mock folders/mails、寫入 Hub cache，並 broadcast `FoldersUpdated`、`MailsUpdated`、`AddinStatus` 與 `AddinLog`。
+
+新增 Word、PTT 或其他 Add-in mock 時，請新增獨立 worker 與自己的 protocol boundary。不要抽共同 Add-in interface，因為不同 Office / tool Add-in 的 command、state、payload 與 execution model 可能不同。Web UI 必須仍然呼叫既有 Hub API，不要在前端硬塞 mock data。
+
 ## Outlook Route Prefix
 
 ```text
