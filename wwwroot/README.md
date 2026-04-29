@@ -1,8 +1,8 @@
 # SmartOffice Web UI
 
-這個資料夾包含 SmartOffice.Hub 提供的 static dashboard。
+這個資料夾包含 SmartOffice.Hub 提供的 static dashboard 與前端 build output。
 
-UI 刻意保持 lightweight，因為目標環境可能受限，未必允許 npm、bundler 或頻繁 dependency change。
+既有 `index.html` 仍是目前 dashboard 入口。新的 Vue 3 + Vite Web UI source 放在 `webui/`，導入階段的 build output 會輸出到 `wwwroot/dist/`。
 
 ## 檔案
 
@@ -11,6 +11,7 @@ wwwroot/
 ├── index.html       # Dashboard markup 與 page-level JavaScript
 ├── styles.css       # Dashboard styling
 └── folder-tree.js   # Outlook folder tree rendering logic
+└── dist/            # Vue/Vite build output，產生檔不 commit
 ```
 
 ## 職責
@@ -21,15 +22,16 @@ wwwroot/
 - 顯示 Outlook Add-in connection status 與 logs。
 - 訂閱 SignalR event 以接收 real-time update。
 
-## 外部執行期相依 External Runtime Dependency
+## Frontend Build
 
-頁面會從 CDN 載入 SignalR：
+新的 Vue Web UI 使用：
 
-```html
-https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js
+```bash
+cd webui
+npm run build
 ```
 
-如果部署環境需要完全 offline 或 intranet-only，請將此檔案 vendor 到本機，並更新 `index.html`。
+Vue 版本的 SignalR client 應透過 npm dependency bundle，不再從 CDN 載入。
 
 ## API 使用方式 API Usage
 
@@ -58,6 +60,7 @@ UI 會消費的 SignalR event：
 
 ## 開發筆記
 
-- 除非專案明確移往 frontend build pipeline，否則請保持 UI dependency-light。
+- Web UI 已明確採用 Vue 3 + Vite + Element Plus，但仍請保持 dependency-light。
+- 不要預設加入 Nuxt、Vue Router、Pinia、Axios、Tailwind 或第二套 UI kit。
 - 不要將 secret 或 AI provider key 放在 client-side file。
 - rendered mail content 視為敏感資料。目前 HTML mail view 使用 iframe 隔離顯示，但 iframe 不是完整 sanitization boundary。

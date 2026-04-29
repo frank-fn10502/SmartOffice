@@ -15,6 +15,7 @@
 
 - `docs/ai/project.md`：專案使命、架構邊界、repository layout 與技術選擇。
 - `docs/ai/coding.md`：coding rules、Web UI 規範、security notes 與文件期待。
+- `docs/ai/frontend.md`：前端框架選擇、限制與導入原則。
 - `docs/ai/protocols.md`：Office Add-in polling protocol、route 與 SignalR event。
 - `docs/ai/validation.md`：本機驗證、Docker Quick Mode、API 與 Web UI 檢查方式。
 

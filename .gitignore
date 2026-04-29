@@ -14,6 +14,12 @@ obj/
 TestResults/
 *.trx
 
+# 前端相依與輸出 Frontend dependencies / output
+node_modules/
+webui/node_modules/
+webui/dist/
+wwwroot/dist/
+
 # OS 檔案
 .DS_Store
 Thumbs.db
