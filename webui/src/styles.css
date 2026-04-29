@@ -76,6 +76,20 @@ select {
   margin: 14px auto;
 }
 
+.swagger-layout {
+  width: min(1440px, calc(100vw - 28px));
+  height: calc(100vh - 82px);
+  margin: 14px auto 10px;
+}
+
+.swagger-frame {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .panel {
   display: flex;
   min-height: 0;

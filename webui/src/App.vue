@@ -48,7 +48,9 @@ interface AddinLogEntry {
   timestamp: string
 }
 
-const activeView = ref<'normal' | 'admin'>('normal')
+type AppView = 'normal' | 'admin' | 'swagger'
+
+const activeView = ref<AppView>('normal')
 const signalRState = ref<'connected' | 'reconnecting' | 'disconnected'>('disconnected')
 const folders = ref<FolderDto[]>([])
 const mails = ref<MailItemDto[]>([])
@@ -266,7 +268,7 @@ async function refreshAdminData() {
   addinLogs.value = logs
 }
 
-async function switchView(view: 'normal' | 'admin') {
+async function switchView(view: AppView) {
   activeView.value = view
   if (view === 'admin') await refreshAdminData()
 }
@@ -344,10 +346,10 @@ onMounted(async () => {
             :options="[
               { label: 'Normal', value: 'normal' },
               { label: 'Admin', value: 'admin' },
+              { label: 'Swagger', value: 'swagger' },
             ]"
-            @update:model-value="(value: string | number | boolean) => switchView(value as 'normal' | 'admin')"
+            @update:model-value="(value: string | number | boolean) => switchView(value as AppView)"
           />
-          <el-button tag="a" href="/swagger">Swagger</el-button>
         </nav>
       </header>
 
@@ -454,7 +456,7 @@ onMounted(async () => {
         </section>
       </main>
 
-      <main v-else class="admin-layout">
+      <main v-else-if="activeView === 'admin'" class="admin-layout">
         <section class="panel">
           <div class="panel-header">
             <div class="panel-title">
@@ -500,6 +502,10 @@ onMounted(async () => {
             </div>
           </div>
         </section>
+      </main>
+
+      <main v-else class="swagger-layout">
+        <iframe class="swagger-frame" src="/swagger/index.html" title="Swagger" />
       </main>
     </div>
   </el-config-provider>
