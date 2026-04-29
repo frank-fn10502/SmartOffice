@@ -13,6 +13,7 @@
 ## 必讀 Hub 文件
 
 - `..\SmartOffice.Hub\AGENTS.md`
+- `..\SmartOffice.Hub\docs\ai\workstation-solution.md`
 - `..\SmartOffice.Hub\docs\ai\project.md`
 - `..\SmartOffice.Hub\docs\ai\protocols.md`
 - `..\SmartOffice.Hub\docs\ai\office2016-workstation-contract.md`

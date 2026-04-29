@@ -5,6 +5,8 @@
 ## 適用範圍
 
 - Office 2016 desktop 是主要目標環境。
+- 本文件位於開發機的 `SmartOffice.Hub` repository，只定義 Hub 與工作機 AddIn 的 HTTP/JSON contract。
+- 工作機上的完整 SmartOffice solution 會參考 `..\SmartOffice.Hub\SmartOffice.Hub.csproj`；Outlook AddIn 實作請在工作機 SmartOffice solution 中完成，不要在 Hub repository 假裝實作 AddIn。
 - Hub 維持本機 HTTP API、SignalR、command routing 與 temporary state。
 - Add-in 負責 Office automation、Outlook object model / Office API interaction，以及將實測結果轉成 Hub DTO。
 - 目前主要 Office surface 是 Outlook；未來 Word、Excel、PowerPoint 請建立各自的 protocol boundary。
