@@ -1,5 +1,19 @@
 # Task 002：工作機實作 Fetch Rules
 
+## 新 Session 起手
+
+本任務可以在全新 session 單獨執行。請先讀：
+
+1. `AGENTS.md`
+2. `Plan/000-session-handoff.md`
+3. `docs/ai/protocols.md`
+4. `docs/ai/office2016-workstation-contract.md`
+5. `Models/Dtos.cs`
+6. `Controllers/OutlookController.cs`
+7. 本檔
+
+不要假設已完成 `001-read-current-contract.md`。如果工作機 Add-in repo 與 Hub repo 分開，請只修改工作機 Add-in repo，並用本檔 contract 對齊 Hub。
+
 ## 目標
 
 讓公司電腦上的 Outlook Add-in 收到 `fetch_rules` command 後，讀取 Outlook rules，並 POST 到 Hub。
@@ -62,3 +76,7 @@ Payload：
 3. 按 `Fetch Rules`。
 4. 確認 rules 顯示在 Web UI。
 5. 確認 Hub admin log 沒有 error。
+
+## 完成回報
+
+請回報工作機修改的檔案、Outlook API 使用方式、匿名化測試結果，以及是否有無法解析的 rule condition/action。

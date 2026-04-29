@@ -1,5 +1,17 @@
 # Task 004：補齊 Mail Metadata
 
+## 新 Session 起手
+
+本任務可以在全新 session 單獨執行。請先讀：
+
+1. `AGENTS.md`
+2. `Plan/000-session-handoff.md`
+3. `docs/ai/office2016-workstation-contract.md`
+4. `Models/Dtos.cs`
+5. 本檔
+
+不要假設工作機已完成 rules 或 calendar。只補 mail metadata mapping。
+
 ## 目標
 
 讓工作機推送 mails 時，除了 body，也回傳 Web UI 與 AI 操作需要的 metadata。
@@ -49,3 +61,7 @@
 2. 切到 `Outlook` 分頁。
 3. 確認 unread、flagged、importance、categories 統計有合理數字。
 4. 檢查 Hub admin log 是否有 mapping error。
+
+## 完成回報
+
+請回報每個 metadata 欄位對應的 Outlook property、取不到時的預設值，以及匿名化測試結果。

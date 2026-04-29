@@ -1,5 +1,20 @@
 # Task 007：建立 Folder 與移動單封郵件
 
+## 新 Session 起手
+
+本任務可以在全新 session 單獨執行。請先讀：
+
+1. `AGENTS.md`
+2. `Plan/000-session-handoff.md`
+3. `Models/Dtos.cs`
+4. `Controllers/OutlookController.cs`
+5. `Services/MockAddins/OutlookMockAddinWorker.cs`
+6. `docs/ai/protocols.md`
+7. `docs/ai/office2016-workstation-contract.md`
+8. 本檔
+
+如果 `005-command-result-log.md` 尚未完成，仍可實作 enqueue command；完成回報中註明 command result 尚未接上。
+
 ## 目標
 
 支援低風險的 folder 操作：建立 folder、移動單封郵件。
@@ -58,3 +73,7 @@
 2. 移動一封測試郵件。
 3. 在 Outlook client 確認郵件位置。
 4. Web UI 重新 Fetch Folders / Fetch Mails。
+
+## 完成回報
+
+請回報新增的 command type、request endpoint、DTO、mock 行為，以及哪些副作用有使用者確認保護。

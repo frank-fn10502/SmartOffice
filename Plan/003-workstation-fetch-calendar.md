@@ -1,5 +1,19 @@
 # Task 003：工作機實作 Fetch Calendar
 
+## 新 Session 起手
+
+本任務可以在全新 session 單獨執行。請先讀：
+
+1. `AGENTS.md`
+2. `Plan/000-session-handoff.md`
+3. `docs/ai/protocols.md`
+4. `docs/ai/office2016-workstation-contract.md`
+5. `Models/Dtos.cs`
+6. `Controllers/OutlookController.cs`
+7. 本檔
+
+不要假設已完成其他 Plan 任務。只實作 calendar fetch，不新增會議建立或修改功能。
+
 ## 目標
 
 讓 Outlook Add-in 收到 `fetch_calendar` command 後，讀取指定天數內的行事曆事件，並 POST 到 Hub。
@@ -64,3 +78,7 @@ Payload：
 2. 按 `Fetch Calendar`。
 3. 確認近期會議顯示。
 4. 用匿名化資料回報是否遇到 recurring meeting 或權限問題。
+
+## 完成回報
+
+請回報工作機修改的檔案、查詢的日期範圍、是否處理 recurring meeting，以及匿名化測試結果。

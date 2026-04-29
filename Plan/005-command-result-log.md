@@ -1,5 +1,19 @@
 # Task 005：新增 Command Result Log
 
+## 新 Session 起手
+
+本任務可以在全新 session 單獨執行。請先讀：
+
+1. `AGENTS.md`
+2. `Plan/000-session-handoff.md`
+3. `Models/Dtos.cs`
+4. `Services/Stores.cs`
+5. `Controllers/OutlookController.cs`
+6. `docs/ai/protocols.md`
+7. 本檔
+
+不要假設任何工作機任務已完成。本任務只修改 Hub 與文件，除非使用者明確要求同步改工作機。
+
 ## 目標
 
 讓每次 Outlook Add-in 執行 command 後，都可以回報成功或失敗摘要，方便 Web UI 與 AI 知道操作結果。
@@ -48,3 +62,7 @@ GET /api/outlook/admin/command-results
 2. 用 GET 取回。
 3. 確認超過上限時舊資料會被移除。
 4. 執行 `./scripts/build-in-container.sh`。
+
+## 完成回報
+
+請回報新增的 DTO、store、endpoint、SignalR event 是否有新增，以及 build 結果。

@@ -1,5 +1,18 @@
 # Task 009：定義 AI Suggestion Format
 
+## 新 Session 起手
+
+本任務可以在全新 session 單獨執行。請先讀：
+
+1. `AGENTS.md`
+2. `Plan/000-session-handoff.md`
+3. `Models/Dtos.cs`
+4. `Services/Stores.cs`
+5. `Controllers/OutlookController.cs`
+6. 本檔
+
+不要引入 AI SDK。本任務只定義 suggestion storage 與 API，讓外部 AI 或未來 client 可以送入建議。
+
 ## 目標
 
 先定義 AI 只能產生建議，不直接執行 Outlook 修改。
@@ -45,3 +58,7 @@
 2. Web UI 或 GET endpoint 可取回。
 3. 不啟動 AI 也能測試。
 4. 執行 `./scripts/build-in-container.sh`。
+
+## 完成回報
+
+請回報新增的 DTO、endpoint、store 行為、敏感資料保護方式，以及 build 結果。

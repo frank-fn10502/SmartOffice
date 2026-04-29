@@ -1,5 +1,20 @@
 # Task 006：新增 Mail Marker 操作 Commands
 
+## 新 Session 起手
+
+本任務可以在全新 session 單獨執行。請先讀：
+
+1. `AGENTS.md`
+2. `Plan/000-session-handoff.md`
+3. `Models/Dtos.cs`
+4. `Controllers/OutlookController.cs`
+5. `Services/MockAddins/OutlookMockAddinWorker.cs`
+6. `docs/ai/protocols.md`
+7. `docs/ai/office2016-workstation-contract.md`
+8. 本檔
+
+如果 `005-command-result-log.md` 尚未完成，仍可實作 enqueue command；完成回報中註明 command result 尚未接上。
+
 ## 目標
 
 讓 Web UI 或 AI 可以要求工作機修改郵件標記，但第一版只做單封郵件。
@@ -51,3 +66,7 @@
 1. 用 Web UI 或 curl enqueue 單封標記 command。
 2. 工作機執行後重新 Fetch Mails。
 3. 確認 Web UI 顯示已變更。
+
+## 完成回報
+
+請回報新增的 command type、request endpoint、DTO、mock 行為，以及是否需要下一個 session 補 Web UI preview。
