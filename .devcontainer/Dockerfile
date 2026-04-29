@@ -5,9 +5,12 @@ FROM mcr.microsoft.com/devcontainers/dotnet:1-8.0-bookworm
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_MAJOR=22
 
+# 工作機網路限制可能攔截 npm TLS 連線；Quick Mode 僅用於建置，這裡明確關閉 npm CA 驗證。
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_NOLOGO=1 \
-    ASPNETCORE_URLS=http://0.0.0.0:2805
+    ASPNETCORE_URLS=http://0.0.0.0:2805 \
+    NODE_TLS_REJECT_UNAUTHORIZED=0 \
+    npm_config_strict_ssl=false
 
 WORKDIR /workspaces/SmartOffice.Hub
 
@@ -24,3 +27,11 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# 工作機網路受限時，Quick Mode 盡量使用 image 內預先安裝好的 npm dependencies。
+WORKDIR /opt/smartoffice-hub/webui
+COPY webui/package.json webui/package-lock.json ./
+RUN npm ci --no-audit --no-fund \
+    && npm cache clean --force
+
+WORKDIR /workspaces/SmartOffice.Hub
