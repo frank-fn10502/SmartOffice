@@ -10,11 +10,11 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
 
 WORKDIR /workspaces/SmartOffice.Hub
 
-# Future package area:
-# Keep extra packages here so both full devcontainer mode and future shared
-# build images can evolve from one documented baseline.
+# 未來 package 區：
+# 額外 package 請集中放在這裡，讓 full devcontainer mode 與未來共用
+# build image 可以從同一個文件化 baseline 演進。
 #
-# Example:
+# 範例：
 # RUN apt-get update \
 #     && apt-get install -y --no-install-recommends <package-name> \
 #     && rm -rf /var/lib/apt/lists/*

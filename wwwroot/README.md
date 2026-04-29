@@ -1,39 +1,39 @@
 # SmartOffice Web UI
 
-This folder contains the static dashboard served by SmartOffice.Hub.
+這個資料夾包含 SmartOffice.Hub 提供的 static dashboard。
 
-The UI is intentionally lightweight because the target environment may be locked down and may not allow npm, bundlers, or frequent dependency changes.
+UI 刻意保持 lightweight，因為目標環境可能受限，未必允許 npm、bundler 或頻繁 dependency change。
 
-## Files
+## 檔案
 
 ```text
 wwwroot/
-├── index.html       # Dashboard markup and page-level JavaScript
+├── index.html       # Dashboard markup 與 page-level JavaScript
 ├── styles.css       # Dashboard styling
 └── folder-tree.js   # Outlook folder tree rendering logic
 ```
 
-## Responsibilities
+## 職責
 
-- Request Outlook folder and mail fetches from the Hub.
-- Display cached Outlook folders and mail.
-- Send and receive chat messages.
-- Show Outlook add-in connection status and logs.
-- Subscribe to SignalR events for real-time updates.
+- 向 Hub request Outlook folder 與 mail fetch。
+- 顯示 cached Outlook folders 與 mails。
+- 發送與接收 chat message。
+- 顯示 Outlook Add-in connection status 與 logs。
+- 訂閱 SignalR event 以接收 real-time update。
 
-## External Runtime Dependency
+## 外部執行期相依 External Runtime Dependency
 
-The page loads SignalR from a CDN:
+頁面會從 CDN 載入 SignalR：
 
 ```html
 https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js
 ```
 
-For stricter offline or intranet-only deployments, vendor this file locally and update `index.html`.
+如果部署環境需要完全 offline 或 intranet-only，請將此檔案 vendor 到本機，並更新 `index.html`。
 
-## API Usage
+## API 使用方式 API Usage
 
-The UI talks to the Hub through same-origin endpoints:
+UI 使用 same-origin endpoint 與 Hub 溝通：
 
 - `POST /api/outlook/request-folders`
 - `POST /api/outlook/request-mails`
@@ -44,11 +44,11 @@ The UI talks to the Hub through same-origin endpoints:
 - `GET /api/outlook/admin/status`
 - `GET /api/outlook/admin/logs`
 
-SignalR endpoint:
+SignalR endpoint：
 
 - `/hub/notifications`
 
-SignalR events consumed by the UI:
+UI 會消費的 SignalR event：
 
 - `FoldersUpdated`
 - `MailsUpdated`
@@ -56,9 +56,8 @@ SignalR events consumed by the UI:
 - `AddinStatus`
 - `AddinLog`
 
-## Development Notes
+## 開發筆記
 
-- Keep this UI dependency-light unless the project explicitly moves to a frontend build pipeline.
-- Do not put secrets or AI provider keys in client-side files.
-- Treat rendered mail content as sensitive. The current HTML mail view uses an iframe to isolate display, but it is not a full sanitization boundary.
-
+- 除非專案明確移往 frontend build pipeline，否則請保持 UI dependency-light。
+- 不要將 secret 或 AI provider key 放在 client-side file。
+- rendered mail content 視為敏感資料。目前 HTML mail view 使用 iframe 隔離顯示，但 iframe 不是完整 sanitization boundary。

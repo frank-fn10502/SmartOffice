@@ -9,7 +9,7 @@
 - 沒有設定 `postCreateCommand`，所以開啟 container 後不會自動執行 `dotnet restore` 或安裝 NuGet package。
 - `2805` 會自動 forward，對應 `Properties/launchSettings.json` 的本機開發 port。
 
-## Full Container Mode
+## 完整容器模式 Full Container Mode
 
 當你想讓 editor terminal、.NET SDK、C# tooling 都在 Docker 裡執行時，才使用這個模式。
 
@@ -31,7 +31,7 @@ dotnet run --urls http://0.0.0.0:2805
 http://localhost:2805/
 ```
 
-## Quick Mode
+## 快速模式 Quick Mode
 
 日常偏好的工作方式仍然是 Quick Mode：在本機編輯，只用暫存 container 編譯。
 

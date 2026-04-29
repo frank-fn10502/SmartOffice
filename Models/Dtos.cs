@@ -14,7 +14,7 @@ namespace SmartOffice.Hub.Models
     public class ChatMessageDto
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Source { get; set; } = "outlook"; // Expected values today: "outlook" or "web".
+        public string Source { get; set; } = "outlook"; // 目前預期值："outlook" 或 "web"。
         public string Text { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }
@@ -30,17 +30,17 @@ namespace SmartOffice.Hub.Models
     public class FetchMailsRequest
     {
         public string FolderPath { get; set; } = string.Empty;
-        public string Range { get; set; } = "1d"; // Expected values today: "1d", "1w", "1m".
+        public string Range { get; set; } = "1d"; // 目前預期值："1d"、"1w"、"1m"。
         public int MaxCount { get; set; } = 10;
     }
 
     /// <summary>
-    /// Pending command queued by Hub for Outlook Add-in to pick up.
+    /// Hub 替 Outlook Add-in queue 的 pending command。
     /// </summary>
     public class PendingCommand
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Type { get; set; } = string.Empty; // Expected values today: "fetch_mails", "fetch_folders".
+        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_folders"。
         public FetchMailsRequest? MailsRequest { get; set; }
     }
 

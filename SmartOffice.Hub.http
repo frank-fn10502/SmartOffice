@@ -1,14 +1,14 @@
 @SmartOffice.Hub_HostAddress = http://localhost:2805
 
-### Request Outlook folders
+### 要求 Outlook folders，Request Outlook folders
 POST {{SmartOffice.Hub_HostAddress}}/api/outlook/request-folders
 Accept: application/json
 
-### Poll next command as Outlook Add-in
+### 以 Outlook Add-in 身分 poll 下一筆 command
 GET {{SmartOffice.Hub_HostAddress}}/api/outlook/poll
 Accept: application/json
 
-### Push folders from Outlook Add-in
+### 從 Outlook Add-in push folders
 POST {{SmartOffice.Hub_HostAddress}}/api/outlook/push-folders
 Content-Type: application/json
 
@@ -28,7 +28,7 @@ Content-Type: application/json
   }
 ]
 
-### Request Outlook mails
+### 要求 Outlook mails，Request Outlook mails
 POST {{SmartOffice.Hub_HostAddress}}/api/outlook/request-mails
 Content-Type: application/json
 
@@ -38,20 +38,19 @@ Content-Type: application/json
   "maxCount": 10
 }
 
-### Get cached mails
+### 取得 cached mails
 GET {{SmartOffice.Hub_HostAddress}}/api/outlook/mails
 Accept: application/json
 
-### Send chat message
+### 送出 chat message
 POST {{SmartOffice.Hub_HostAddress}}/api/outlook/chat
 Content-Type: application/json
 
 {
   "source": "web",
-  "text": "Please summarize the selected mails."
+  "text": "請摘要選取的 mails。"
 }
 
-### Get add-in status
+### 取得 Add-in status
 GET {{SmartOffice.Hub_HostAddress}}/api/outlook/admin/status
 Accept: application/json
-

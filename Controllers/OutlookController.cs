@@ -26,10 +26,10 @@ namespace SmartOffice.Hub.Controllers
             _addinStatus = addinStatus;
         }
 
-        // ===================== Web UI calls these =====================
+        // ===================== Web UI 呼叫這些 endpoint =====================
 
         /// <summary>
-        /// Web UI, AI, or MCP client requests mails. Hub queues a command for Outlook Add-in.
+        /// Web UI、AI 或 MCP client 要求 mails；Hub 會替 Outlook Add-in queue command。
         /// </summary>
         [HttpPost("request-mails")]
         public IActionResult RequestMails([FromBody] FetchMailsRequest req)
@@ -44,7 +44,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI, AI, or MCP client requests folder list.
+        /// Web UI、AI 或 MCP client 要求 folder list。
         /// </summary>
         [HttpPost("request-folders")]
         public IActionResult RequestFolders()
@@ -54,7 +54,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI gets cached mails.
+        /// Web UI 取得 cached mails。
         /// </summary>
         [HttpGet("mails")]
         public IActionResult GetMails()
@@ -63,7 +63,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI gets cached folders.
+        /// Web UI 取得 cached folders。
         /// </summary>
         [HttpGet("folders")]
         public IActionResult GetFolders()
@@ -72,7 +72,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web or Outlook sends chat message.
+        /// Web 或 Outlook 送出 chat message。
         /// </summary>
         [HttpPost("chat")]
         public async Task<IActionResult> PostChat([FromBody] ChatMessageDto msg)
@@ -89,17 +89,16 @@ namespace SmartOffice.Hub.Controllers
             return Ok(_chatStore.GetAll());
         }
 
-        // ===================== Outlook Add-in calls these =====================
+        // ===================== Outlook Add-in 呼叫這些 endpoint =====================
 
         /// <summary>
-        /// Outlook Add-in long-polls for pending commands (30s timeout).
+        /// Outlook Add-in 透過 long-poll 取得 pending command，timeout 為 30 秒。
         /// </summary>
         [HttpGet("poll")]
         public async Task<IActionResult> Poll(CancellationToken ct)
         {
-            // Office 2016 add-ins are easiest to deploy behind restricted networks
-            // when the desktop process initiates outbound HTTP instead of requiring
-            // an inbound socket from the Hub.
+            // 在受限網路內，Office 2016 Add-in 由 desktop process 主動發出
+            // outbound HTTP，比要求 Hub 連入 desktop process 更容易部署。
             var cmd = await _commandQueue.DequeueAsync(TimeSpan.FromSeconds(30), ct);
             _addinStatus.RecordPoll(cmd?.Type);
             await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
@@ -109,7 +108,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Outlook Add-in pushes mail results.
+        /// Outlook Add-in push mail results。
         /// </summary>
         [HttpPost("push-mails")]
         public async Task<IActionResult> PushMails([FromBody] List<MailItemDto> mails)
@@ -123,7 +122,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Outlook Add-in pushes folder list.
+        /// Outlook Add-in push folder list。
         /// </summary>
         [HttpPost("push-folders")]
         public async Task<IActionResult> PushFolders([FromBody] List<FolderDto> folders)

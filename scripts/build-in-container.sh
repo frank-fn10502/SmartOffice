@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE="${SMARTOFFICE_BUILD_IMAGE:-smartoffice-hub-dev:local}"
+IMAGE="${SMARTOFFICE_BUILD_IMAGE:-smartoffice-hub-devcontainer:local}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

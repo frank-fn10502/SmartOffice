@@ -47,7 +47,7 @@ namespace SmartOffice.Hub.Services
     }
 
     /// <summary>
-    /// Queue of commands from Web UI, AI, or MCP clients waiting for the Outlook Add-in.
+    /// 儲存 Web UI、AI 或 MCP client 發出的 command，等待 Outlook Add-in 取走。
     /// </summary>
     public class CommandQueue
     {
@@ -61,7 +61,7 @@ namespace SmartOffice.Hub.Services
         }
 
         /// <summary>
-        /// Outlook Add-in long-polls this. Returns command or null on timeout.
+        /// Outlook Add-in 會 long-poll 這裡；timeout 時回傳 null。
         /// </summary>
         public async Task<PendingCommand?> DequeueAsync(TimeSpan timeout, CancellationToken ct = default)
         {
@@ -120,8 +120,8 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
-                // The add-in polls every request cycle; a quiet poll stream is the
-                // best lightweight heartbeat available in the current protocol.
+                // Add-in 每個 request cycle 都會 poll；目前 protocol 中，
+                // 安靜但持續的 poll stream 就是最輕量的 heartbeat。
                 if (_lastPollTime.HasValue && (DateTime.Now - _lastPollTime.Value).TotalSeconds > 90)
                     _connected = false;
 

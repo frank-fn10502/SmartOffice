@@ -1,20 +1,20 @@
 # SmartOffice.Hub
 
-SmartOffice.Hub is the local bridge between Office 2016 add-ins, a Web UI, and AI/MCP tooling. The project exists for locked-down Windows office environments where the desktop Office applications cannot safely or directly talk to cloud AI services.
+SmartOffice.Hub 是 Office 2016 Add-in、Web UI 與 AI/MCP tooling 之間的本機中介服務。這個專案主要服務於受限的 Windows office 工作環境，讓桌面版 Office 不需要直接與 cloud AI service 溝通，也能取得 AI 協助。
 
-The current implementation focuses on Outlook. The same Hub pattern is intended to be reused by future Word, Excel, PowerPoint, or other Office add-ins.
+目前實作重點放在 Outlook。未來 Word、Excel、PowerPoint 或其他 Office Add-in 可以沿用同一個 Hub pattern。
 
-## Purpose
+## 專案目的
 
-The Hub sits in the middle of three actors:
+Hub 位在三種角色中間：
 
-- Office add-ins: open a chat window, read Office context, push results, and poll for commands.
-- Web UI: lets a user inspect Outlook data, request actions, chat, and monitor add-in status.
-- AI/MCP clients: can call the Hub APIs to inspect Office context or ask an add-in to perform an operation.
+- Office Add-in：開啟聊天室窗、讀取 Office context、推送結果，並透過 polling 取得命令。
+- Web UI：讓使用者檢視 Outlook data、發出操作要求、聊天，以及監看 Add-in 狀態。
+- AI/MCP client：透過 Hub API 讀取 Office context，或要求 Add-in 執行操作。
 
-This design keeps Office 2016 automation local and explicit. The add-in remains responsible for Office COM/VSTO interaction, while this service handles API boundaries, command routing, real-time UI notifications, and temporary state.
+這個設計讓 Office 2016 automation 維持在本機且明確可控。Add-in 負責 Office COM/VSTO interaction，Hub 負責 API boundary、command routing、real-time UI notification 與暫存狀態。
 
-## Current Architecture
+## 目前架構
 
 ```text
 Web UI / AI / MCP
@@ -28,147 +28,147 @@ SmartOffice.Hub
 Office 2016 Add-in
 ```
 
-Important pieces:
+重要檔案：
 
-- `Program.cs`: ASP.NET Core startup, CORS, Swagger, static files, SignalR, and in-memory services.
-- `Controllers/OutlookController.cs`: REST API used by Web UI, AI/MCP clients, and the Outlook add-in.
-- `Hubs/NotificationHub.cs`: SignalR endpoint for real-time Web UI updates.
-- `Services/Stores.cs`: in-memory mail/folder/chat/status stores and the command queue.
-- `Models/Dtos.cs`: shared DTO contract between Hub, Web UI, and add-ins.
-- `wwwroot/`: static dashboard for mail browsing, chat, and add-in diagnostics.
+- `Program.cs`：ASP.NET Core startup、CORS、Swagger、static files、SignalR 與 in-memory service 註冊。
+- `Controllers/OutlookController.cs`：Web UI、AI/MCP client 與 Outlook Add-in 使用的 REST API。
+- `Hubs/NotificationHub.cs`：提供 Web UI real-time update 的 SignalR endpoint。
+- `Services/Stores.cs`：in-memory mail/folder/chat/status store 與 command queue。
+- `Models/Dtos.cs`：Hub、Web UI、Add-in 之間共用的 DTO contract。
+- `wwwroot/`：靜態 dashboard，用於 mail browsing、chat 與 Add-in diagnostics。
 
-## Runtime Model
+## 執行模型
 
-The Web UI and AI/MCP side request work by enqueueing commands:
+Web UI 與 AI/MCP 端透過下列 endpoint enqueue command：
 
 - `POST /api/outlook/request-folders`
 - `POST /api/outlook/request-mails`
 
-The Outlook add-in long-polls for pending commands:
+Outlook Add-in 透過 long-poll 取得 pending command：
 
 - `GET /api/outlook/poll`
 
-The add-in pushes results back to the Hub:
+Add-in 執行完本機 Office automation 後，將結果推回 Hub：
 
 - `POST /api/outlook/push-folders`
 - `POST /api/outlook/push-mails`
 
-The Web UI receives updates through SignalR:
+Web UI 透過 SignalR 接收更新：
 
 - `/hub/notifications`
-- Events include `FoldersUpdated`, `MailsUpdated`, `NewChatMessage`, `AddinStatus`, and `AddinLog`.
+- 事件包含 `FoldersUpdated`、`MailsUpdated`、`NewChatMessage`、`AddinStatus`、`AddinLog`。
 
-## Run Locally
+## 本機執行
 
-Requirements:
+需求：
 
 - .NET 8 SDK
 
-Start the Hub:
+啟動 Hub：
 
 ```bash
 dotnet run
 ```
 
-The development profile currently listens on:
+development profile 目前監聽：
 
 ```text
 http://localhost:2805
 ```
 
-Useful URLs:
+常用網址：
 
-- Dashboard: `http://localhost:2805/`
-- Swagger: `http://localhost:2805/swagger`
+- Dashboard：`http://localhost:2805/`
+- Swagger：`http://localhost:2805/swagger`
 
-## Development Modes
+## 開發模式
 
-There are three supported ways to work on this project.
+本專案支援三種開發方式。
 
-### Host Mode
+### 本機模式 Host Mode
 
-Use the .NET SDK installed on your host machine:
+使用本機已安裝的 .NET SDK：
 
 ```bash
 dotnet run
 dotnet build
 ```
 
-This is simple when the host already has a compatible .NET 8 SDK.
+如果本機已經有相容的 .NET 8 SDK，這是最直接的模式。
 
-### Quick Mode
+### 快速模式 Quick Mode
 
-Quick Mode keeps the editor and normal development environment on the host machine, but runs compilation inside a temporary Docker container.
+Quick Mode 保持 editor 與日常開發環境在本機，只把 compilation 放進暫存 Docker container。
 
 ```bash
 ./scripts/build-in-container.sh
 ```
 
-This is the preferred build workflow when you do not want to install or maintain the .NET SDK directly on the host. The script builds a reusable local image from `.devcontainer/Dockerfile` when needed, then runs compilation in a temporary container. The build container is removed after the build finishes.
+這是目前偏好的 build workflow，適合不想在本機安裝或維護 .NET SDK 的情境。腳本會在需要時從 `.devcontainer/Dockerfile` 建立 reusable local image，接著用暫存 container 執行 compilation。build container 結束後會被移除。
 
-You can change the local image tag or build configuration:
+可以調整 local image tag 或 build configuration：
 
 ```bash
-SMARTOFFICE_BUILD_IMAGE=smartoffice-hub-dev:local CONFIGURATION=Release ./scripts/build-in-container.sh
+SMARTOFFICE_BUILD_IMAGE=smartoffice-hub-devcontainer:local CONFIGURATION=Release ./scripts/build-in-container.sh
 ```
 
-### Full Container Mode
+### 完整容器模式 Full Container Mode
 
-The optional `.devcontainer` folder lets VS Code reopen the entire workspace inside a .NET 8 development container.
+可選的 `.devcontainer` 資料夾讓 VS Code 將整個 workspace 重新開在 .NET 8 development container 裡。
 
-Use this when you want the editor terminal, SDK, and C# tooling to all run in Docker. The devcontainer uses `.devcontainer/Dockerfile` so future native packages and tooling can be added in one place.
+當你希望 editor terminal、SDK 與 C# tooling 都在 Docker 裡執行時，使用這個模式。devcontainer 會使用 `.devcontainer/Dockerfile`，讓未來 native package 與 tooling 可以集中維護。
 
-The devcontainer intentionally does not run `dotnet restore` automatically. Restore and run commands are manual so opening the container does not unexpectedly download packages.
+devcontainer 不會自動執行 `dotnet restore`。restore 與 run command 需要手動執行，避免開啟 container 時意外下載 package。
 
-See `.devcontainer/README.md`.
+請參考 `.devcontainer/README.md`。
 
-## API Notes
+## API 說明
 
-The Outlook route prefix is:
+Outlook route prefix：
 
 ```text
 /api/outlook
 ```
 
-Main Web UI / AI request endpoints:
+主要 Web UI / AI request endpoint：
 
-- `POST /request-folders`: enqueue a folder fetch command.
-- `POST /request-mails`: enqueue a mail fetch command.
-- `GET /folders`: read cached folders.
-- `GET /mails`: read cached mails.
-- `POST /chat`: append and broadcast a chat message.
-- `GET /chat`: read cached chat messages.
+- `POST /request-folders`：enqueue folder fetch command。
+- `POST /request-mails`：enqueue mail fetch command。
+- `GET /folders`：讀取 cached folders。
+- `GET /mails`：讀取 cached mails。
+- `POST /chat`：新增並 broadcast chat message。
+- `GET /chat`：讀取 cached chat messages。
 
-Main add-in endpoints:
+主要 Add-in endpoint：
 
-- `GET /poll`: long-poll for one pending command, with a 30 second timeout.
-- `POST /push-folders`: replace cached folders and broadcast updates.
-- `POST /push-mails`: replace cached mails and broadcast updates.
+- `GET /poll`：long-poll 取得一筆 pending command，timeout 為 30 秒。
+- `POST /push-folders`：取代 cached folders 並 broadcast update。
+- `POST /push-mails`：取代 cached mails 並 broadcast update。
 
-Admin endpoints:
+Admin endpoint：
 
 - `GET /admin/status`
 - `GET /admin/logs`
 - `POST /admin/log`
 
-## Security Assumptions
+## 安全假設 Security Assumptions
 
-This project is currently shaped for a trusted local or intranet environment:
+目前專案假設執行在可信任的本機或 intranet 環境：
 
-- CORS allows any origin with credentials.
-- Swagger is enabled unconditionally.
-- Data is stored in memory only.
-- There is no authentication or authorization yet.
+- CORS 允許任意 origin 搭配 credentials。
+- Swagger 目前總是啟用。
+- Data 只存在 process-local memory。
+- 目前尚未加入 authentication / authorization。
 
-Before using this outside a controlled workstation or lab network, add authentication, restrict CORS, decide whether Swagger should be development-only, and review what mail content may be exposed to AI/MCP clients.
+如果要放到受控 workstation 或 lab network 以外的環境，請先加入 authentication、限制 CORS、決定 Swagger 是否只在 development 啟用，並檢查 mail content 是否能暴露給 AI/MCP client。
 
-## Development Direction
+## 後續方向
 
-Near-term work likely belongs in these areas:
+近期適合投入的方向：
 
-- Add a provider-agnostic AI service layer.
-- Add MCP-facing endpoints/tools around Office context and command dispatch.
-- Split Office-specific APIs as more add-ins are added, for example `/api/word`, `/api/excel`, and `/api/powerpoint`.
-- Add durable storage or a bounded cache if state must survive process restarts.
-- Add command correlation and completion/error reporting so Web UI and AI clients can track a request end-to-end.
-- Add tests around command queue behavior, DTO contracts, and controller responses.
+- 加入 provider-agnostic AI service layer。
+- 加入面向 MCP 的 endpoint/tool，用於 Office context 與 command dispatch。
+- 當更多 Add-in 出現時，拆出 Office-specific API，例如 `/api/word`、`/api/excel`、`/api/powerpoint`。
+- 如果狀態需要跨 process restart 保留，加入 durable storage 或 bounded cache。
+- 加入 command correlation 與 completion/error reporting，讓 Web UI 與 AI client 可以追蹤 request end-to-end。
+- 補上 command queue behavior、DTO contract 與 controller response 的 tests。

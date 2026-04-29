@@ -14,8 +14,8 @@ namespace SmartOffice.Hub
             builder.Services.AddSwaggerGen();
             builder.Services.AddSignalR();
 
-            // The Hub is currently process-local: add-ins push Office data here and
-            // Web UI / future MCP clients read the latest cached snapshot.
+            // Hub 目前是 process-local：Add-in 將 Office data push 到這裡，
+            // Web UI 與未來 MCP client 讀取最新 cached snapshot。
             builder.Services.AddSingleton<MailStore>();
             builder.Services.AddSingleton<ChatStore>();
             builder.Services.AddSingleton<CommandQueue>();
@@ -23,8 +23,8 @@ namespace SmartOffice.Hub
 
             builder.Services.AddCors(options =>
             {
-                // Prototype/local-network default. Tighten this before exposing the
-                // Hub beyond a trusted workstation or intranet segment.
+                // Prototype / local-network 預設值。若 Hub 要離開可信任 workstation
+                // 或 intranet segment，必須先收緊這段 CORS policy。
                 options.AddDefaultPolicy(policy =>
                     policy.SetIsOriginAllowed(_ => true).AllowAnyMethod().AllowAnyHeader().AllowCredentials());
             });

@@ -2,6 +2,6 @@ namespace SmartOffice.Hub.Hubs
 {
     public class NotificationHub : Microsoft.AspNetCore.SignalR.Hub
     {
-        // Web UI clients join this hub to receive real-time updates
+        // Web UI client 連到這個 hub 以接收 real-time update。
     }
 }
