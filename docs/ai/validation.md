@@ -37,6 +37,8 @@ http://localhost:2805/swagger
 ./scripts/start-dev-container.sh
 ```
 
+這個 script 預設載入 `appsettings.Mock.json`，讓 Web UI 檢查不依賴真實 Office Add-in。
+
 ```text
 http://localhost:2805/
 ```

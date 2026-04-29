@@ -70,10 +70,16 @@ Web UI 透過 SignalR 接收更新：
 dotnet run
 ```
 
-development profile 目前監聽：
+預設 `http` launch profile 目前監聽：
 
 ```text
 http://localhost:2805
+```
+
+預設 profile 不啟用 Hub 端 Add-in mock，適合在工作電腦由 Outlook Add-in 直接連線。離線開發時可改用 mock profile：
+
+```bash
+dotnet run --launch-profile http-mock
 ```
 
 常用網址：
@@ -104,7 +110,7 @@ Quick Mode 保持 editor 與日常開發環境在本機，只把 compilation 放
 ./scripts/build-in-container.sh
 ```
 
-這是目前偏好的 build workflow，適合不想在本機安裝或維護 .NET SDK 的情境。腳本會在需要時從 `.devcontainer/Dockerfile` 建立 reusable local image，接著用暫存 container 執行 compilation。build container 結束後會被移除。
+這是目前偏好的 build workflow，適合不想在本機安裝或維護 .NET SDK 的情境。腳本會在需要時從 `.devcontainer/Dockerfile` 建立 reusable local image，接著用暫存 container 執行 compilation。build container 結束後會被移除。這個腳本只做 build 驗證，不會改變 runtime profile；實際 F5 是否連真 Add-in 由 `Properties/launchSettings.json` 的 profile 決定。
 
 可以調整 local image tag 或 build configuration：
 

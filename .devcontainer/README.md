@@ -26,6 +26,12 @@ cd webui && npm install && cd ..
 dotnet run --urls http://0.0.0.0:2805
 ```
 
+若要在 container 內使用 Hub 端 mock，請明確指定 `Mock` environment：
+
+```bash
+ASPNETCORE_ENVIRONMENT=Mock dotnet run --urls http://0.0.0.0:2805
+```
+
 開啟：
 
 ```text

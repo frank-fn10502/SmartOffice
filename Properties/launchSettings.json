@@ -14,18 +14,22 @@
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "",
+      "applicationUrl": "http://localhost:2805"
+    },
+    "http-mock": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "",
       "applicationUrl": "http://localhost:2805",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Mock"
       }
     },
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": true,
-      "launchUrl": "",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+      "launchUrl": ""
     }
   }
 }

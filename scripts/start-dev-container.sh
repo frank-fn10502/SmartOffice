@@ -4,6 +4,7 @@ set -euo pipefail
 IMAGE="${SMARTOFFICE_BUILD_IMAGE:-smartoffice-hub-devcontainer-node22:local}"
 CONTAINER_NAME="${SMARTOFFICE_DEV_CONTAINER:-smartoffice-hub-dev}"
 HOST_PORT="${SMARTOFFICE_HOST_PORT:-2805}"
+ASPNETCORE_ENVIRONMENT="${SMARTOFFICE_ASPNETCORE_ENVIRONMENT:-Mock}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -27,7 +28,7 @@ fi
 
 docker run -d \
   --name "${CONTAINER_NAME}" \
-  -e ASPNETCORE_ENVIRONMENT=Development \
+  -e ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT}" \
   -e ASPNETCORE_URLS=http://0.0.0.0:2805 \
   -p "${HOST_PORT}:2805" \
   -v "${REPO_ROOT}:/workspace" \
@@ -35,6 +36,6 @@ docker run -d \
   "${IMAGE}" \
   bash -lc 'set -euo pipefail; dotnet run --project SmartOffice.Hub.csproj --urls http://0.0.0.0:2805'
 
-printf 'SmartOffice.Hub is starting in Docker container "%s".\n' "${CONTAINER_NAME}"
+printf 'SmartOffice.Hub is starting in Docker container "%s" with ASPNETCORE_ENVIRONMENT=%s.\n' "${CONTAINER_NAME}" "${ASPNETCORE_ENVIRONMENT}"
 printf 'Open http://localhost:%s/\n' "${HOST_PORT}"
 printf 'Logs: docker logs -f %s\n' "${CONTAINER_NAME}"

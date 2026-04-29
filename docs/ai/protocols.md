@@ -15,7 +15,13 @@ Outlook Add-in 目前使用 polling protocol：
 
 ## Add-in Mocks
 
-Development 環境可啟用 Hub 端 Add-in mock：
+預設 runtime 不啟用 Hub 端 Add-in mock，讓工作電腦的 Outlook Add-in 可以直接透過 polling protocol 連進 Hub。離線開發或沒有 Office Add-in 可用時，使用 `http-mock` launch profile 啟用 Hub 端 Add-in mock：
+
+```bash
+dotnet run --launch-profile http-mock
+```
+
+`Mock` 環境使用下列設定：
 
 ```json
 {

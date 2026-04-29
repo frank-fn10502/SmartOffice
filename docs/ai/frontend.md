@@ -66,7 +66,7 @@ wwwroot/
 ./scripts/start-dev-container.sh
 ```
 
-`start-dev-container.sh` 是人類使用的主要入口；缺少 `webui/node_modules/` 或 `wwwroot/index.html` 時會自動呼叫 Docker build flow。`build-in-container.sh` 保留給 CI 或只需要 build 驗證的情境。
+`start-dev-container.sh` 是人類使用的主要入口；缺少 `webui/node_modules/` 或 `wwwroot/index.html` 時會自動呼叫 Docker build flow。這個 script 預設使用 `ASPNETCORE_ENVIRONMENT=Mock`，方便沒有 Office Add-in 時檢查 Web UI；需要連真 Add-in 時可用 `SMARTOFFICE_ASPNETCORE_ENVIRONMENT=Production ./scripts/start-dev-container.sh`。`build-in-container.sh` 保留給 CI 或只需要 build 驗證的情境。
 
 需要互動式前端開發時，請在 devcontainer 內執行：
 
