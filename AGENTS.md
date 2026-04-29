@@ -17,6 +17,9 @@
 - `docs/ai/coding.md`：coding rules、Web UI 規範、security notes 與文件期待。
 - `docs/ai/frontend.md`：前端框架選擇、限制與導入原則。
 - `docs/ai/protocols.md`：Office Add-in polling protocol、route 與 SignalR event。
+- `docs/ai/office2016-addin-references.md`：Office 2016 Add-in 線上文件入口。
+- `docs/ai/office2016-workstation-contract.md`：工作機需要傳送與接收的目前格式。
+- `docs/ai/office2016-test-report.md`：工作機實測資料、差異與錯誤回報格式。
 - `docs/ai/validation.md`：本機驗證、Docker Quick Mode、API 與 Web UI 檢查方式。
 
 ## 預設驗證

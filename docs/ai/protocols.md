@@ -1,5 +1,7 @@
 # Protocol Notes for AI Agents
 
+Office 2016 Add-in 線上文件請參考 `docs/ai/office2016-addin-references.md`。工作機傳送與接收格式請參考 `docs/ai/office2016-workstation-contract.md`。工作機測試回報格式請參考 `docs/ai/office2016-test-report.md`。
+
 ## Add-in Protocol
 
 Outlook Add-in 目前使用 polling protocol：
