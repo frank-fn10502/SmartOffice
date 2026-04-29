@@ -1,16 +1,17 @@
-# Task 004：補齊 Mail Metadata
+# Task 010：工作機補齊 Mail Metadata
 
-## 新 Session 起手
+## 這個任務的定位
 
-本任務可以在全新 session 單獨執行。請先讀：
+本任務在公司電腦的 Outlook Add-in 補齊 mail metadata。這是線性 Plan 的最後一步。
 
-1. `AGENTS.md`
-2. `Plan/000-session-handoff.md`
-3. `docs/ai/office2016-workstation-contract.md`
-4. `Models/Dtos.cs`
-5. 本檔
+## 開始前必讀
 
-不要假設工作機已完成 rules 或 calendar。只補 mail metadata mapping。
+- `AGENTS.md`
+- `Plan/STATUS.md`
+- `Plan/CONTRACT-INVENTORY.md`
+- 本檔
+- `docs/ai/office2016-workstation-contract.md`
+- `Models/Dtos.cs`
 
 ## 目標
 
@@ -18,18 +19,9 @@
 
 ## 需要補的欄位
 
-`MailItemDto` 目前包含：
-
 ```json
 {
   "id": "...",
-  "subject": "...",
-  "senderName": "...",
-  "senderEmail": "...",
-  "receivedTime": "...",
-  "body": "...",
-  "bodyHtml": "...",
-  "folderPath": "...",
   "categories": "Customer, Follow-up",
   "isRead": false,
   "isMarkedAsTask": true,
@@ -38,16 +30,17 @@
 }
 ```
 
-## 建議實作步驟
+## 實作步驟
 
 1. 在工作機既有 fetch mail flow 找到轉換 `MailItem` 的地方。
-2. `id` 優先使用 Outlook `EntryID`；如果不穩定或取不到，先留空。
+2. `id` 優先使用 Outlook `EntryID`；取不到就留空。
 3. `categories` 對應 Outlook `Categories`。
-4. `isRead` 可由 `UnRead` 反向轉換。
+4. `isRead` 由 `UnRead` 反向轉換。
 5. `isMarkedAsTask` 對應 `IsMarkedAsTask`。
 6. `importance` 轉成 `low`、`normal`、`high`。
 7. `sensitivity` 轉成 `normal`、`personal`、`private`、`confidential`。
 8. 保持既有 `body` 與 `bodyHtml` 欄位，不要 rename。
+9. 更新 `Plan/STATUS.md`。
 
 ## 注意事項
 
@@ -60,8 +53,14 @@
 1. Web UI Fetch Mails。
 2. 切到 `Outlook` 分頁。
 3. 確認 unread、flagged、importance、categories 統計有合理數字。
-4. 檢查 Hub admin log 是否有 mapping error。
 
-## 完成回報
+## 更新 STATUS
 
-請回報每個 metadata 欄位對應的 Outlook property、取不到時的預設值，以及匿名化測試結果。
+- `010-workstation-mail-metadata` 改成 `done`，或標記 `blocked` 並說明沒有工作機 repo。
+- 下一個任務改成 `全部 Plan 任務完成`。
+
+## 完成時請回報
+
+- 每個 metadata 欄位對應的 Outlook property。
+- 取不到時的預設值。
+- 匿名化測試結果。
