@@ -64,6 +64,16 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
+        /// Web UI、AI 或 MCP client 要求 Outlook master category list。
+        /// </summary>
+        [HttpPost("request-categories")]
+        public IActionResult RequestCategories()
+        {
+            _commandQueue.Enqueue(new PendingCommand { Type = "fetch_categories" });
+            return Ok(new { status = "queued" });
+        }
+
+        /// <summary>
         /// Web UI、AI 或 MCP client 要求 Outlook calendar events。
         /// </summary>
         [HttpPost("request-calendar")]
@@ -73,6 +83,107 @@ namespace SmartOffice.Hub.Controllers
             {
                 Type = "fetch_calendar",
                 CalendarRequest = req ?? new FetchCalendarRequest()
+            };
+            _commandQueue.Enqueue(cmd);
+            return Ok(new { commandId = cmd.Id, status = "queued" });
+        }
+
+        [HttpPost("request-mark-mail-read")]
+        public IActionResult RequestMarkMailRead([FromBody] MailMarkerCommandRequest req)
+        {
+            return QueueMailMarkerCommand("mark_mail_read", req);
+        }
+
+        [HttpPost("request-mark-mail-unread")]
+        public IActionResult RequestMarkMailUnread([FromBody] MailMarkerCommandRequest req)
+        {
+            return QueueMailMarkerCommand("mark_mail_unread", req);
+        }
+
+        [HttpPost("request-mark-mail-task")]
+        public IActionResult RequestMarkMailTask([FromBody] MailMarkerCommandRequest req)
+        {
+            return QueueMailMarkerCommand("mark_mail_task", req);
+        }
+
+        [HttpPost("request-clear-mail-task")]
+        public IActionResult RequestClearMailTask([FromBody] MailMarkerCommandRequest req)
+        {
+            return QueueMailMarkerCommand("clear_mail_task", req);
+        }
+
+        [HttpPost("request-set-mail-categories")]
+        public IActionResult RequestSetMailCategories([FromBody] MailMarkerCommandRequest req)
+        {
+            return QueueMailMarkerCommand("set_mail_categories", req);
+        }
+
+        [HttpPost("request-update-mail-properties")]
+        public IActionResult RequestUpdateMailProperties([FromBody] MailPropertiesCommandRequest req)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "update_mail_properties",
+                MailPropertiesRequest = req
+            };
+            _commandQueue.Enqueue(cmd);
+            return Ok(new { commandId = cmd.Id, status = "queued" });
+        }
+
+        [HttpPost("request-upsert-category")]
+        public IActionResult RequestUpsertCategory([FromBody] CategoryCommandRequest req)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "upsert_category",
+                CategoryRequest = req
+            };
+            _commandQueue.Enqueue(cmd);
+            return Ok(new { commandId = cmd.Id, status = "queued" });
+        }
+
+        [HttpPost("request-create-folder")]
+        public IActionResult RequestCreateFolder([FromBody] CreateFolderRequest req)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "create_folder",
+                CreateFolderRequest = req
+            };
+            _commandQueue.Enqueue(cmd);
+            return Ok(new { commandId = cmd.Id, status = "queued" });
+        }
+
+        [HttpPost("request-delete-folder")]
+        public IActionResult RequestDeleteFolder([FromBody] DeleteFolderRequest req)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "delete_folder",
+                DeleteFolderRequest = req
+            };
+            _commandQueue.Enqueue(cmd);
+            return Ok(new { commandId = cmd.Id, status = "queued" });
+        }
+
+        [HttpPost("request-move-mail")]
+        public IActionResult RequestMoveMail([FromBody] MoveMailRequest req)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "move_mail",
+                MoveMailRequest = req
+            };
+            _commandQueue.Enqueue(cmd);
+            return Ok(new { commandId = cmd.Id, status = "queued" });
+        }
+
+        private IActionResult QueueMailMarkerCommand(string type, MailMarkerCommandRequest req)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = type,
+                MailMarkerRequest = req
             };
             _commandQueue.Enqueue(cmd);
             return Ok(new { commandId = cmd.Id, status = "queued" });
@@ -103,6 +214,15 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetRules()
         {
             return Ok(_mailStore.GetRules());
+        }
+
+        /// <summary>
+        /// Web UI 取得 cached Outlook master category list。
+        /// </summary>
+        [HttpGet("categories")]
+        public IActionResult GetCategories()
+        {
+            return Ok(_mailStore.GetCategories());
         }
 
         /// <summary>
@@ -190,6 +310,20 @@ namespace SmartOffice.Hub.Controllers
             await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
             await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
             return Ok(new { count = rules.Count });
+        }
+
+        /// <summary>
+        /// Outlook Add-in push master category list。
+        /// </summary>
+        [HttpPost("push-categories")]
+        public async Task<IActionResult> PushCategories([FromBody] List<OutlookCategoryDto> categories)
+        {
+            _mailStore.SetCategories(categories);
+            _addinStatus.RecordPush("categories", categories.Count);
+            await _hub.Clients.All.SendAsync("CategoriesUpdated", categories);
+            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
+            return Ok(new { count = categories.Count });
         }
 
         /// <summary>

@@ -55,9 +55,19 @@ dotnet run --launch-profile http-mock
 - `POST /request-mails`：enqueue mail fetch command。
 - `POST /request-rules`：enqueue Outlook rule fetch command。
 - `POST /request-calendar`：enqueue Outlook calendar fetch command。
+- `POST /request-mark-mail-read`：enqueue 單封郵件標記已讀 command。
+- `POST /request-mark-mail-unread`：enqueue 單封郵件標記未讀 command。
+- `POST /request-mark-mail-task`：enqueue 單封郵件 flag/follow-up command。
+- `POST /request-clear-mail-task`：enqueue 單封郵件清除 flag/follow-up command。
+- `POST /request-set-mail-categories`：enqueue 單封郵件 category command。
+- `POST /request-upsert-category`：enqueue Outlook master category 新增或更新顏色 command。
+- `POST /request-create-folder`：enqueue 建立 folder command。
+- `POST /request-delete-folder`：enqueue 刪除 folder command。
+- `POST /request-move-mail`：enqueue 移動單封郵件 command。
 - `GET /folders`：讀取 cached folders。
 - `GET /mails`：讀取 cached mails。
 - `GET /rules`：讀取 cached Outlook rules。
+- `GET /categories`：讀取 cached Outlook master category list。
 - `GET /calendar`：讀取 cached Outlook calendar events。
 - `POST /chat`：新增並 broadcast chat message。
 - `GET /chat`：讀取 cached chat messages。
@@ -68,6 +78,7 @@ dotnet run --launch-profile http-mock
 - `POST /push-folders`：取代 cached folders 並 broadcast update。
 - `POST /push-mails`：取代 cached mails 並 broadcast update。
 - `POST /push-rules`：取代 cached Outlook rules 並 broadcast update。
+- `POST /push-categories`：取代 cached Outlook master category list 並 broadcast update。
 - `POST /push-calendar`：取代 cached Outlook calendar events 並 broadcast update。
 
 ## Admin Endpoint

@@ -86,12 +86,15 @@ namespace SmartOffice.Hub.Services.MockAddins
 
             var folders = CreateFolders();
             var rules = CreateRules();
+            var categories = CreateCategories();
             var events = CreateCalendarEvents(new FetchCalendarRequest());
             _mailStore.SetFolders(folders);
             _mailStore.SetRules(rules);
+            _mailStore.SetCategories(categories);
             _mailStore.SetCalendarEvents(events);
             _addinStatus.RecordPush("mock folders", folders.Count);
             _addinStatus.RecordPush("mock rules", rules.Count);
+            _addinStatus.RecordPush("mock categories", categories.Count);
             _addinStatus.RecordPush("mock calendar", events.Count);
             _addinStatus.AddLog("info", "Outlook mock Add-in seeded folder cache.");
 
@@ -104,6 +107,7 @@ namespace SmartOffice.Hub.Services.MockAddins
 
             await _hub.Clients.All.SendAsync("FoldersUpdated", folders, cancellationToken);
             await _hub.Clients.All.SendAsync("RulesUpdated", rules, cancellationToken);
+            await _hub.Clients.All.SendAsync("CategoriesUpdated", categories, cancellationToken);
             await _hub.Clients.All.SendAsync("CalendarUpdated", events, cancellationToken);
             await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), cancellationToken);
             await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
@@ -122,8 +126,33 @@ namespace SmartOffice.Hub.Services.MockAddins
                 case "fetch_rules":
                     await PushRulesAsync(cancellationToken);
                     break;
+                case "fetch_categories":
+                    await PushCategoriesAsync(cancellationToken);
+                    break;
                 case "fetch_calendar":
                     await PushCalendarAsync(command.CalendarRequest ?? new FetchCalendarRequest(), cancellationToken);
+                    break;
+                case "update_mail_properties":
+                    await ApplyMailPropertiesAsync(command.MailPropertiesRequest, cancellationToken);
+                    break;
+                case "upsert_category":
+                    await ApplyUpsertCategoryAsync(command.CategoryRequest, cancellationToken);
+                    break;
+                case "mark_mail_read":
+                case "mark_mail_unread":
+                case "mark_mail_task":
+                case "clear_mail_task":
+                case "set_mail_categories":
+                    await ApplyMailMarkerAsync(command.Type, command.MailMarkerRequest, cancellationToken);
+                    break;
+                case "create_folder":
+                    await ApplyCreateFolderAsync(command.CreateFolderRequest, cancellationToken);
+                    break;
+                case "delete_folder":
+                    await ApplyDeleteFolderAsync(command.DeleteFolderRequest, cancellationToken);
+                    break;
+                case "move_mail":
+                    await ApplyMoveMailAsync(command.MoveMailRequest, cancellationToken);
                     break;
                 default:
                     _addinStatus.AddLog("warn", $"Outlook mock received unsupported command: {command.Type}");
@@ -165,6 +194,19 @@ namespace SmartOffice.Hub.Services.MockAddins
             await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
         }
 
+        private async Task PushCategoriesAsync(CancellationToken cancellationToken)
+        {
+            var categories = _mailStore.GetCategories();
+            if (categories.Count == 0)
+                categories = CreateCategories();
+            _mailStore.SetCategories(categories);
+            _addinStatus.RecordPush("categories", categories.Count);
+
+            await _hub.Clients.All.SendAsync("CategoriesUpdated", categories, cancellationToken);
+            await BroadcastStatusAsync(cancellationToken);
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
         private async Task PushCalendarAsync(FetchCalendarRequest request, CancellationToken cancellationToken)
         {
             var events = CreateCalendarEvents(request);
@@ -174,6 +216,347 @@ namespace SmartOffice.Hub.Services.MockAddins
             await _hub.Clients.All.SendAsync("CalendarUpdated", events, cancellationToken);
             await BroadcastStatusAsync(cancellationToken);
             await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
+        private async Task ApplyMailMarkerAsync(string commandType, MailMarkerCommandRequest? request, CancellationToken cancellationToken)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.MailId))
+            {
+                await LogMockWarningAsync($"{commandType} ignored: missing mail id", cancellationToken);
+                return;
+            }
+
+            var mails = _mailStore.GetMails();
+            var mail = mails.FirstOrDefault(item => item.Id == request.MailId);
+            if (mail == null)
+            {
+                await LogMockWarningAsync($"{commandType} ignored: mock mail not found", cancellationToken);
+                return;
+            }
+
+            switch (commandType)
+            {
+                case "mark_mail_read":
+                    mail.IsRead = true;
+                    break;
+                case "mark_mail_unread":
+                    mail.IsRead = false;
+                    break;
+                case "mark_mail_task":
+                    mail.IsMarkedAsTask = true;
+                    mail.FlagInterval = "today";
+                    mail.FlagRequest = FlagIntervalLabel(mail.FlagInterval);
+                    mail.TaskStartDate = DateTime.Today;
+                    mail.TaskDueDate = DateTime.Today;
+                    mail.TaskCompletedDate = null;
+                    break;
+                case "clear_mail_task":
+                    mail.IsMarkedAsTask = false;
+                    mail.FlagInterval = "none";
+                    mail.FlagRequest = string.Empty;
+                    mail.TaskStartDate = null;
+                    mail.TaskDueDate = null;
+                    mail.TaskCompletedDate = null;
+                    break;
+                case "set_mail_categories":
+                    mail.Categories = request.Categories;
+                    break;
+            }
+
+            _mailStore.SetMails(mails);
+            _addinStatus.RecordPush(commandType, 1);
+            await _hub.Clients.All.SendAsync("MailsUpdated", mails, cancellationToken);
+            await BroadcastStatusAsync(cancellationToken);
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
+        private async Task ApplyMailPropertiesAsync(MailPropertiesCommandRequest? request, CancellationToken cancellationToken)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.MailId))
+            {
+                await LogMockWarningAsync("update_mail_properties ignored: missing mail id", cancellationToken);
+                return;
+            }
+
+            var mails = _mailStore.GetMails();
+            var mail = mails.FirstOrDefault(item => item.Id == request.MailId);
+            if (mail == null)
+            {
+                await LogMockWarningAsync("update_mail_properties ignored: mock mail not found", cancellationToken);
+                return;
+            }
+
+            if (request.IsRead.HasValue)
+                mail.IsRead = request.IsRead.Value;
+
+            ApplyTaskFlag(mail, request);
+            mail.Categories = string.Join(", ", request.Categories.Where(category => !string.IsNullOrWhiteSpace(category)).Distinct(StringComparer.OrdinalIgnoreCase));
+
+            var categories = _mailStore.GetCategories();
+            foreach (var category in request.NewCategories.Where(item => !string.IsNullOrWhiteSpace(item.Name)))
+            {
+                if (categories.Any(item => string.Equals(item.Name, category.Name, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                categories.Add(new OutlookCategoryDto
+                {
+                    Name = category.Name.Trim(),
+                    Color = string.IsNullOrWhiteSpace(category.Color) ? "preset0" : category.Color,
+                    ShortcutKey = category.ShortcutKey
+                });
+            }
+
+            _mailStore.SetCategories(categories);
+            _mailStore.SetMails(mails);
+            _addinStatus.RecordPush("update_mail_properties", 1);
+            await _hub.Clients.All.SendAsync("CategoriesUpdated", categories, cancellationToken);
+            await _hub.Clients.All.SendAsync("MailsUpdated", mails, cancellationToken);
+            await BroadcastStatusAsync(cancellationToken);
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
+        private async Task ApplyUpsertCategoryAsync(CategoryCommandRequest? request, CancellationToken cancellationToken)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Name))
+            {
+                await LogMockWarningAsync("upsert_category ignored: missing category name", cancellationToken);
+                return;
+            }
+
+            var categoryName = request.Name.Trim();
+            var categories = _mailStore.GetCategories();
+            var existing = categories.FirstOrDefault(item => string.Equals(item.Name, categoryName, StringComparison.OrdinalIgnoreCase));
+
+            if (existing == null)
+            {
+                categories.Add(new OutlookCategoryDto
+                {
+                    Name = categoryName,
+                    Color = string.IsNullOrWhiteSpace(request.Color) ? "preset0" : request.Color,
+                    ShortcutKey = request.ShortcutKey
+                });
+            }
+            else
+            {
+                existing.Color = string.IsNullOrWhiteSpace(request.Color) ? existing.Color : request.Color;
+                existing.ShortcutKey = request.ShortcutKey;
+            }
+
+            _mailStore.SetCategories(categories);
+            _addinStatus.RecordPush("upsert_category", 1);
+            await _hub.Clients.All.SendAsync("CategoriesUpdated", categories, cancellationToken);
+            await BroadcastStatusAsync(cancellationToken);
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
+        private static void ApplyTaskFlag(MailItemDto mail, MailPropertiesCommandRequest request)
+        {
+            mail.FlagInterval = request.FlagInterval;
+            mail.FlagRequest = request.FlagRequest.Trim();
+            mail.TaskStartDate = request.TaskStartDate;
+            mail.TaskDueDate = request.TaskDueDate;
+            mail.TaskCompletedDate = request.TaskCompletedDate;
+            mail.IsMarkedAsTask = request.FlagInterval != "none";
+
+            if (request.FlagInterval == "none")
+            {
+                mail.FlagRequest = string.Empty;
+                mail.TaskStartDate = null;
+                mail.TaskDueDate = null;
+                mail.TaskCompletedDate = null;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(mail.FlagRequest))
+                mail.FlagRequest = FlagIntervalLabel(request.FlagInterval);
+
+            var today = DateTime.Today;
+            switch (request.FlagInterval)
+            {
+                case "today":
+                    mail.TaskStartDate = today;
+                    mail.TaskDueDate = today;
+                    mail.TaskCompletedDate = null;
+                    break;
+                case "tomorrow":
+                    mail.TaskStartDate = today.AddDays(1);
+                    mail.TaskDueDate = today.AddDays(1);
+                    mail.TaskCompletedDate = null;
+                    break;
+                case "this_week":
+                    mail.TaskStartDate = today;
+                    mail.TaskDueDate = today.AddDays(2);
+                    mail.TaskCompletedDate = null;
+                    break;
+                case "next_week":
+                    mail.TaskStartDate = today.AddDays(7);
+                    mail.TaskDueDate = today.AddDays(11);
+                    mail.TaskCompletedDate = null;
+                    break;
+                case "no_date":
+                    mail.TaskStartDate = null;
+                    mail.TaskDueDate = null;
+                    mail.TaskCompletedDate = null;
+                    break;
+                case "custom":
+                    mail.TaskStartDate = request.TaskStartDate;
+                    mail.TaskDueDate = request.TaskDueDate;
+                    mail.TaskCompletedDate = null;
+                    break;
+                case "complete":
+                    mail.TaskCompletedDate = request.TaskCompletedDate ?? DateTime.Now;
+                    break;
+            }
+        }
+
+        private static string FlagIntervalLabel(string interval)
+        {
+            return interval switch
+            {
+                "today" => "今天",
+                "tomorrow" => "明天",
+                "this_week" => "本週",
+                "next_week" => "下週",
+                "no_date" => "無日期",
+                "custom" => "自訂日期",
+                "complete" => "標示完成",
+                _ => string.Empty
+            };
+        }
+
+        private async Task ApplyCreateFolderAsync(CreateFolderRequest? request, CancellationToken cancellationToken)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.ParentFolderPath) || string.IsNullOrWhiteSpace(request.Name))
+            {
+                await LogMockWarningAsync("create_folder ignored: missing parent path or name", cancellationToken);
+                return;
+            }
+
+            var folders = _mailStore.GetFolders();
+            var parent = FindFolder(folders, request.ParentFolderPath);
+            if (parent == null)
+            {
+                await LogMockWarningAsync("create_folder ignored: parent folder not found", cancellationToken);
+                return;
+            }
+
+            if (parent.SubFolders.Any(folder => string.Equals(folder.Name, request.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                await LogMockWarningAsync("create_folder ignored: folder already exists", cancellationToken);
+                return;
+            }
+
+            parent.SubFolders.Add(new FolderDto
+            {
+                Name = request.Name,
+                FolderPath = $"{request.ParentFolderPath}\\{request.Name}",
+                ItemCount = 0
+            });
+            _mailStore.SetFolders(folders);
+            _addinStatus.RecordPush("create_folder", 1);
+            await _hub.Clients.All.SendAsync("FoldersUpdated", folders, cancellationToken);
+            await BroadcastStatusAsync(cancellationToken);
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
+        private async Task ApplyDeleteFolderAsync(DeleteFolderRequest? request, CancellationToken cancellationToken)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.FolderPath))
+            {
+                await LogMockWarningAsync("delete_folder ignored: missing folder path", cancellationToken);
+                return;
+            }
+
+            var folders = _mailStore.GetFolders();
+            if (!RemoveFolder(folders, request.FolderPath))
+            {
+                await LogMockWarningAsync("delete_folder ignored: folder not found or root folder selected", cancellationToken);
+                return;
+            }
+
+            var childPathPrefix = $"{request.FolderPath}\\";
+            var mails = _mailStore.GetMails()
+                .Where(mail =>
+                    !string.Equals(mail.FolderPath, request.FolderPath, StringComparison.OrdinalIgnoreCase)
+                    && !mail.FolderPath.StartsWith(childPathPrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            _mailStore.SetFolders(folders);
+            _mailStore.SetMails(mails);
+            _addinStatus.RecordPush("delete_folder", 1);
+            await _hub.Clients.All.SendAsync("FoldersUpdated", folders, cancellationToken);
+            await _hub.Clients.All.SendAsync("MailsUpdated", mails, cancellationToken);
+            await BroadcastStatusAsync(cancellationToken);
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
+        private async Task ApplyMoveMailAsync(MoveMailRequest? request, CancellationToken cancellationToken)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.MailId) || string.IsNullOrWhiteSpace(request.DestinationFolderPath))
+            {
+                await LogMockWarningAsync("move_mail ignored: missing mail id or destination", cancellationToken);
+                return;
+            }
+
+            var folders = _mailStore.GetFolders();
+            if (FindFolder(folders, request.DestinationFolderPath) == null)
+            {
+                await LogMockWarningAsync("move_mail ignored: destination folder not found", cancellationToken);
+                return;
+            }
+
+            var mails = _mailStore.GetMails();
+            var mail = mails.FirstOrDefault(item => item.Id == request.MailId);
+            if (mail == null)
+            {
+                await LogMockWarningAsync("move_mail ignored: mock mail not found", cancellationToken);
+                return;
+            }
+
+            mail.FolderPath = request.DestinationFolderPath;
+            _mailStore.SetMails(mails);
+            _addinStatus.RecordPush("move_mail", 1);
+            await _hub.Clients.All.SendAsync("MailsUpdated", mails, cancellationToken);
+            await BroadcastStatusAsync(cancellationToken);
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
+        private async Task LogMockWarningAsync(string message, CancellationToken cancellationToken)
+        {
+            _addinStatus.AddLog("warn", message);
+            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), cancellationToken);
+        }
+
+        private static FolderDto? FindFolder(IEnumerable<FolderDto> folders, string folderPath)
+        {
+            foreach (var folder in folders)
+            {
+                if (string.Equals(folder.FolderPath, folderPath, StringComparison.OrdinalIgnoreCase))
+                    return folder;
+
+                var child = FindFolder(folder.SubFolders, folderPath);
+                if (child != null)
+                    return child;
+            }
+
+            return null;
+        }
+
+        private static bool RemoveFolder(List<FolderDto> folders, string folderPath)
+        {
+            for (var index = 0; index < folders.Count; index++)
+            {
+                var folder = folders[index];
+                if (string.Equals(folder.FolderPath, folderPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    folders.RemoveAt(index);
+                    return true;
+                }
+
+                if (RemoveFolder(folder.SubFolders, folderPath))
+                    return true;
+            }
+
+            return false;
         }
 
         private async Task BroadcastStatusAsync(CancellationToken cancellationToken)
@@ -224,6 +607,7 @@ namespace SmartOffice.Hub.Services.MockAddins
                 .Select(index =>
                 {
                     var received = DateTime.Now.AddMinutes(-index * 37);
+                    var isFlagged = index % 3 == 0;
                     return new MailItemDto
                     {
                         Subject = $"[{folderName}] Mock mail #{index}: Hub protocol sample",
@@ -234,7 +618,12 @@ namespace SmartOffice.Hub.Services.MockAddins
                         FolderPath = request.FolderPath,
                         Categories = index % 3 == 0 ? "Project, Follow-up" : index % 2 == 0 ? "Automation" : "",
                         IsRead = index % 2 == 0,
-                        IsMarkedAsTask = index % 3 == 0,
+                        IsMarkedAsTask = isFlagged,
+                        FlagInterval = isFlagged ? (index % 2 == 0 ? "tomorrow" : "today") : "none",
+                        FlagRequest = isFlagged ? FlagIntervalLabel(index % 2 == 0 ? "tomorrow" : "today") : string.Empty,
+                        TaskStartDate = isFlagged ? DateTime.Today : null,
+                        TaskDueDate = isFlagged ? DateTime.Today.AddDays(index % 2) : null,
+                        TaskCompletedDate = null,
                         Importance = index % 5 == 0 ? "high" : "normal",
                         Sensitivity = "normal",
                         Body = $"This is mock mail #{index} generated by SmartOffice.Hub.\n\nRange: {request.Range}\nFolder: {folderName}\nGenerated: {received:G}",
@@ -286,6 +675,18 @@ namespace SmartOffice.Hub.Services.MockAddins
                     Conditions = { "sender contains newsletter" },
                     Actions = { "move to \\\\Mailbox - Mock User\\Archive" }
                 }
+            };
+        }
+
+        private static List<OutlookCategoryDto> CreateCategories()
+        {
+            return new List<OutlookCategoryDto>
+            {
+                new() { Name = "Project", Color = "preset4" },
+                new() { Name = "Follow-up", Color = "preset6" },
+                new() { Name = "Automation", Color = "preset5" },
+                new() { Name = "Finance", Color = "preset3" },
+                new() { Name = "Reviewed", Color = "preset8" }
             };
         }
 

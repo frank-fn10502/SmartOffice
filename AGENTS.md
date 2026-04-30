@@ -9,6 +9,7 @@
 - 本 repository 是 `SmartOffice.Hub`，只包含 Hub/Web UI/contract/mock，不是工作機完整 SmartOffice / Outlook AddIn solution。
 - 工作機上的完整 SmartOffice solution 會以 `..\SmartOffice.Hub\SmartOffice.Hub.csproj` 參考本 Hub 專案；真正的 Outlook AddIn / Office automation 實作必須在工作機 SmartOffice solution 中完成。
 - 在本 repository 的 `Plan/` 任務是交給工作機 AI 使用的 AddIn 實作指引；除非使用者明確要求修改 Hub contract，否則不要把 `Plan/` 任務解讀成要修改 Hub 程式碼。
+- `Plan/status.md` 是 VS Code Copilot custom agent 的任務佇列狀態檔；切分或執行 `Plan/` 任務時也必須遵守 `docs/ai/plan-splitting.md`。
 - 修改時維持 SmartOffice.Hub 的邊界：Add-in 負責 Office automation，Hub 負責 HTTP API、SignalR、command routing 與 temporary state，Web UI 負責檢視、手動 request、chat 與 diagnostics。
 - 偏好小而明確、backward-compatible 的 contract；不要隨意 rename JSON field 或破壞既有 route。
 - Office 2016 與受限企業環境是設計約束。除非任務明確需要，避免引入 database、frontend build system、background job framework 或 AI SDK。
@@ -21,6 +22,7 @@
 - `docs/ai/frontend.md`：前端框架選擇、限制與導入原則。
 - `docs/ai/protocols.md`：Office Add-in polling protocol、route 與 SignalR event。
 - `docs/ai/workstation-solution.md`：Hub 與工作機 SmartOffice solution 的關係，以及 AddIn 任務應在哪裡實作。
+- `docs/ai/plan-splitting.md`：切分 `Plan/` 任務給工作機 AI 或 VS Code Copilot custom agent 的粒度、必要文件與狀態追蹤規範。
 - `docs/ai/office2016-addin-references.md`：Office 2016 Add-in 線上文件入口。
 - `docs/ai/office2016-workstation-contract.md`：工作機需要傳送與接收的目前格式。
 - `docs/ai/office2016-test-report.md`：工作機實測資料、差異與錯誤回報格式。

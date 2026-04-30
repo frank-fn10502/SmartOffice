@@ -9,64 +9,31 @@ import {
   Tickets,
   Warning,
 } from '@element-plus/icons-vue'
-
-interface FolderDto {
-  name: string
-  folderPath: string
-  itemCount: number
-  subFolders: FolderDto[]
-}
+import type { FolderDto } from '../models/outlook'
+import { folderType, visibleChildren } from '../utils/folders'
 
 const props = defineProps<{
   folder: FolderDto
   level: number
   expandedFolders: Set<string>
   selectedFolderPath: string
+  creatingFolderParentPath: string
+  creatingFolderName: string
+  folderBusy: boolean
+  canDropMail: boolean
+  activeDropFolderPath: string
 }>()
 
 const emit = defineEmits<{
   toggle: [path: string]
   select: [path: string]
+  context: [payload: { path: string; x: number; y: number }]
+  'update:creatingFolderName': [name: string]
+  create: [payload: { parentPath: string; name: string }]
+  cancelCreate: []
+  dragMailOver: [folderPath: string]
+  dropMail: [folderPath: string]
 }>()
-
-const hiddenFolderNames = [
-  'common views',
-  'finder',
-  'reminders',
-  'quick step',
-  'conversation history',
-  'conversation action',
-  'server failures',
-  'local failures',
-  'conflicts',
-  'sync issues',
-  'rss',
-  'social network',
-  'people',
-  'externalcontacts',
-  'yammer',
-]
-
-function isHiddenFolder(name: string) {
-  const lowerName = name.toLowerCase()
-  return hiddenFolderNames.some((hidden) => lowerName.includes(hidden))
-}
-
-function visibleChildren(folder: FolderDto) {
-  return (folder.subFolders ?? []).filter((child) => !isHiddenFolder(child.name))
-}
-
-function folderType(name: string) {
-  const lowerName = name.toLowerCase()
-  if (lowerName === 'inbox') return 'inbox'
-  if (lowerName === 'sent items' || lowerName.includes('sent')) return 'sent'
-  if (lowerName === 'drafts') return 'drafts'
-  if (lowerName === 'deleted items' || lowerName.includes('deleted')) return 'deleted'
-  if (lowerName === 'junk email' || lowerName === 'junk e-mail') return 'junk'
-  if (lowerName === 'archive') return 'archive'
-  if (lowerName === 'outbox') return 'outbox'
-  return 'normal'
-}
 
 function folderIcon(name: string) {
   const icons = {
@@ -87,9 +54,21 @@ function folderIcon(name: string) {
   <div class="folder-node">
     <div
       class="folder-row"
-      :class="[folderType(folder.name), { selected: selectedFolderPath === folder.folderPath }]"
+      :class="[
+        folderType(folder.name),
+        {
+          selected: selectedFolderPath === folder.folderPath,
+          'drop-target': canDropMail && !folderBusy,
+          'drop-active': activeDropFolderPath === folder.folderPath,
+        },
+      ]"
       :style="{ paddingLeft: `${level * 16 + 6}px` }"
       @click="emit('select', folder.folderPath)"
+      @contextmenu.prevent="emit('context', { path: folder.folderPath, x: $event.clientX, y: $event.clientY })"
+      @dragenter.prevent.stop="!folderBusy && emit('dragMailOver', folder.folderPath)"
+      @dragover.prevent.stop="!folderBusy && emit('dragMailOver', folder.folderPath)"
+      @dragleave.stop="emit('dragMailOver', '')"
+      @drop.prevent.stop="!folderBusy && emit('dropMail', folder.folderPath)"
     >
       <button
         class="folder-toggle"
@@ -107,6 +86,25 @@ function folderIcon(name: string) {
       <span class="folder-count">{{ folder.itemCount }}</span>
     </div>
 
+    <div
+      v-if="creatingFolderParentPath === folder.folderPath"
+      class="folder-inline-create"
+      :style="{ paddingLeft: `${(level + 1) * 16 + 24}px` }"
+      @click.stop
+    >
+      <el-input
+        :model-value="creatingFolderName"
+        size="small"
+        autofocus
+        placeholder="New folder"
+        :disabled="folderBusy"
+        @update:model-value="emit('update:creatingFolderName', $event)"
+        @keydown.enter.prevent="emit('create', { parentPath: folder.folderPath, name: creatingFolderName })"
+        @keydown.esc.prevent="emit('cancelCreate')"
+        @blur="emit('cancelCreate')"
+      />
+    </div>
+
     <div v-if="expandedFolders.has(folder.folderPath)" class="folder-children">
       <FolderNode
         v-for="child in visibleChildren(folder)"
@@ -115,8 +113,19 @@ function folderIcon(name: string) {
         :level="level + 1"
         :expanded-folders="expandedFolders"
         :selected-folder-path="selectedFolderPath"
+        :creating-folder-parent-path="creatingFolderParentPath"
+        :creating-folder-name="creatingFolderName"
+        :folder-busy="folderBusy"
+        :can-drop-mail="canDropMail"
+        :active-drop-folder-path="activeDropFolderPath"
         @toggle="emit('toggle', $event)"
         @select="emit('select', $event)"
+        @context="emit('context', $event)"
+        @update:creating-folder-name="emit('update:creatingFolderName', $event)"
+        @create="emit('create', $event)"
+        @cancel-create="emit('cancelCreate')"
+        @drag-mail-over="emit('dragMailOver', $event)"
+        @drop-mail="emit('dropMail', $event)"
       />
     </div>
   </div>

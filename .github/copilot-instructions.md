@@ -13,3 +13,4 @@
 - `docs/ai/frontend.md`
 - `docs/ai/protocols.md`
 - `docs/ai/validation.md`
+- `docs/ai/plan-splitting.md`

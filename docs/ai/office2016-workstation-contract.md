@@ -169,6 +169,165 @@ Add-in 後續會在 `GET /api/outlook/poll` 收到：
 }
 ```
 
+## Enqueue Mail Marker Commands
+
+Request：
+
+```http
+POST /api/outlook/request-mark-mail-read
+POST /api/outlook/request-mark-mail-unread
+POST /api/outlook/request-mark-mail-task
+POST /api/outlook/request-clear-mail-task
+POST /api/outlook/request-set-mail-categories
+Content-Type: application/json
+```
+
+```json
+{
+  "mailId": "[redacted Outlook EntryID or stable id]",
+  "folderPath": "\\\\Mailbox - User\\Inbox",
+  "categories": "Sample Category"
+}
+```
+
+Add-in 後續會在 `GET /api/outlook/poll` 收到對應 command type：
+
+```json
+{
+  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "type": "set_mail_categories",
+  "mailMarkerRequest": {
+    "mailId": "[redacted Outlook EntryID or stable id]",
+    "folderPath": "\\\\Mailbox - User\\Inbox",
+    "categories": "Sample Category"
+  }
+}
+```
+
+目前 mail marker command type：
+
+- `mark_mail_read`
+- `mark_mail_unread`
+- `mark_mail_task`
+- `clear_mail_task`
+- `set_mail_categories`
+
+## Enqueue Master Category Commands
+
+Request：
+
+```http
+POST /api/outlook/request-upsert-category
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "Project",
+  "color": "preset4",
+  "shortcutKey": ""
+}
+```
+
+Add-in 後續會在 `GET /api/outlook/poll` 收到：
+
+```json
+{
+  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "type": "upsert_category",
+  "categoryRequest": {
+    "name": "Project",
+    "color": "preset4",
+    "shortcutKey": ""
+  }
+}
+```
+
+此 command 修改的是 Outlook master category list，不是單封郵件的 category assignment。工作機 Add-in 應以 category name 找既有 category；存在時更新 color / shortcut key，不存在時新增 category。完成後請重新 push master category list。
+
+## Enqueue Folder / Move Mail Commands
+
+Request：
+
+```http
+POST /api/outlook/request-create-folder
+Content-Type: application/json
+```
+
+```json
+{
+  "parentFolderPath": "\\\\Mailbox - User\\Projects",
+  "name": "Sample Folder"
+}
+```
+
+Add-in poll command：
+
+```json
+{
+  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "type": "create_folder",
+  "createFolderRequest": {
+    "parentFolderPath": "\\\\Mailbox - User\\Projects",
+    "name": "Sample Folder"
+  }
+}
+```
+
+Request：
+
+```http
+POST /api/outlook/request-delete-folder
+Content-Type: application/json
+```
+
+```json
+{
+  "folderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
+}
+```
+
+Add-in poll command：
+
+```json
+{
+  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "type": "delete_folder",
+  "deleteFolderRequest": {
+    "folderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
+  }
+}
+```
+
+Request：
+
+```http
+POST /api/outlook/request-move-mail
+Content-Type: application/json
+```
+
+```json
+{
+  "mailId": "[redacted Outlook EntryID or stable id]",
+  "sourceFolderPath": "\\\\Mailbox - User\\Inbox",
+  "destinationFolderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
+}
+```
+
+Add-in poll command：
+
+```json
+{
+  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "type": "move_mail",
+  "moveMailRequest": {
+    "mailId": "[redacted Outlook EntryID or stable id]",
+    "sourceFolderPath": "\\\\Mailbox - User\\Inbox",
+    "destinationFolderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
+  }
+}
+```
+
 ## Poll No Command
 
 Request：

@@ -13,6 +13,11 @@ namespace SmartOffice.Hub.Models
         public string Categories { get; set; } = string.Empty;
         public bool IsRead { get; set; }
         public bool IsMarkedAsTask { get; set; }
+        public string FlagRequest { get; set; } = string.Empty;
+        public string FlagInterval { get; set; } = "none";
+        public DateTime? TaskStartDate { get; set; }
+        public DateTime? TaskDueDate { get; set; }
+        public DateTime? TaskCompletedDate { get; set; }
         public string Importance { get; set; } = "normal";
         public string Sensitivity { get; set; } = "normal";
     }
@@ -45,6 +50,52 @@ namespace SmartOffice.Hub.Models
         public int DaysForward { get; set; } = 14;
     }
 
+    public class MailMarkerCommandRequest
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public string Categories { get; set; } = string.Empty;
+    }
+
+    public class MailPropertiesCommandRequest
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public bool? IsRead { get; set; }
+        public string FlagInterval { get; set; } = "none"; // none、today、tomorrow、this_week、next_week、no_date、custom、complete。
+        public string FlagRequest { get; set; } = string.Empty;
+        public DateTime? TaskStartDate { get; set; }
+        public DateTime? TaskDueDate { get; set; }
+        public DateTime? TaskCompletedDate { get; set; }
+        public List<string> Categories { get; set; } = new();
+        public List<OutlookCategoryDto> NewCategories { get; set; } = new();
+    }
+
+    public class CategoryCommandRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
+        public string ShortcutKey { get; set; } = string.Empty;
+    }
+
+    public class CreateFolderRequest
+    {
+        public string ParentFolderPath { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class DeleteFolderRequest
+    {
+        public string FolderPath { get; set; } = string.Empty;
+    }
+
+    public class MoveMailRequest
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string SourceFolderPath { get; set; } = string.Empty;
+        public string DestinationFolderPath { get; set; } = string.Empty;
+    }
+
     public class OutlookRuleDto
     {
         public string Name { get; set; } = string.Empty;
@@ -54,6 +105,13 @@ namespace SmartOffice.Hub.Models
         public List<string> Conditions { get; set; } = new();
         public List<string> Actions { get; set; } = new();
         public List<string> Exceptions { get; set; } = new();
+    }
+
+    public class OutlookCategoryDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
+        public string ShortcutKey { get; set; } = string.Empty;
     }
 
     public class CalendarEventDto
@@ -75,9 +133,15 @@ namespace SmartOffice.Hub.Models
     public class PendingCommand
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_folders"、"fetch_rules"、"fetch_calendar"。
+        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_folders"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
         public FetchMailsRequest? MailsRequest { get; set; }
         public FetchCalendarRequest? CalendarRequest { get; set; }
+        public MailMarkerCommandRequest? MailMarkerRequest { get; set; }
+        public MailPropertiesCommandRequest? MailPropertiesRequest { get; set; }
+        public CategoryCommandRequest? CategoryRequest { get; set; }
+        public CreateFolderRequest? CreateFolderRequest { get; set; }
+        public DeleteFolderRequest? DeleteFolderRequest { get; set; }
+        public MoveMailRequest? MoveMailRequest { get; set; }
     }
 
     public class AddinLogEntry

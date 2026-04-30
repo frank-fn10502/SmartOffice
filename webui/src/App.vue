@@ -1,424 +1,90 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
-import * as signalR from '@microsoft/signalr'
 import {
   Calendar,
   ChatDotRound,
   Connection,
   Document,
-  Flag,
   Folder,
   Monitor,
   PriceTag,
   Refresh,
-  Tickets,
 } from '@element-plus/icons-vue'
 import FolderNode from './components/FolderNode.vue'
+import { useOutlookDashboard } from './composables/useOutlookDashboard'
+import type { AppView } from './models/outlook'
+import { formatDateTime, formatTime } from './utils/formatters'
 
-interface FolderDto {
-  name: string
-  folderPath: string
-  itemCount: number
-  subFolders: FolderDto[]
-}
-
-interface MailItemDto {
-  id: string
-  subject: string
-  senderName: string
-  senderEmail: string
-  receivedTime: string
-  body: string
-  bodyHtml: string
-  folderPath: string
-  categories: string
-  isRead: boolean
-  isMarkedAsTask: boolean
-  importance: string
-  sensitivity: string
-}
-
-interface OutlookRuleDto {
-  name: string
-  enabled: boolean
-  executionOrder: number
-  ruleType: string
-  conditions: string[]
-  actions: string[]
-  exceptions: string[]
-}
-
-interface CalendarEventDto {
-  id: string
-  subject: string
-  start: string
-  end: string
-  location: string
-  organizer: string
-  requiredAttendees: string
-  isRecurring: boolean
-  busyStatus: string
-}
-
-interface ChatMessageDto {
-  id?: string
-  source: string
-  text: string
-  timestamp: string
-}
-
-interface AddinStatusDto {
-  connected: boolean
-  lastPollTime?: string
-  lastPushTime?: string
-  lastCommand: string
-}
-
-interface AddinLogEntry {
-  level: 'info' | 'warn' | 'error' | string
-  message: string
-  timestamp: string
-}
-
-type AppView = 'normal' | 'outlook' | 'admin' | 'swagger'
-
-const activeView = ref<AppView>('normal')
-const signalRState = ref<'connected' | 'reconnecting' | 'disconnected'>('disconnected')
-const folders = ref<FolderDto[]>([])
-const mails = ref<MailItemDto[]>([])
-const rules = ref<OutlookRuleDto[]>([])
-const calendarEvents = ref<CalendarEventDto[]>([])
-const chatMessages = ref<ChatMessageDto[]>([])
-const addinStatus = ref<AddinStatusDto>({
-  connected: false,
-  lastCommand: '',
-})
-const addinLogs = ref<AddinLogEntry[]>([])
-const selectedFolderPath = ref('')
-const expandedFolders = ref<Set<string>>(new Set())
-const openMailIndexes = ref<Set<number>>(new Set())
-const htmlMailIndexes = ref<Set<number>>(new Set())
-const mailRange = ref('1d')
-const mailCount = ref(10)
-const chatText = ref('')
-const loadingFolders = ref(false)
-const loadingMails = ref(false)
-const loadingRules = ref(false)
-const loadingCalendar = ref(false)
-const chatPanelRef = ref<HTMLElement | null>(null)
-const mailHtmlSandbox = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox'
-
-const mailStats = computed(() => ({
-  unread: mails.value.filter((mail) => !mail.isRead).length,
-  flagged: mails.value.filter((mail) => mail.isMarkedAsTask).length,
-  highImportance: mails.value.filter((mail) => mail.importance === 'high').length,
-  categorized: mails.value.filter((mail) => Boolean(mail.categories)).length,
-}))
-
-const visibleFolders = computed(() => {
-  return folders.value.flatMap((root) => {
-    if (root.subFolders?.length) return root.subFolders.filter((folder) => !isHiddenFolder(folder.name))
-    return isHiddenFolder(root.name) ? [] : [root]
-  })
-})
-
-function isHiddenFolder(name: string) {
-  const hiddenNames = [
-    'common views',
-    'finder',
-    'reminders',
-    'quick step',
-    'conversation history',
-    'conversation action',
-    'server failures',
-    'local failures',
-    'conflicts',
-    'sync issues',
-    'rss',
-    'social network',
-    'people',
-    'externalcontacts',
-    'yammer',
-  ]
-  const lowerName = name.toLowerCase()
-  return hiddenNames.some((hidden) => lowerName.includes(hidden))
-}
-
-function visibleChildren(folder: FolderDto) {
-  return (folder.subFolders ?? []).filter((child) => !isHiddenFolder(child.name))
-}
-
-function folderType(name: string) {
-  const lowerName = name.toLowerCase()
-  if (lowerName === 'inbox') return 'inbox'
-  if (lowerName === 'sent items' || lowerName.includes('sent')) return 'sent'
-  if (lowerName === 'drafts') return 'drafts'
-  if (lowerName === 'deleted items' || lowerName.includes('deleted')) return 'deleted'
-  if (lowerName === 'junk email' || lowerName === 'junk e-mail') return 'junk'
-  if (lowerName === 'archive') return 'archive'
-  if (lowerName === 'outbox') return 'outbox'
-  return 'normal'
-}
-
-function folderIcon(name: string) {
-  const icons: Record<string, string> = {
-    inbox: 'Inbox',
-    sent: 'Sent',
-    drafts: 'Draft',
-    deleted: 'Trash',
-    junk: 'Junk',
-    archive: 'Archive',
-    outbox: 'Out',
-    normal: 'Folder',
-  }
-  return icons[folderType(name)]
-}
-
-function formatTime(value?: string) {
-  if (!value) return '-'
-  return new Date(value).toLocaleTimeString()
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString()
-}
-
-function pollUntil(check: () => Promise<boolean>, timeoutMs: number) {
-  return new Promise<boolean>((resolve) => {
-    const start = Date.now()
-    const timer = window.setInterval(async () => {
-      try {
-        const done = await check()
-        if (done || Date.now() - start >= timeoutMs) {
-          window.clearInterval(timer)
-          resolve(done)
-        }
-      } catch {
-        if (Date.now() - start >= timeoutMs) {
-          window.clearInterval(timer)
-          resolve(false)
-        }
-      }
-    }, 1200)
-  })
-}
-
-async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`)
-  return response.json() as Promise<T>
-}
-
-async function postJson<T>(url: string, body?: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`)
-  return response.json() as Promise<T>
-}
-
-async function loadCachedFolders() {
-  folders.value = await getJson<FolderDto[]>('/api/outlook/folders')
-  selectDefaultFolder()
-}
-
-async function requestFolders() {
-  loadingFolders.value = true
-  try {
-    await postJson('/api/outlook/request-folders')
-    await pollUntil(async () => {
-      await loadCachedFolders()
-      return folders.value.length > 0
-    }, 30000)
-  } finally {
-    loadingFolders.value = false
-  }
-}
-
-function selectDefaultFolder() {
-  if (selectedFolderPath.value || visibleFolders.value.length === 0) return
-  const inbox = visibleFolders.value.find((folder) => folderType(folder.name) === 'inbox')
-  selectedFolderPath.value = inbox?.folderPath ?? visibleFolders.value[0]?.folderPath ?? ''
-}
-
-function toggleFolder(path: string) {
-  const next = new Set(expandedFolders.value)
-  if (next.has(path)) next.delete(path)
-  else next.add(path)
-  expandedFolders.value = next
-}
-
-function selectFolder(path: string) {
-  selectedFolderPath.value = path
-}
-
-async function loadCachedMails() {
-  mails.value = await getJson<MailItemDto[]>('/api/outlook/mails')
-}
-
-async function loadCachedRules() {
-  rules.value = await getJson<OutlookRuleDto[]>('/api/outlook/rules')
-}
-
-async function loadCachedCalendar() {
-  calendarEvents.value = await getJson<CalendarEventDto[]>('/api/outlook/calendar')
-}
-
-async function requestMails() {
-  loadingMails.value = true
-  openMailIndexes.value = new Set()
-  htmlMailIndexes.value = new Set()
-  try {
-    await postJson('/api/outlook/request-mails', {
-      folderPath: selectedFolderPath.value,
-      range: mailRange.value,
-      maxCount: mailCount.value,
-    })
-    await pollUntil(async () => {
-      await loadCachedMails()
-      return mails.value.length > 0
-    }, 30000)
-  } finally {
-    loadingMails.value = false
-  }
-}
-
-async function requestRules() {
-  loadingRules.value = true
-  try {
-    await postJson('/api/outlook/request-rules')
-    await pollUntil(async () => {
-      await loadCachedRules()
-      return rules.value.length > 0
-    }, 30000)
-  } finally {
-    loadingRules.value = false
-  }
-}
-
-async function requestCalendar() {
-  loadingCalendar.value = true
-  try {
-    await postJson('/api/outlook/request-calendar', { daysForward: 14 })
-    await pollUntil(async () => {
-      await loadCachedCalendar()
-      return calendarEvents.value.length > 0
-    }, 30000)
-  } finally {
-    loadingCalendar.value = false
-  }
-}
-
-function toggleMail(index: number) {
-  const next = new Set(openMailIndexes.value)
-  if (next.has(index)) next.delete(index)
-  else next.add(index)
-  openMailIndexes.value = next
-}
-
-function toggleMailFormat(index: number) {
-  const next = new Set(htmlMailIndexes.value)
-  if (next.has(index)) next.delete(index)
-  else next.add(index)
-  htmlMailIndexes.value = next
-}
-
-async function loadChat() {
-  chatMessages.value = await getJson<ChatMessageDto[]>('/api/outlook/chat')
-  await scrollChatToBottom()
-}
-
-async function sendChat() {
-  const text = chatText.value.trim()
-  if (!text) return
-  chatText.value = ''
-  await postJson('/api/outlook/chat', { source: 'web', text })
-}
-
-async function refreshAdminData() {
-  const [status, logs] = await Promise.all([
-    getJson<AddinStatusDto>('/api/outlook/admin/status'),
-    getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),
-  ])
-  addinStatus.value = status
-  addinLogs.value = logs
-}
-
-async function switchView(view: AppView) {
-  activeView.value = view
-  if (view === 'admin') await refreshAdminData()
-}
-
-async function scrollChatToBottom() {
-  await nextTick()
-  if (chatPanelRef.value) chatPanelRef.value.scrollTop = chatPanelRef.value.scrollHeight
-}
-
-async function connectSignalR() {
-  const connection = new signalR.HubConnectionBuilder()
-    .withUrl('/hub/notifications')
-    .withAutomaticReconnect()
-    .build()
-
-  connection.onreconnecting(() => {
-    signalRState.value = 'reconnecting'
-  })
-  connection.onreconnected(() => {
-    signalRState.value = 'connected'
-  })
-  connection.onclose(() => {
-    signalRState.value = 'disconnected'
-  })
-  connection.on('FoldersUpdated', (items: FolderDto[]) => {
-    folders.value = items
-    selectDefaultFolder()
-    loadingFolders.value = false
-  })
-  connection.on('MailsUpdated', (items: MailItemDto[]) => {
-    mails.value = items
-    loadingMails.value = false
-  })
-  connection.on('RulesUpdated', (items: OutlookRuleDto[]) => {
-    rules.value = items
-    loadingRules.value = false
-  })
-  connection.on('CalendarUpdated', (items: CalendarEventDto[]) => {
-    calendarEvents.value = items
-    loadingCalendar.value = false
-  })
-  connection.on('NewChatMessage', async (message: ChatMessageDto) => {
-    chatMessages.value = [...chatMessages.value, message]
-    await scrollChatToBottom()
-  })
-  connection.on('AddinStatus', (status: AddinStatusDto) => {
-    addinStatus.value = status
-  })
-  connection.on('AddinLog', (logs: AddinLogEntry[]) => {
-    addinLogs.value = logs
-  })
-
-  try {
-    await connection.start()
-    signalRState.value = 'connected'
-  } catch {
-    signalRState.value = 'disconnected'
-  }
-}
-
-onMounted(async () => {
-  await connectSignalR()
-  await Promise.allSettled([
-    loadCachedFolders(),
-    loadCachedMails(),
-    loadCachedRules(),
-    loadCachedCalendar(),
-    loadChat(),
-    refreshAdminData(),
-  ])
-  if (folders.value.length === 0) await requestFolders()
-})
+const {
+  activeView,
+  addCategoryToMasterList,
+  addinLogs,
+  addinStatus,
+  applyMailProperties,
+  calendarEvents,
+  cancelCreateFolder,
+  categories,
+  categoryColorOptions,
+  categoryColorStyle,
+  categoryCreateColor,
+  categoryCreateDraft,
+  chatMessages,
+  chatPanelRef,
+  chatText,
+  clearMailDrag,
+  contextFolderName,
+  createFolder,
+  createFolderFromContext,
+  creatingFolderName,
+  creatingFolderParentPath,
+  deleteFolderFromContext,
+  dragOverFolderPath,
+  draggedMailId,
+  expandedFolders,
+  fetchMailsFromContext,
+  flagIntervalLabel,
+  flagIntervalOptions,
+  folderContextMenu,
+  htmlMailIndexes,
+  loadingCalendar,
+  loadingFolders,
+  loadingMails,
+  mailCount,
+  mailHtmlSandbox,
+  mailPropertiesDraft,
+  mailRange,
+  mailStats,
+  mails,
+  moveDraggedMail,
+  openFolderContextMenu,
+  openMailIndexes,
+  operationLoading,
+  outlookBusy,
+  outlookBusyText,
+  refreshAdminData,
+  requestCalendar,
+  requestFolders,
+  requestMails,
+  resetMailPropertiesDraft,
+  selectedFolderName,
+  selectedFolderPath,
+  selectedMail,
+  selectedMailCategories,
+  selectedMailHtml,
+  selectedMailIndex,
+  selectedMailIsOpen,
+  selectFolder,
+  selectMail,
+  sendChat,
+  setDragOverFolder,
+  signalRState,
+  startMailDrag,
+  switchView,
+  toggleFolder,
+  toggleMail,
+  toggleMailFormat,
+  updateCategoryColor,
+  visibleFolders,
+} = useOutlookDashboard()
 </script>
 
 <template>
@@ -439,6 +105,7 @@ onMounted(async () => {
             :options="[
               { label: 'Normal', value: 'normal' },
               { label: 'Outlook', value: 'outlook' },
+              { label: 'Calendar', value: 'calendar' },
               { label: 'Admin', value: 'admin' },
               { label: 'Swagger', value: 'swagger' },
             ]"
@@ -454,7 +121,7 @@ onMounted(async () => {
               <el-icon><Folder /></el-icon>
               <span>Folders</span>
             </div>
-            <el-button :icon="Refresh" circle :loading="loadingFolders" @click="requestFolders" />
+            <el-button :icon="Refresh" circle :loading="loadingFolders" :disabled="outlookBusy && !loadingFolders" @click="requestFolders" />
           </div>
 
           <div class="folder-list">
@@ -466,9 +133,23 @@ onMounted(async () => {
               :level="0"
               :expanded-folders="expandedFolders"
               :selected-folder-path="selectedFolderPath"
+              :creating-folder-parent-path="creatingFolderParentPath"
+              :creating-folder-name="creatingFolderName"
+              :folder-busy="outlookBusy"
+              :can-drop-mail="Boolean(draggedMailId) && !outlookBusy"
+              :active-drop-folder-path="dragOverFolderPath"
               @toggle="toggleFolder"
               @select="selectFolder"
+              @context="openFolderContextMenu"
+              @update:creating-folder-name="creatingFolderName = $event"
+              @create="createFolder($event.parentPath, $event.name)"
+              @cancel-create="cancelCreateFolder"
+              @drag-mail-over="setDragOverFolder"
+              @drop-mail="moveDraggedMail"
             />
+            <div v-if="outlookBusy" class="pane-loading">
+              <span>{{ outlookBusyText }}</span>
+            </div>
           </div>
         </section>
 
@@ -492,7 +173,9 @@ onMounted(async () => {
                 <el-option :value="30" label="30" />
                 <el-option :value="100" label="100" />
               </el-select>
-              <el-button type="primary" :loading="loadingMails" @click="requestMails">Fetch Mails</el-button>
+              <el-button type="primary" :loading="loadingMails" :disabled="outlookBusy && !loadingMails" @click="requestMails">
+                Fetch Mails
+              </el-button>
             </div>
           </div>
 
@@ -552,82 +235,330 @@ onMounted(async () => {
       </main>
 
       <main v-else-if="activeView === 'outlook'" class="outlook-layout">
-        <section class="panel">
+        <section class="panel outlook-folder-pane">
           <div class="panel-header">
             <div class="panel-title">
-              <el-icon><PriceTag /></el-icon>
-              <span>Mail Markers</span>
+              <el-icon><Folder /></el-icon>
+              <span>Folders</span>
             </div>
-            <el-button :icon="Refresh" :loading="loadingMails" @click="requestMails">Refresh Mails</el-button>
+            <el-button :icon="Refresh" circle :loading="loadingFolders" :disabled="outlookBusy && !loadingFolders" @click="requestFolders" />
           </div>
 
-          <div class="status-grid">
-            <div class="status-item">
-              <span class="status-label">Unread</span>
-              <strong>{{ mailStats.unread }}</strong>
+          <div class="folder-list outlook-folder-list">
+            <p v-if="visibleFolders.length === 0" class="hint">Waiting for folders...</p>
+            <FolderNode
+              v-for="folder in visibleFolders"
+              :key="folder.folderPath"
+              :folder="folder"
+              :level="0"
+              :expanded-folders="expandedFolders"
+              :selected-folder-path="selectedFolderPath"
+              :creating-folder-parent-path="creatingFolderParentPath"
+              :creating-folder-name="creatingFolderName"
+              :folder-busy="outlookBusy"
+              :can-drop-mail="Boolean(draggedMailId) && !outlookBusy"
+              :active-drop-folder-path="dragOverFolderPath"
+              @toggle="toggleFolder"
+              @select="selectFolder"
+              @context="openFolderContextMenu"
+              @update:creating-folder-name="creatingFolderName = $event"
+              @create="createFolder($event.parentPath, $event.name)"
+              @cancel-create="cancelCreateFolder"
+              @drag-mail-over="setDragOverFolder"
+              @drop-mail="moveDraggedMail"
+            />
+            <div v-if="outlookBusy" class="pane-loading">
+              <span>{{ outlookBusyText }}</span>
             </div>
-            <div class="status-item">
-              <span class="status-label">Flagged</span>
-              <strong>{{ mailStats.flagged }}</strong>
-            </div>
-            <div class="status-item">
-              <span class="status-label">High Importance</span>
-              <strong>{{ mailStats.highImportance }}</strong>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Categorized</span>
-              <strong>{{ mailStats.categorized }}</strong>
-            </div>
-          </div>
-
-          <div class="workspace-list">
-            <p v-if="mails.length === 0" class="hint">No cached mails yet.</p>
-            <article v-for="(mail, index) in mails" :key="mail.id || `${mail.receivedTime}-${index}`" class="workspace-item">
-              <div class="workspace-item-main">
-                <strong>{{ mail.subject }}</strong>
-                <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
-              </div>
-              <div class="marker-tags">
-                <el-tag :type="mail.isRead ? 'info' : 'warning'" effect="plain">
-                  {{ mail.isRead ? 'Read' : 'Unread' }}
-                </el-tag>
-                <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
-                  <el-icon><Flag /></el-icon>
-                  Flag
-                </el-tag>
-                <el-tag v-if="mail.importance === 'high'" type="danger" effect="plain">High</el-tag>
-                <el-tag v-if="mail.categories" type="success" effect="plain">{{ mail.categories }}</el-tag>
-              </div>
-            </article>
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel outlook-mail-pane">
           <div class="panel-header">
             <div class="panel-title">
-              <el-icon><Tickets /></el-icon>
-              <span>Rules</span>
-              <el-tag effect="plain">{{ rules.length }}</el-tag>
+              <el-icon><Document /></el-icon>
+              <span>{{ selectedFolderName }}</span>
+              <el-tag effect="plain">{{ mails.length }}</el-tag>
             </div>
-            <el-button :icon="Refresh" :loading="loadingRules" @click="requestRules">Fetch Rules</el-button>
+
+            <el-button type="primary" :loading="loadingMails" :disabled="outlookBusy && !loadingMails" @click="requestMails">
+              抓取郵件
+            </el-button>
           </div>
 
-          <div class="workspace-list">
-            <p v-if="rules.length === 0" class="hint">No cached rules yet.</p>
-            <article v-for="rule in rules" :key="`${rule.executionOrder}-${rule.name}`" class="workspace-item">
-              <div class="workspace-item-main">
-                <strong>{{ rule.executionOrder }}. {{ rule.name }}</strong>
-                <span>{{ rule.ruleType }} · {{ rule.enabled ? 'Enabled' : 'Disabled' }}</span>
-              </div>
-              <div class="rule-detail">
-                <span>When: {{ rule.conditions.join('; ') || '-' }}</span>
-                <span>Do: {{ rule.actions.join('; ') || '-' }}</span>
-                <span v-if="rule.exceptions.length">Except: {{ rule.exceptions.join('; ') }}</span>
+          <div class="mail-fetch-bar">
+            <el-select v-model="mailRange" class="range-select">
+              <el-option label="今天" value="1d" />
+              <el-option label="最近 7 天" value="1w" />
+              <el-option label="最近 30 天" value="1m" />
+            </el-select>
+            <el-select v-model="mailCount" class="count-select">
+              <el-option :value="10" label="10" />
+              <el-option :value="20" label="20" />
+              <el-option :value="30" label="30" />
+              <el-option :value="100" label="100" />
+            </el-select>
+            <div class="mail-counts">
+              <span>未讀 {{ mailStats.unread }}</span>
+              <span>旗標 {{ mailStats.flagged }}</span>
+              <span>分類 {{ mailStats.categorized }}</span>
+            </div>
+          </div>
+
+          <div class="mail-table">
+            <p v-if="mails.length === 0" class="hint">選取左邊 folder 後抓取郵件。</p>
+            <article
+              v-for="(mail, index) in mails"
+              :key="mail.id || `${mail.receivedTime}-${index}`"
+              class="mail-card-row"
+              :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
+            >
+              <button
+                class="mail-row"
+                type="button"
+                draggable="true"
+                @click="selectMail(index)"
+                @dragstart="startMailDrag(mail, index, $event)"
+                @dragend="clearMailDrag"
+              >
+                <span class="mail-row-main">
+                  <strong>{{ mail.subject }}</strong>
+                  <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                </span>
+                <span class="mail-row-tags">
+                  <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
+                  <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
+                    {{ flagIntervalLabel(mail.flagInterval) }}
+                  </el-tag>
+                  <el-tag v-if="mail.taskDueDate" type="info" effect="plain">到期 {{ formatDateTime(mail.taskDueDate) }}</el-tag>
+                  <el-tag v-if="mail.categories" type="success" effect="plain">{{ mail.categories }}</el-tag>
+                </span>
+              </button>
+
+              <div v-if="selectedMailIndex === index && selectedMailIsOpen" class="mail-inline-detail">
+                <el-button size="small" @click="selectedMailHtml = !selectedMailHtml">
+                  {{ selectedMailHtml ? '切到文字' : '切到 HTML' }}
+                </el-button>
+                <iframe
+                  v-if="selectedMailHtml"
+                  class="mail-html"
+                  :sandbox="mailHtmlSandbox"
+                  referrerpolicy="no-referrer"
+                  :srcdoc="mail.bodyHtml || mail.body"
+                />
+                <pre v-else class="mail-text">{{ mail.body }}</pre>
               </div>
             </article>
+            <div v-if="mails.length > 0 && !selectedMail" class="hint">
+              選取一封郵件後，內容會展開在 subject 下方。
+            </div>
           </div>
         </section>
 
+        <div class="outlook-inspector-column">
+          <section class="panel outlook-property-pane">
+            <div class="panel-header">
+              <div class="panel-title">
+                <el-icon><PriceTag /></el-icon>
+                <span>新增郵件屬性</span>
+              </div>
+            </div>
+
+            <div class="inspector-panel-body">
+              <div class="library-group">
+                <div class="library-heading">Master Category List</div>
+                <div class="category-add-row">
+                  <el-input
+                    v-model="categoryCreateDraft"
+                    :disabled="outlookBusy"
+                    placeholder="新增或更新分類名稱"
+                    @keydown.enter.prevent="addCategoryToMasterList"
+                  />
+                  <el-select v-model="categoryCreateColor" class="category-color-select" :disabled="outlookBusy">
+                    <el-option
+                      v-for="option in categoryColorOptions"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
+                    >
+                      <span class="category-option">
+                        <span class="category-swatch" :style="categoryColorStyle(option.value)" />
+                        <span>{{ option.label }}</span>
+                      </span>
+                    </el-option>
+                  </el-select>
+                  <el-button :loading="operationLoading" :disabled="outlookBusy || !categoryCreateDraft.trim()" @click="addCategoryToMasterList">
+                    儲存
+                  </el-button>
+                </div>
+              </div>
+
+              <div class="category-list">
+                <div v-if="categories.length === 0" class="hint">尚未取得 Outlook master category list。</div>
+                <div v-for="category in categories" :key="category.name" class="category-row">
+                  <span class="category-name">
+                    <span class="category-swatch" :style="categoryColorStyle(category.color)" />
+                    <span>{{ category.name }}</span>
+                  </span>
+                  <el-select
+                    :model-value="category.color || 'preset0'"
+                    class="category-row-select"
+                    :disabled="outlookBusy"
+                    @change="(value: string | number | boolean) => updateCategoryColor(category, String(value))"
+                  >
+                    <el-option
+                      v-for="option in categoryColorOptions"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
+                    >
+                      <span class="category-option">
+                        <span class="category-swatch" :style="categoryColorStyle(option.value)" />
+                        <span>{{ option.label }}</span>
+                      </span>
+                    </el-option>
+                  </el-select>
+                </div>
+              </div>
+
+              <div class="inspector-note">Flag、日期、已讀狀態與套用哪些 category 都是單封郵件屬性；這裡只管理 Outlook 全域分類名稱與顏色。</div>
+            </div>
+          </section>
+
+          <section class="panel outlook-property-pane">
+            <div class="panel-header">
+              <div class="panel-title">
+                <el-icon><PriceTag /></el-icon>
+                <span>修改郵件屬性</span>
+              </div>
+            </div>
+
+            <div class="inspector-panel-body">
+              <div v-if="selectedMail" class="mail-inspector">
+                <div class="inspector-subject">{{ selectedMail.subject }}</div>
+                <div class="inspector-meta">
+                  <span>{{ selectedMail.senderName }} &lt;{{ selectedMail.senderEmail }}&gt;</span>
+                  <span>{{ formatDateTime(selectedMail.receivedTime) }}</span>
+                  <span>來源：{{ selectedFolderName }}</span>
+                </div>
+
+                <div class="marker-tags">
+                  <el-tag :type="selectedMail.isRead ? 'info' : 'warning'" effect="plain">
+                    {{ selectedMail.isRead ? '已讀' : '未讀' }}
+                  </el-tag>
+                  <el-tag v-if="selectedMail.isMarkedAsTask" type="danger" effect="plain">
+                    {{ flagIntervalLabel(selectedMail.flagInterval) }}
+                  </el-tag>
+                  <el-tag v-if="selectedMail.taskDueDate" type="info" effect="plain">
+                    到期 {{ formatDateTime(selectedMail.taskDueDate) }}
+                  </el-tag>
+                  <el-tag v-if="selectedMail.importance === 'high'" type="danger" effect="plain">高重要性</el-tag>
+                  <el-tag
+                    v-for="category in selectedMailCategories"
+                    :key="category"
+                    type="success"
+                    effect="plain"
+                  >
+                    {{ category }}
+                  </el-tag>
+                </div>
+
+                <div class="mail-property-form">
+                  <label class="inspector-check">
+                    <el-switch v-model="mailPropertiesDraft.isRead" :disabled="outlookBusy" />
+                    <span>{{ mailPropertiesDraft.isRead ? '已讀' : '未讀' }}</span>
+                  </label>
+
+                  <div class="inspector-field">
+                    <span>旗標種類</span>
+                    <el-select v-model="mailPropertiesDraft.flagInterval" :disabled="outlookBusy">
+                      <el-option
+                        v-for="option in flagIntervalOptions"
+                        :key="option.value"
+                        :label="option.label"
+                        :value="option.value"
+                      />
+                    </el-select>
+                  </div>
+
+                  <div class="inspector-field">
+                    <span>旗標文字</span>
+                    <el-input v-model="mailPropertiesDraft.flagRequest" :disabled="outlookBusy || mailPropertiesDraft.flagInterval === 'none'" placeholder="例如：今天" />
+                  </div>
+
+                  <div class="date-grid">
+                    <div class="inspector-field">
+                      <span>自訂開始日</span>
+                      <el-date-picker
+                        v-model="mailPropertiesDraft.taskStartDate"
+                        type="date"
+                        value-format="YYYY-MM-DD"
+                        :disabled="outlookBusy || mailPropertiesDraft.flagInterval !== 'custom'"
+                        placeholder="選擇日期"
+                      />
+                    </div>
+                    <div class="inspector-field">
+                      <span>自訂到期日</span>
+                      <el-date-picker
+                        v-model="mailPropertiesDraft.taskDueDate"
+                        type="date"
+                        value-format="YYYY-MM-DD"
+                        :disabled="outlookBusy || mailPropertiesDraft.flagInterval !== 'custom'"
+                        placeholder="選擇日期"
+                      />
+                    </div>
+                  </div>
+                  <div v-if="mailPropertiesDraft.flagInterval !== 'custom'" class="field-hint">
+                    選擇「自訂日期」後即可設定自訂開始日與到期日。
+                  </div>
+
+                  <div class="inspector-field">
+                    <span>套用分類</span>
+                    <el-select
+                      v-model="mailPropertiesDraft.categories"
+                      multiple
+                      filterable
+                      collapse-tags
+                      :disabled="outlookBusy"
+                      placeholder="選擇分類"
+                    >
+                      <el-option
+                        v-for="category in categories"
+                        :key="category.name"
+                        :label="category.name"
+                        :value="category.name"
+                      />
+                    </el-select>
+                  </div>
+
+                  <div class="inspector-actions commit-actions">
+                    <el-button @click="resetMailPropertiesDraft(selectedMail)">重設</el-button>
+                    <el-button
+                      type="primary"
+                      size="large"
+                      class="commit-button"
+                      :loading="operationLoading"
+                      :disabled="outlookBusy && !operationLoading"
+                      @click="applyMailProperties(selectedMail)"
+                    >
+                      送出並更新 Outlook
+                    </el-button>
+                  </div>
+                </div>
+
+                <div class="inspector-note">郵件屬性會一次送到 Outlook；移動郵件請拖曳中央郵件到左側 folder。等待 Add-in 回推前會鎖住操作。</div>
+              </div>
+
+              <div v-else class="empty-inspector">
+                請先選取中央郵件，這裡會顯示該郵件目前的屬性與可修改欄位。
+              </div>
+            </div>
+          </section>
+        </div>
+
+      </main>
+
+      <main v-else-if="activeView === 'calendar'" class="calendar-layout">
         <section class="panel">
           <div class="panel-header">
             <div class="panel-title">
@@ -635,7 +566,9 @@ onMounted(async () => {
               <span>Calendar</span>
               <el-tag effect="plain">{{ calendarEvents.length }}</el-tag>
             </div>
-            <el-button :icon="Refresh" :loading="loadingCalendar" @click="requestCalendar">Fetch Calendar</el-button>
+            <el-button :icon="Refresh" :loading="loadingCalendar" :disabled="outlookBusy && !loadingCalendar" @click="requestCalendar">
+              Fetch Calendar
+            </el-button>
           </div>
 
           <div class="workspace-list">
@@ -710,6 +643,18 @@ onMounted(async () => {
       <main v-else class="swagger-layout">
         <iframe class="swagger-frame" src="/swagger/index.html" title="Swagger" />
       </main>
+
+      <div
+        v-if="folderContextMenu.visible"
+        class="folder-context-menu"
+        :style="{ left: `${folderContextMenu.x}px`, top: `${folderContextMenu.y}px` }"
+        @click.stop
+      >
+        <div class="context-menu-title">{{ contextFolderName }}</div>
+        <button type="button" :disabled="outlookBusy" @click="fetchMailsFromContext">抓取郵件</button>
+        <button type="button" :disabled="outlookBusy" @click="createFolderFromContext">新增子資料夾</button>
+        <button class="danger" type="button" :disabled="outlookBusy" @click="deleteFolderFromContext">刪除此資料夾</button>
+      </div>
     </div>
   </el-config-provider>
 </template>
