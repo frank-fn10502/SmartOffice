@@ -1,91 +1,72 @@
-# Office 2016 工作機格式交接
+# Outlook AddIn 溝通介面
 
-本文件只說明工作機上的 AI 或開發人員需要傳送與接收的目前格式。線上文件入口請看 `docs/ai/office2016-addin-references.md`；實測資料、差異與錯誤回報格式請看 `docs/ai/office2016-test-report.md`。
+本文件整理目前 `SmartOffice.Hub` 與工作機 Outlook AddIn 的 HTTP/JSON contract。線上文件入口請看 `docs/ai/office2016-addin-references.md`；實測資料、差異與錯誤回報格式請看 `docs/ai/office2016-test-report.md`。
 
 ## 適用範圍
 
-- Office 2016 desktop 是主要目標環境。
-- 本文件位於開發機的 `SmartOffice.Hub` repository，只定義 Hub 與工作機 AddIn 的 HTTP/JSON contract。
-- 工作機上的完整 SmartOffice solution 會參考 `..\SmartOffice.Hub\SmartOffice.Hub.csproj`；Outlook AddIn 實作請在工作機 SmartOffice solution 中完成，不要在 Hub repository 假裝實作 AddIn。
-- Hub 維持本機 HTTP API、SignalR、command routing 與 temporary state。
-- Add-in 負責 Office automation、Outlook object model / Office API interaction，以及將實測結果轉成 Hub DTO。
-- 目前主要 Office surface 是 Outlook；未來 Word、Excel、PowerPoint 請建立各自的 protocol boundary。
+- 本 repository 只定義 Hub/Web UI/contract/mock，不包含真正的 Outlook AddIn 實作。
+- Outlook AddIn 實作應在工作機完整 SmartOffice solution 中完成。
+- Hub 負責 HTTP API、SignalR、command routing 與 temporary in-memory state。
+- AddIn 負責 Outlook object model / Office automation，並把結果轉成本文件的 DTO。
+- HTTP JSON 使用 ASP.NET Core 預設 camelCase field。
+- Mail body、folder name、category name、chat message 都可能含有敏感 business data；測試回報請匿名化。
 
-## 工作機交接流程
+## 通訊模型
 
-工作機開始測試前，請先讀：
+Outlook AddIn 目前使用 polling protocol：
 
-1. `docs/ai/protocols.md`：Hub route、polling protocol 與 SignalR event。
-2. 本文件：目前 Hub contract 與 JSON sample。
-3. `Models/Dtos.cs`：目前 C# DTO 的來源；HTTP JSON 預期使用 camelCase field。
+1. Web UI、AI 或 MCP client 呼叫 Hub 的 request endpoint。
+2. Hub 將 command 放入 in-memory queue。
+3. Outlook AddIn 呼叫 `GET /api/outlook/poll` long-poll 取得一筆 command。
+4. AddIn 在本機執行 Outlook automation。
+5. AddIn 將結果 push 回 Hub。
+6. Hub 更新 cache，並透過 SignalR 通知 Web UI。
 
-建議流程：
+目前 Outlook AddIn 沒有連線到 SignalR hub，也沒有使用 SignalR server-to-client method 直接接收 command。SignalR 在目前實作中的角色是 Hub 對 Web UI broadcast cache/status/log 更新；AddIn 與 Hub 的溝通仍是 HTTP `poll`、`push-*` 與 `admin/log`。
 
-1. 在開發機啟動 Hub，確認 `http://localhost:2805/swagger` 可用。
-2. 工作機 Add-in 只呼叫 `/api/outlook/poll`、`/api/outlook/push-folders`、`/api/outlook/push-mails`、`/api/outlook/push-rules`、`/api/outlook/push-calendar`、`/api/outlook/admin/log`。
-3. Web UI、AI 或 MCP client 只透過 `/api/outlook/request-folders`、`/api/outlook/request-mails`、`/api/outlook/request-rules`、`/api/outlook/request-calendar` enqueue command。
-4. 每次 Add-in 收到 command 都記錄 `commandId`、`type`、Office API call、轉換後 JSON sample。
-5. 格式不符合，或開發機需要真實資料校準 Web UI、mock、Add-in mapping、檔案寫入或 protocol 時，請依 `docs/ai/office2016-test-report.md` 回傳工作機測試回報。
+這個設計犧牲了 SignalR 雙向即時 command dispatch，但對 Office 2016 / VSTO / 受限企業環境比較保守：AddIn 只需要主動發出 outbound HTTP request，不需要維持 WebSocket 或讓 Hub 連入工作機 process。如果未來確定工作機環境允許穩定 SignalR client 連線，才建議另開一版 AddIn protocol，把 command dispatch 改成 SignalR 並保留 HTTP polling 作 fallback。
 
-## Route Prefix
+Route prefix：
 
 ```text
 /api/outlook
 ```
 
-## Enqueue Folder Fetch
+SignalR endpoint：
+
+```text
+/hub/notifications
+```
+
+## AddIn 需要呼叫的 Endpoint
+
+| Method | Path | 用途 |
+| --- | --- | --- |
+| `GET` | `/api/outlook/poll` | long-poll 取得 pending command，timeout 為 30 秒 |
+| `POST` | `/api/outlook/push-folders` | 回傳 Outlook folder tree |
+| `POST` | `/api/outlook/push-mails` | 回傳 mail list |
+| `POST` | `/api/outlook/push-rules` | 回傳 Outlook rules |
+| `POST` | `/api/outlook/push-categories` | 回傳 Outlook master category list |
+| `POST` | `/api/outlook/push-calendar` | 回傳 calendar events |
+| `POST` | `/api/outlook/admin/log` | 回報簡短診斷 log |
+
+## Poll Command
 
 Request：
 
 ```http
-POST /api/outlook/request-folders
+GET /api/outlook/poll
 ```
 
-Response：
+沒有 command 時：
 
 ```json
 {
-  "status": "queued"
+  "type": "none"
 }
 ```
 
-Add-in 後續會在 `GET /api/outlook/poll` 收到：
-
-```json
-{
-  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "fetch_folders",
-  "mailsRequest": null
-}
-```
-
-## Enqueue Mail Fetch
-
-Request：
-
-```http
-POST /api/outlook/request-mails
-Content-Type: application/json
-```
-
-```json
-{
-  "folderPath": "\\\\Mailbox - User\\Inbox",
-  "range": "1d",
-  "maxCount": 10
-}
-```
-
-Response：
-
-```json
-{
-  "commandId": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "status": "queued"
-}
-```
-
-Add-in 後續會在 `GET /api/outlook/poll` 收到：
+有 command 時：
 
 ```json
 {
@@ -95,7 +76,48 @@ Add-in 後續會在 `GET /api/outlook/poll` 收到：
     "folderPath": "\\\\Mailbox - User\\Inbox",
     "range": "1d",
     "maxCount": 10
-  }
+  },
+  "calendarRequest": null,
+  "mailMarkerRequest": null,
+  "mailPropertiesRequest": null,
+  "categoryRequest": null,
+  "createFolderRequest": null,
+  "deleteFolderRequest": null,
+  "moveMailRequest": null
+}
+```
+
+AddIn 應依 `type` 讀取對應的 request object；其他 request object 可以是 `null` 或缺省。
+
+目前 command type：
+
+| Command type | 對應 request object | 說明 |
+| --- | --- | --- |
+| `fetch_folders` | 無 | 讀取 folder tree |
+| `fetch_mails` | `mailsRequest` | 讀取指定 folder 的 mails |
+| `fetch_rules` | 無 | 讀取 Outlook rules |
+| `fetch_categories` | 無 | 讀取 Outlook master category list |
+| `fetch_calendar` | `calendarRequest` | 讀取 calendar events |
+| `mark_mail_read` | `mailMarkerRequest` | 標記單封 mail 已讀 |
+| `mark_mail_unread` | `mailMarkerRequest` | 標記單封 mail 未讀 |
+| `mark_mail_task` | `mailMarkerRequest` | 將單封 mail 標記 follow-up/task |
+| `clear_mail_task` | `mailMarkerRequest` | 清除單封 mail follow-up/task |
+| `set_mail_categories` | `mailMarkerRequest` | 設定單封 mail categories |
+| `update_mail_properties` | `mailPropertiesRequest` | 一次更新已讀、flag、category 與新 category |
+| `upsert_category` | `categoryRequest` | 新增或更新 master category |
+| `create_folder` | `createFolderRequest` | 建立 folder |
+| `delete_folder` | `deleteFolderRequest` | 刪除 folder |
+| `move_mail` | `moveMailRequest` | 移動單封 mail |
+
+## Request Object 格式
+
+### FetchMailsRequest
+
+```json
+{
+  "folderPath": "\\\\Mailbox - User\\Inbox",
+  "range": "1d",
+  "maxCount": 10
 }
 ```
 
@@ -105,41 +127,7 @@ Add-in 後續會在 `GET /api/outlook/poll` 收到：
 - `1w`
 - `1m`
 
-## Enqueue Rule Fetch
-
-Request：
-
-```http
-POST /api/outlook/request-rules
-```
-
-Response：
-
-```json
-{
-  "status": "queued"
-}
-```
-
-Add-in 後續會在 `GET /api/outlook/poll` 收到：
-
-```json
-{
-  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "fetch_rules",
-  "mailsRequest": null,
-  "calendarRequest": null
-}
-```
-
-## Enqueue Calendar Fetch
-
-Request：
-
-```http
-POST /api/outlook/request-calendar
-Content-Type: application/json
-```
+### FetchCalendarRequest
 
 ```json
 {
@@ -147,79 +135,55 @@ Content-Type: application/json
 }
 ```
 
-Response：
-
-```json
-{
-  "commandId": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "status": "queued"
-}
-```
-
-Add-in 後續會在 `GET /api/outlook/poll` 收到：
-
-```json
-{
-  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "fetch_calendar",
-  "mailsRequest": null,
-  "calendarRequest": {
-    "daysForward": 14
-  }
-}
-```
-
-## Enqueue Mail Marker Commands
-
-Request：
-
-```http
-POST /api/outlook/request-mark-mail-read
-POST /api/outlook/request-mark-mail-unread
-POST /api/outlook/request-mark-mail-task
-POST /api/outlook/request-clear-mail-task
-POST /api/outlook/request-set-mail-categories
-Content-Type: application/json
-```
+### MailMarkerCommandRequest
 
 ```json
 {
   "mailId": "[redacted Outlook EntryID or stable id]",
   "folderPath": "\\\\Mailbox - User\\Inbox",
-  "categories": "Sample Category"
+  "categories": "Customer, Follow-up"
 }
 ```
 
-Add-in 後續會在 `GET /api/outlook/poll` 收到對應 command type：
+`categories` 只在 `set_mail_categories` 使用；其他 marker command 可留空。
+
+### MailPropertiesCommandRequest
 
 ```json
 {
-  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "set_mail_categories",
-  "mailMarkerRequest": {
-    "mailId": "[redacted Outlook EntryID or stable id]",
-    "folderPath": "\\\\Mailbox - User\\Inbox",
-    "categories": "Sample Category"
-  }
+  "mailId": "[redacted Outlook EntryID or stable id]",
+  "folderPath": "\\\\Mailbox - User\\Inbox",
+  "isRead": true,
+  "flagInterval": "today",
+  "flagRequest": "今天",
+  "taskStartDate": "2026-05-04T00:00:00+08:00",
+  "taskDueDate": "2026-05-04T00:00:00+08:00",
+  "taskCompletedDate": null,
+  "categories": ["Customer", "Follow-up"],
+  "newCategories": [
+    {
+      "name": "Customer",
+      "color": "preset4",
+      "shortcutKey": ""
+    }
+  ]
 }
 ```
 
-目前 mail marker command type：
+`flagInterval` 目前預期值：
 
-- `mark_mail_read`
-- `mark_mail_unread`
-- `mark_mail_task`
-- `clear_mail_task`
-- `set_mail_categories`
+- `none`
+- `today`
+- `tomorrow`
+- `this_week`
+- `next_week`
+- `no_date`
+- `custom`
+- `complete`
 
-## Enqueue Master Category Commands
+`newCategories` 用來讓 AddIn 先建立不存在的 Outlook master category，再套用到單封 mail。
 
-Request：
-
-```http
-POST /api/outlook/request-upsert-category
-Content-Type: application/json
-```
+### CategoryCommandRequest
 
 ```json
 {
@@ -229,30 +193,9 @@ Content-Type: application/json
 }
 ```
 
-Add-in 後續會在 `GET /api/outlook/poll` 收到：
+此 command 修改 Outlook master category list，不是單封 mail 的 category assignment。AddIn 應以 category name 找既有 category；存在時更新 color / shortcut key，不存在時新增。
 
-```json
-{
-  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "upsert_category",
-  "categoryRequest": {
-    "name": "Project",
-    "color": "preset4",
-    "shortcutKey": ""
-  }
-}
-```
-
-此 command 修改的是 Outlook master category list，不是單封郵件的 category assignment。工作機 Add-in 應以 category name 找既有 category；存在時更新 color / shortcut key，不存在時新增 category。完成後請重新 push master category list。
-
-## Enqueue Folder / Move Mail Commands
-
-Request：
-
-```http
-POST /api/outlook/request-create-folder
-Content-Type: application/json
-```
+### CreateFolderRequest
 
 ```json
 {
@@ -261,25 +204,7 @@ Content-Type: application/json
 }
 ```
 
-Add-in poll command：
-
-```json
-{
-  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "create_folder",
-  "createFolderRequest": {
-    "parentFolderPath": "\\\\Mailbox - User\\Projects",
-    "name": "Sample Folder"
-  }
-}
-```
-
-Request：
-
-```http
-POST /api/outlook/request-delete-folder
-Content-Type: application/json
-```
+### DeleteFolderRequest
 
 ```json
 {
@@ -287,60 +212,13 @@ Content-Type: application/json
 }
 ```
 
-Add-in poll command：
-
-```json
-{
-  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "delete_folder",
-  "deleteFolderRequest": {
-    "folderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
-  }
-}
-```
-
-Request：
-
-```http
-POST /api/outlook/request-move-mail
-Content-Type: application/json
-```
+### MoveMailRequest
 
 ```json
 {
   "mailId": "[redacted Outlook EntryID or stable id]",
   "sourceFolderPath": "\\\\Mailbox - User\\Inbox",
   "destinationFolderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
-}
-```
-
-Add-in poll command：
-
-```json
-{
-  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "move_mail",
-  "moveMailRequest": {
-    "mailId": "[redacted Outlook EntryID or stable id]",
-    "sourceFolderPath": "\\\\Mailbox - User\\Inbox",
-    "destinationFolderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
-  }
-}
-```
-
-## Poll No Command
-
-Request：
-
-```http
-GET /api/outlook/poll
-```
-
-如果 30 秒內沒有 command，Hub 回傳：
-
-```json
-{
-  "type": "none"
 }
 ```
 
@@ -379,11 +257,7 @@ Response：
 }
 ```
 
-實測重點：
-
-- `folderPath` 必須保留 Outlook 實際可再定位的路徑或可穩定比對的路徑。
-- `name` 可能包含公司、使用者或客戶資訊；回報時請匿名化。
-- `itemCount` 如果 Office API 取不到，請回報正確 API、錯誤訊息與可替代欄位。
+`folderPath` 必須保留 AddIn 後續可再定位或穩定比對的路徑。
 
 ## Push Mails
 
@@ -397,17 +271,22 @@ Content-Type: application/json
 ```json
 [
   {
+    "id": "[redacted Outlook EntryID or stable id]",
     "subject": "[redacted] sample subject",
-    "id": "[redacted stable Outlook entry id if available]",
     "senderName": "Sample Sender",
     "senderEmail": "sender@example.invalid",
-    "receivedTime": "2026-04-29T09:30:00+08:00",
+    "receivedTime": "2026-05-04T09:30:00+08:00",
     "body": "[redacted plain text body]",
     "bodyHtml": "<p>[redacted html body]</p>",
     "folderPath": "\\\\Mailbox - User\\Inbox",
     "categories": "Customer, Follow-up",
     "isRead": false,
     "isMarkedAsTask": true,
+    "flagRequest": "今天",
+    "flagInterval": "today",
+    "taskStartDate": "2026-05-04T00:00:00+08:00",
+    "taskDueDate": "2026-05-04T00:00:00+08:00",
+    "taskCompletedDate": null,
     "importance": "high",
     "sensitivity": "normal"
   }
@@ -422,13 +301,12 @@ Response：
 }
 ```
 
-實測重點：
+注意事項：
 
-- `receivedTime` 請回傳 ISO 8601 字串；如果 Office 2016 interop 只能取得 local `DateTime`，請在測試回報寫明 timezone 與轉換方式。
-- `body` 與 `bodyHtml` 可能含有敏感 business data；除非已獲授權，測試回報只放已匿名化的最小可用 sample。
-- 如果 `MailItem.Body`、`HTMLBody`、`SenderEmailAddress` 或 `ReceivedTime` 在特定帳號型態下行為不同，請附上觀察結果與官方 API link。
-- `id` 如果可以取得，建議使用 Outlook `EntryID` 或其他可重新定位 item 的穩定值；如果無法穩定取得，可以留空。
-- `categories`、`isRead`、`isMarkedAsTask`、`importance`、`sensitivity` 是 Web UI 與 AI 操作建議需要的 metadata；如果 Office 2016 工作機取不到，請留預設值並在測試回報說明。
+- `receivedTime`、task dates 建議回傳 ISO 8601 字串。
+- `id` 建議使用 Outlook `EntryID` 或其他可重新定位 item 的穩定值。
+- `body` 與 `bodyHtml` 可能含有敏感 business data；除非已獲授權，測試回報只放匿名化 sample。
+- `categories` 是 Outlook 對單封 mail 的 category assignment，格式目前是逗號分隔字串。
 
 ## Push Rules
 
@@ -461,6 +339,35 @@ Response：
 }
 ```
 
+## Push Categories
+
+Request：
+
+```http
+POST /api/outlook/push-categories
+Content-Type: application/json
+```
+
+```json
+[
+  {
+    "name": "Customer",
+    "color": "preset4",
+    "shortcutKey": ""
+  }
+]
+```
+
+Response：
+
+```json
+{
+  "count": 1
+}
+```
+
+`color` 目前是 Hub/Web UI 傳遞用字串；AddIn 實作需在工作機端映射到 Outlook category color。
+
 ## Push Calendar
 
 Request：
@@ -475,8 +382,8 @@ Content-Type: application/json
   {
     "id": "[redacted appointment id if available]",
     "subject": "[redacted meeting subject]",
-    "start": "2026-04-30T10:00:00+08:00",
-    "end": "2026-04-30T11:00:00+08:00",
+    "start": "2026-05-04T10:00:00+08:00",
+    "end": "2026-05-04T11:00:00+08:00",
     "location": "Meeting Room",
     "organizer": "Sample Organizer",
     "requiredAttendees": "Sample Attendee",
@@ -494,7 +401,7 @@ Response：
 }
 ```
 
-## Add-in Log
+## Admin Log
 
 工作機可以用既有 admin log 回報簡短事件。這不是完整測試回報包，只適合 dashboard 即時診斷。
 
@@ -507,7 +414,7 @@ Content-Type: application/json
 {
   "level": "error",
   "message": "fetch_mails failed: MailItem.HTMLBody returned empty for selected folder.",
-  "timestamp": "2026-04-29T09:35:00+08:00"
+  "timestamp": "2026-05-04T09:35:00+08:00"
 }
 ```
 
@@ -516,3 +423,134 @@ Content-Type: application/json
 - `info`
 - `warn`
 - `error`
+
+## Web UI / AI Request Endpoint 摘要
+
+這些 endpoint 主要由 Web UI、AI 或 MCP client 呼叫，用來 enqueue command；AddIn 不需要主動呼叫它們。
+
+| Method | Path | Enqueued command |
+| --- | --- | --- |
+| `POST` | `/api/outlook/request-folders` | `fetch_folders` |
+| `POST` | `/api/outlook/request-mails` | `fetch_mails` |
+| `POST` | `/api/outlook/request-rules` | `fetch_rules` |
+| `POST` | `/api/outlook/request-categories` | `fetch_categories` |
+| `POST` | `/api/outlook/request-calendar` | `fetch_calendar` |
+| `POST` | `/api/outlook/request-mark-mail-read` | `mark_mail_read` |
+| `POST` | `/api/outlook/request-mark-mail-unread` | `mark_mail_unread` |
+| `POST` | `/api/outlook/request-mark-mail-task` | `mark_mail_task` |
+| `POST` | `/api/outlook/request-clear-mail-task` | `clear_mail_task` |
+| `POST` | `/api/outlook/request-set-mail-categories` | `set_mail_categories` |
+| `POST` | `/api/outlook/request-update-mail-properties` | `update_mail_properties` |
+| `POST` | `/api/outlook/request-upsert-category` | `upsert_category` |
+| `POST` | `/api/outlook/request-create-folder` | `create_folder` |
+| `POST` | `/api/outlook/request-delete-folder` | `delete_folder` |
+| `POST` | `/api/outlook/request-move-mail` | `move_mail` |
+
+## Cache Read Endpoint 摘要
+
+| Method | Path | 用途 |
+| --- | --- | --- |
+| `GET` | `/api/outlook/folders` | 讀取 cached folders |
+| `GET` | `/api/outlook/mails` | 讀取 cached mails |
+| `GET` | `/api/outlook/rules` | 讀取 cached rules |
+| `GET` | `/api/outlook/categories` | 讀取 cached categories |
+| `GET` | `/api/outlook/calendar` | 讀取 cached calendar events |
+| `GET` | `/api/outlook/chat` | 讀取 cached chat messages |
+| `POST` | `/api/outlook/chat` | 新增並 broadcast chat message |
+| `GET` | `/api/outlook/admin/status` | 讀取 AddIn status |
+| `GET` | `/api/outlook/admin/logs` | 讀取 AddIn logs |
+
+## SignalR Event
+
+Hub 在 AddIn poll、push 或寫入 log 後，會 broadcast 下列事件給 Web UI：
+
+| Event | Payload |
+| --- | --- |
+| `FoldersUpdated` | `FolderDto[]` |
+| `MailsUpdated` | `MailItemDto[]` |
+| `RulesUpdated` | `OutlookRuleDto[]` |
+| `CategoriesUpdated` | `OutlookCategoryDto[]` |
+| `CalendarUpdated` | `CalendarEventDto[]` |
+| `NewChatMessage` | `ChatMessageDto` |
+| `AddinStatus` | `AddinStatusDto` |
+| `AddinLog` | `AddinLogEntry[]` |
+
+## DTO 欄位速查
+
+### MailItemDto
+
+- `id`: string
+- `subject`: string
+- `senderName`: string
+- `senderEmail`: string
+- `receivedTime`: DateTime
+- `body`: string
+- `bodyHtml`: string
+- `folderPath`: string
+- `categories`: string
+- `isRead`: boolean
+- `isMarkedAsTask`: boolean
+- `flagRequest`: string
+- `flagInterval`: string
+- `taskStartDate`: DateTime 或 `null`
+- `taskDueDate`: DateTime 或 `null`
+- `taskCompletedDate`: DateTime 或 `null`
+- `importance`: string，預設 `normal`
+- `sensitivity`: string，預設 `normal`
+
+### FolderDto
+
+- `name`: string
+- `folderPath`: string
+- `itemCount`: number
+- `subFolders`: `FolderDto[]`
+
+### OutlookRuleDto
+
+- `name`: string
+- `enabled`: boolean
+- `executionOrder`: number
+- `ruleType`: string，預設 `receive`
+- `conditions`: string[]
+- `actions`: string[]
+- `exceptions`: string[]
+
+### OutlookCategoryDto
+
+- `name`: string
+- `color`: string
+- `shortcutKey`: string
+
+### CalendarEventDto
+
+- `id`: string
+- `subject`: string
+- `start`: DateTime
+- `end`: DateTime
+- `location`: string
+- `organizer`: string
+- `requiredAttendees`: string
+- `isRecurring`: boolean
+- `busyStatus`: string
+
+### AddinStatusDto
+
+- `connected`: boolean
+- `lastPollTime`: DateTime 或 `null`
+- `lastPushTime`: DateTime 或 `null`
+- `lastCommand`: string
+
+### AddinLogEntry
+
+- `level`: string，預期 `info`、`warn` 或 `error`
+- `message`: string
+- `timestamp`: DateTime
+
+## 實作注意事項
+
+- AddIn 應持續 poll；Hub 以最近 90 秒內有 poll 視為 connected。
+- 每次 AddIn 完成 fetch 或 command 後，建議 push 最新完整 list，而不是只 push delta。
+- `push-*` 目前會取代 Hub cache 內對應資料。
+- Folder 與 mail 操作完成後，建議重新 push 受影響的 folders/mails，讓 Web UI 狀態同步。
+- Category 操作完成後，建議重新 push master category list；若同時修改 mail category，也要 push mails。
+- Hub state 是 process-local memory；重啟 Hub 後 cache、queue、logs 都會清空。

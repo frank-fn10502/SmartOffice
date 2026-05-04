@@ -15,6 +15,8 @@ Outlook Add-in 目前使用 polling protocol：
 
 除非要同步替換所有 caller，否則請保持這個 pattern。
 
+注意：目前 SignalR 只用於 Hub 對 Web UI 的 real-time update。Outlook Add-in 沒有連到 `/hub/notifications`，也沒有透過 SignalR 接收 command；Add-in 與 Hub 的 command/result 溝通是 HTTP long-poll 與 push endpoint。
+
 ## Add-in Mocks
 
 預設 runtime 不啟用 Hub 端 Add-in mock，讓工作電腦的 Outlook Add-in 可以直接透過 polling protocol 連進 Hub。離線開發或沒有 Office Add-in 可用時，使用 `http-mock` launch profile 啟用 Hub 端 Add-in mock：
@@ -54,12 +56,14 @@ dotnet run --launch-profile http-mock
 - `POST /request-folders`：enqueue folder fetch command。
 - `POST /request-mails`：enqueue mail fetch command。
 - `POST /request-rules`：enqueue Outlook rule fetch command。
+- `POST /request-categories`：enqueue Outlook master category fetch command。
 - `POST /request-calendar`：enqueue Outlook calendar fetch command。
 - `POST /request-mark-mail-read`：enqueue 單封郵件標記已讀 command。
 - `POST /request-mark-mail-unread`：enqueue 單封郵件標記未讀 command。
 - `POST /request-mark-mail-task`：enqueue 單封郵件 flag/follow-up command。
 - `POST /request-clear-mail-task`：enqueue 單封郵件清除 flag/follow-up command。
 - `POST /request-set-mail-categories`：enqueue 單封郵件 category command。
+- `POST /request-update-mail-properties`：enqueue 單封郵件屬性整批更新 command。
 - `POST /request-upsert-category`：enqueue Outlook master category 新增或更新顏色 command。
 - `POST /request-create-folder`：enqueue 建立 folder command。
 - `POST /request-delete-folder`：enqueue 刪除 folder command。
@@ -100,6 +104,7 @@ SignalR endpoint：
 - `FoldersUpdated`
 - `MailsUpdated`
 - `RulesUpdated`
+- `CategoriesUpdated`
 - `CalendarUpdated`
 - `NewChatMessage`
 - `AddinStatus`
