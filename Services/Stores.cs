@@ -24,7 +24,22 @@ namespace SmartOffice.Hub.Services
             {
                 var index = _mails.FindIndex(item => item.Id == mail.Id);
                 if (index < 0) return;
+                if (string.IsNullOrEmpty(mail.Body) && !string.IsNullOrEmpty(_mails[index].Body))
+                    mail.Body = _mails[index].Body;
+                if (string.IsNullOrEmpty(mail.BodyHtml) && !string.IsNullOrEmpty(_mails[index].BodyHtml))
+                    mail.BodyHtml = _mails[index].BodyHtml;
                 _mails[index] = mail;
+            }
+        }
+
+        public void UpdateMailBody(MailBodyDto body)
+        {
+            lock (_lock)
+            {
+                var mail = _mails.FirstOrDefault(item => item.Id == body.MailId);
+                if (mail is null) return;
+                mail.Body = body.Body;
+                mail.BodyHtml = body.BodyHtml;
             }
         }
 

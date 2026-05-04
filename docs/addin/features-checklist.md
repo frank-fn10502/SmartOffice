@@ -26,7 +26,8 @@
 | --- | --- | --- | --- |
 | AddIn 連線 | Admin / 啟動狀態 | `ping` | `ReportCommandResult` |
 | Store-first folder tree | Folders refresh | `fetch_folders` | `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync` |
-| 讀取郵件 | 選 folder 後抓取郵件 | `fetch_mails` | `PushMails` |
+| 讀取郵件 | 選 folder 後抓取郵件 | `fetch_mails` | `PushMails` metadata |
+| 讀取郵件內容 | 點開 mail row | `fetch_mail_body` | `PushMailBody` |
 | 修改郵件屬性 | 右側屬性面板送出 | `update_mail_properties` | `PushMail`，必要時 `PushCategories` |
 | 拖曳移動郵件 | Drag mail row 到 folder | `move_mail` | `PushMails`、folder 增量同步 |
 | Master categories | Category refresh / 新增 / 改色 | `fetch_categories`、`upsert_category` | `PushCategories` |
@@ -91,14 +92,18 @@ Web UI 要求：第一層必須是 Outlook Store，而不是直接顯示 Inbox/S
 - [ ] 依 `mailsRequest.folderPath` 讀取該 folder 的 mail。
 - [ ] 支援 `range`：`1d`、`1w`、`1m`。
 - [ ] 支援 `maxCount`。
-- [ ] 回推 `PushMails(mails)`。
+- [ ] 回推 `PushMails(mails)`，只包含 metadata。
 - [ ] 每筆 mail 的 `id` 必填，建議使用 Outlook `MailItem.EntryID` 或 AddIn 可穩定找回 item 的識別。
 - [ ] `folderPath` 必須對應目前 mail 所在 folder。
-- [ ] `bodyHtml` 可為空；Web UI 會 fallback 到 `body`。
+- [ ] `body` 與 `bodyHtml` 在 `fetch_mails` 回應中必須留空，避免一次載入大量郵件內容。
+- [ ] AddIn 收到 `fetch_mail_body`。
+- [ ] 依 `mailBodyRequest.mailId` 與 `folderPath` 找回單封 mail。
+- [ ] 回推 `PushMailBody(body)`，包含 `mailId`、`folderPath`、`body` 與 `bodyHtml`。
 
 驗收：
 
 - [ ] Web UI 中每封 mail 都可被選取。
+- [ ] Web UI 點開 mail row 後才載入該封內容。
 - [ ] 沒有出現「缺少 id」警告。
 - [ ] 已讀、flag、category、drag/drop move 都送出有效 `mailId`。
 

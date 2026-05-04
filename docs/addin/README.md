@@ -14,3 +14,4 @@
 - checklist 是任務入口；contract 是欄位規格。
 - AddIn 不應用 mock data 反推 Outlook object model 行為。
 - 真實 mail body、folder name、PST path、category name 與 chat message 都可能含敏感 business data；回報時必須匿名化。
+- 郵件列表採兩段式載入：`fetch_mails` 只回 metadata，不應載入或回推完整 `body` / `bodyHtml`；使用者點開單封郵件時，Web UI 會送 `fetch_mail_body`，AddIn 再回推該封內容。

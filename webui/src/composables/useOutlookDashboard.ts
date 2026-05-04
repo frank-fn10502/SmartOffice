@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { normalizeMailItem, normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
+import { normalizeMailBody, normalizeMailItem, normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
 import type {
   AddinLogEntry,
   AddinStatusDto,
@@ -11,6 +11,7 @@ import type {
   FolderSyncBeginDto,
   FolderSyncCompleteDto,
   FolderTreeNode,
+  MailBodyDto,
   MailItemDto,
   MailPropertiesCommandRequest,
   OutlookCommandResult,
@@ -71,6 +72,7 @@ export function useOutlookDashboard() {
   const expandedFolders = ref<Set<string>>(new Set())
   const openMailIndexes = ref<Set<number>>(new Set())
   const htmlMailIndexes = ref<Set<number>>(new Set())
+  const loadingMailBodyIds = ref<Set<string>>(new Set())
   const mailRange = ref('1d')
   const mailCount = ref(10)
   const chatText = ref('')
@@ -112,6 +114,8 @@ export function useOutlookDashboard() {
   let startupSyncStarted = false
   let activeOperationCommandId = ''
   let operationTimeoutId = 0
+  const mailBodyCommandIds = new Map<string, string>()
+  const mailBodyTimeoutIds = new Map<string, number>()
 
   const visibleFolders = computed(() => visibleRootFolders(folders.value))
 
@@ -265,6 +269,7 @@ function categoryTagStyle(name: string) {
 
   function setMails(items: MailItemDto[], preferredMailId = selectedMail.value?.id ?? '') {
     const wasOpen = selectedMailIndex.value !== null && openMailIndexes.value.has(selectedMailIndex.value)
+    clearMailBodyLoads()
     mails.value = items
 
     if (items.length === 0) {
@@ -287,8 +292,27 @@ function categoryTagStyle(name: string) {
     const index = mails.value.findIndex((mail) => mail.id === nextMail.id)
     if (index < 0) return
     const items = [...mails.value]
-    items[index] = nextMail
+    items[index] = {
+      ...nextMail,
+      body: nextMail.body || items[index].body,
+      bodyHtml: nextMail.bodyHtml || items[index].bodyHtml,
+    }
     mails.value = items
+  }
+
+  function patchMailBody(body: MailBodyDto) {
+    if (!body.mailId) return
+    const index = mails.value.findIndex((mail) => mail.id === body.mailId)
+    if (index < 0) return
+    const items = [...mails.value]
+    items[index] = {
+      ...items[index],
+      body: body.body,
+      bodyHtml: body.bodyHtml,
+      folderPath: body.folderPath || items[index].folderPath,
+    }
+    mails.value = items
+    completeMailBodyLoad(body.mailId)
   }
 
   async function loadCachedFolders() {
@@ -609,6 +633,49 @@ function categoryTagStyle(name: string) {
     window.clearTimeout(operationTimeoutId)
   }
 
+  function completeMailBodyLoad(mailId: string) {
+    const next = new Set(loadingMailBodyIds.value)
+    next.delete(mailId)
+    loadingMailBodyIds.value = next
+    const timeoutId = mailBodyTimeoutIds.get(mailId)
+    if (timeoutId) window.clearTimeout(timeoutId)
+    mailBodyTimeoutIds.delete(mailId)
+    for (const [commandId, trackedMailId] of mailBodyCommandIds) {
+      if (trackedMailId === mailId) mailBodyCommandIds.delete(commandId)
+    }
+  }
+
+  function clearMailBodyLoads() {
+    loadingMailBodyIds.value = new Set()
+    for (const timeoutId of mailBodyTimeoutIds.values()) window.clearTimeout(timeoutId)
+    mailBodyTimeoutIds.clear()
+    mailBodyCommandIds.clear()
+  }
+
+  function isMailBodyLoading(mail: MailItemDto) {
+    return Boolean(mail.id && loadingMailBodyIds.value.has(mail.id))
+  }
+
+  function mailHasBody(mail: MailItemDto) {
+    return Boolean(mail.body || mail.bodyHtml)
+  }
+
+  async function requestMailBody(mail: MailItemDto) {
+    if (!mail.id?.trim() || mailHasBody(mail) || isMailBodyLoading(mail)) return
+    loadingMailBodyIds.value = new Set(loadingMailBodyIds.value).add(mail.id)
+    try {
+      const response = await outlookApi.requestMailBody({
+        mailId: mail.id,
+        folderPath: mail.folderPath,
+      })
+      mailBodyCommandIds.set(response.commandId, mail.id)
+      const timeoutId = window.setTimeout(() => completeMailBodyLoad(mail.id), 30000)
+      mailBodyTimeoutIds.set(mail.id, timeoutId)
+    } catch {
+      completeMailBodyLoad(mail.id)
+    }
+  }
+
   async function applyMailProperties(mail: MailItemDto) {
     if (!mail.id?.trim()) return
     const selectedCategories = [...new Set(mailPropertiesDraft.value.categories.map((category) => category.trim()).filter(Boolean))]
@@ -711,7 +778,10 @@ function categoryTagStyle(name: string) {
     if (selectedMailIndex.value === index) {
       const next = new Set(openMailIndexes.value)
       if (next.has(index)) next.delete(index)
-      else next.add(index)
+      else {
+        next.add(index)
+        void requestMailBody(mails.value[index])
+      }
       openMailIndexes.value = next
       return
     }
@@ -721,6 +791,7 @@ function categoryTagStyle(name: string) {
     const next = new Set<number>()
     next.add(index)
     openMailIndexes.value = next
+    void requestMailBody(mails.value[index])
   }
 
   async function moveMailToFolder(mail: MailItemDto, destinationFolderPath: string) {
@@ -855,8 +926,13 @@ function categoryTagStyle(name: string) {
       completeOperation()
     })
     connection.on('MailUpdated', (item: unknown) => {
-      patchMail(normalizeMailItem(item))
+      const mail = normalizeMailItem(item)
+      patchMail(mail)
+      if (mailHasBody(mail)) completeMailBodyLoad(mail.id)
       completeOperation()
+    })
+    connection.on('MailBodyUpdated', (item: unknown) => {
+      patchMailBody(normalizeMailBody(item))
     })
     connection.on('RulesUpdated', (items: OutlookRuleDto[]) => {
       rules.value = items
@@ -875,6 +951,8 @@ function categoryTagStyle(name: string) {
       completeOperation()
     })
     connection.on('CommandResult', (result: OutlookCommandResult) => {
+      const mailId = mailBodyCommandIds.get(result.commandId)
+      if (mailId) completeMailBodyLoad(mailId)
       completeOperation(result.commandId)
     })
     connection.on('NewChatMessage', async (message: ChatMessageDto) => {
@@ -935,6 +1013,7 @@ function categoryTagStyle(name: string) {
     unmounted = true
     window.removeEventListener('click', closeFolderContextMenu)
     window.clearTimeout(operationTimeoutId)
+    clearMailBodyLoads()
     void connection?.stop()
   })
 
@@ -984,6 +1063,8 @@ function categoryTagStyle(name: string) {
     loadingSignalRPing,
     mailCount,
     mailHtmlSandbox,
+    isMailBodyLoading,
+    mailHasBody,
     mailPropertiesDraft,
     mailRange,
     mailStats,

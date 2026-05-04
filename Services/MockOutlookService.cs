@@ -59,6 +59,7 @@ namespace SmartOffice.Hub.Services
             FolderSyncBatchDto? folderBatch = null;
             List<MailItemDto>? mails = null;
             MailItemDto? mail = null;
+            MailBodyDto? mailBody = null;
             List<OutlookCategoryDto>? categories = null;
             List<OutlookRuleDto>? rules = null;
             List<CalendarEventDto>? calendar = null;
@@ -79,6 +80,10 @@ namespace SmartOffice.Hub.Services
                             command.MailsRequest?.Range ?? "1d",
                             command.MailsRequest?.MaxCount ?? 10);
                         _mailStore.SetMails(mails);
+                        break;
+                    case "fetch_mail_body":
+                        mailBody = FetchMailBody(command.MailBodyRequest);
+                        if (mailBody is not null) _mailStore.UpdateMailBody(mailBody);
                         break;
                     case "fetch_categories":
                         categories = new List<OutlookCategoryDto>(_mockCategories);
@@ -195,6 +200,7 @@ namespace SmartOffice.Hub.Services
             }
             if (mails is not null) await _notifications.Clients.All.SendAsync("MailsUpdated", mails, ct);
             if (mail is not null) await _notifications.Clients.All.SendAsync("MailUpdated", mail, ct);
+            if (mailBody is not null) await _notifications.Clients.All.SendAsync("MailBodyUpdated", mailBody, ct);
             if (categories is not null) await _notifications.Clients.All.SendAsync("CategoriesUpdated", categories, ct);
             if (rules is not null) await _notifications.Clients.All.SendAsync("RulesUpdated", rules, ct);
             if (calendar is not null) await _notifications.Clients.All.SendAsync("CalendarUpdated", calendar, ct);
@@ -381,8 +387,24 @@ namespace SmartOffice.Hub.Services
                 .Where(mail => mail.FolderPath == target && mail.ReceivedTime >= since)
                 .OrderByDescending(mail => mail.ReceivedTime)
                 .Take(Math.Max(1, maxCount))
-                .Select(CloneMail)
+                .Select(CloneMailMetadata)
                 .ToList();
+        }
+
+        private MailBodyDto? FetchMailBody(FetchMailBodyRequest? request)
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.MailId)) return null;
+            var mail = _mockMails.FirstOrDefault(item =>
+                item.Id == request.MailId
+                && (string.IsNullOrWhiteSpace(request.FolderPath) || item.FolderPath == request.FolderPath));
+            if (mail is null) return null;
+            return new MailBodyDto
+            {
+                MailId = mail.Id,
+                FolderPath = mail.FolderPath,
+                Body = mail.Body,
+                BodyHtml = mail.BodyHtml,
+            };
         }
 
         private List<CalendarEventDto> FilterCalendar(FetchCalendarRequest? request)
@@ -684,6 +706,14 @@ namespace SmartOffice.Hub.Services
                 Importance = mail.Importance,
                 Sensitivity = mail.Sensitivity,
             };
+        }
+
+        private static MailItemDto CloneMailMetadata(MailItemDto mail)
+        {
+            var clone = CloneMail(mail);
+            clone.Body = string.Empty;
+            clone.BodyHtml = string.Empty;
+            return clone;
         }
 
         private static CalendarEventDto CloneCalendarEvent(CalendarEventDto item)

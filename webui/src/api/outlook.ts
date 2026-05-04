@@ -6,6 +6,7 @@ import type {
   ChatMessageDto,
   CommandDispatchResponse,
   FolderSnapshotDto,
+  MailBodyDto,
   MailPropertiesCommandRequest,
   MailItemDto,
   OutlookCategoryDto,
@@ -70,6 +71,16 @@ export function normalizeMailItems(items: unknown): MailItemDto[] {
   return Array.isArray(items) ? items.map(normalizeMailItem) : []
 }
 
+export function normalizeMailBody(item: unknown): MailBodyDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    mailId: readString(source, 'mailId', 'MailId'),
+    folderPath: readString(source, 'folderPath', 'FolderPath'),
+    body: readString(source, 'body', 'Body'),
+    bodyHtml: readString(source, 'bodyHtml', 'BodyHtml'),
+  }
+}
+
 export function normalizeOutlookCategory(item: unknown): OutlookCategoryDto {
   const source = (item ?? {}) as LooseRecord
   const color = normalizeCategoryColor(readString(source, 'color', 'Color'))
@@ -121,7 +132,9 @@ export const outlookApi = {
 
   requestFolders: () => postJson<CommandDispatchResponse>('/api/outlook/request-folders'),
   requestMails: (body: { folderPath: string; range: string; maxCount: number }) =>
-    postJson('/api/outlook/request-mails', body),
+    postJson<CommandDispatchResponse>('/api/outlook/request-mails', body),
+  requestMailBody: (body: { mailId: string; folderPath: string }) =>
+    postJson<CommandDispatchResponse>('/api/outlook/request-mail-body', body),
   requestRules: () => postJson('/api/outlook/request-rules'),
   requestCategories: () => postJson<CommandDispatchResponse>('/api/outlook/request-categories'),
   requestSignalRPing: () => postJson('/api/outlook/request-signalr-ping'),

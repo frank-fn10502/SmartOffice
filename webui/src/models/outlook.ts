@@ -81,6 +81,13 @@ export interface MailItemDto {
   sensitivity: string
 }
 
+export interface MailBodyDto {
+  mailId: string
+  folderPath: string
+  body: string
+  bodyHtml: string
+}
+
 export interface OutlookCategoryDto {
   name: string
   color: string

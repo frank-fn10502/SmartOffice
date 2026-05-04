@@ -95,6 +95,20 @@ namespace SmartOffice.Hub.Models
         public DateTime? EndDate { get; set; }
     }
 
+    public class FetchMailBodyRequest
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+    }
+
+    public class MailBodyDto
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
+        public string BodyHtml { get; set; } = string.Empty;
+    }
+
     public class MailMarkerCommandRequest
     {
         public string MailId { get; set; } = string.Empty;
@@ -180,8 +194,9 @@ namespace SmartOffice.Hub.Models
     public class PendingCommand
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_folders"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
+        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_mail_body"、"fetch_folders"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
         public FetchMailsRequest? MailsRequest { get; set; }
+        public FetchMailBodyRequest? MailBodyRequest { get; set; }
         public FetchCalendarRequest? CalendarRequest { get; set; }
         public MailMarkerCommandRequest? MailMarkerRequest { get; set; }
         public MailPropertiesCommandRequest? MailPropertiesRequest { get; set; }

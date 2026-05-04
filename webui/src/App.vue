@@ -53,6 +53,7 @@ const {
   flagIntervalOptions,
   folderContextMenu,
   folderStores,
+  isMailBodyLoading,
   loadingCalendar,
   loadingCategories,
   loadingFolders,
@@ -61,6 +62,7 @@ const {
   mailCount,
   mailHtmlSandbox,
   mailListNeedsFetch,
+  mailHasBody,
   mailPropertiesDraft,
   mailRange,
   mailStats,
@@ -244,17 +246,21 @@ const {
               </button>
 
               <div v-if="selectedMailIndex === index && selectedMailIsOpen" class="mail-inline-detail">
-                <el-button size="small" @click="selectedMailHtml = !selectedMailHtml">
+                <div v-if="isMailBodyLoading(mail)" class="pane-loading">
+                  <span>郵件內容載入中...</span>
+                </div>
+                <el-button v-else-if="mailHasBody(mail)" size="small" @click="selectedMailHtml = !selectedMailHtml">
                   {{ selectedMailHtml ? '切到文字' : '切到 HTML' }}
                 </el-button>
                 <iframe
-                  v-if="selectedMailHtml"
+                  v-if="mailHasBody(mail) && selectedMailHtml"
                   class="mail-html"
                   :sandbox="mailHtmlSandbox"
                   referrerpolicy="no-referrer"
                   :srcdoc="mail.bodyHtml || mail.body"
                 />
-                <pre v-else class="mail-text">{{ mail.body }}</pre>
+                <pre v-else-if="mailHasBody(mail)" class="mail-text">{{ mail.body }}</pre>
+                <p v-else class="hint">點開郵件後才會載入內容；目前沒有可顯示的 body。</p>
               </div>
             </article>
             <div v-if="mails.length > 0 && !selectedMail" class="hint">

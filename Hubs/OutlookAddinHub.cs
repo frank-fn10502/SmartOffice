@@ -95,6 +95,14 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
+        public async Task PushMailBody(MailBodyDto body)
+        {
+            _mailStore.UpdateMailBody(body);
+            _addinStatus.RecordPush("mail body", 1);
+            await _notifications.Clients.All.SendAsync("MailBodyUpdated", body);
+            await BroadcastStatusAndLogsAsync();
+        }
+
         public async Task PushRules(List<OutlookRuleDto> rules)
         {
             _mailStore.SetRules(rules);

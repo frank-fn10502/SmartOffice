@@ -47,6 +47,20 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
+        /// Web UI、AI 或 MCP client 要求單封 mail body；mail list 本身只應先載入 metadata。
+        /// </summary>
+        [HttpPost("request-mail-body")]
+        public async Task<IActionResult> RequestMailBody([FromBody] FetchMailBodyRequest req, CancellationToken ct)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "fetch_mail_body",
+                MailBodyRequest = req
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
+        /// <summary>
         /// Web UI、AI 或 MCP client 要求 folder list。
         /// </summary>
         [HttpPost("request-folders")]
