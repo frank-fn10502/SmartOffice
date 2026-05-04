@@ -71,6 +71,7 @@ Payload：
     "range": "1d",
     "maxCount": 10
   },
+  "searchMailsRequest": null,
   "mailBodyRequest": null,
   "calendarRequest": null,
   "mailMarkerRequest": null,
@@ -88,6 +89,7 @@ Payload：
 | --- | --- | --- |
 | `fetch_folders` | 無 | 讀取 folder tree |
 | `fetch_mails` | `mailsRequest` | 讀取指定 folder 的 mail metadata，不應包含完整 body |
+| `search_mails` | `searchMailsRequest` | 依 store / folder / 時間 / keyword 搜尋 mail metadata，分批回推結果 |
 | `fetch_mail_body` | `mailBodyRequest` | 使用者點開單封 mail 後，讀取該 mail body |
 | `fetch_mail_attachments` | `mailAttachmentsRequest` | 使用者或 AI/MCP 要求單封 mail 的附件 metadata |
 | `export_mail_attachment` | `exportMailAttachmentRequest` | 將指定 attachment 匯出到 Hub 約定的本機 attachment root |
@@ -119,6 +121,9 @@ AddIn 可 invoke 下列 server method：
 | `CompleteFolderSync` | `FolderSyncCompleteDto` | 結束 folder 增量同步並 broadcast `FolderSyncCompleted` |
 | `PushMails` | `MailItemDto[]` | 取代 cached mails 並 broadcast `MailsUpdated`；`fetch_mails` 的回傳應只含 metadata，`body` / `bodyHtml` 留空 |
 | `PushMail` | `MailItemDto` | 更新 cached mails 中同 id 的單封 mail 並 broadcast `MailUpdated`；用於 `update_mail_properties` 這類不應重抓列表的單封 mutation |
+| `BeginMailSearch` | `MailSearchBatchDto` | 開始 mail search；通常 reset Hub search result cache 並 broadcast `MailSearchStarted` |
+| `PushMailSearchBatch` | `MailSearchBatchDto` | 推送一批 search result metadata，Hub merge 到 search cache 並 broadcast `MailSearchPatched` |
+| `CompleteMailSearch` | `MailSearchCompleteDto` | 結束 mail search 並 broadcast `MailSearchCompleted` |
 | `PushMailBody` | `MailBodyDto` | 更新 cached mails 中同 id 的 body 並 broadcast `MailBodyUpdated`；用於 `fetch_mail_body` |
 | `PushMailAttachments` | `MailAttachmentsDto` | 更新 cached attachment metadata 並 broadcast `MailAttachmentsUpdated`；用於 `fetch_mail_attachments` |
 | `PushExportedMailAttachment` | `ExportedMailAttachmentDto` | 記錄已匯出的 attachment path 並 broadcast `MailAttachmentExported`；用於 `export_mail_attachment` |
@@ -129,7 +134,7 @@ AddIn 可 invoke 下列 server method：
 | `ReportAddinLog` | `AddinLogEntry` | 回報診斷 log |
 | `ReportCommandResult` | `OutlookCommandResult` | 回報 command 成敗 |
 
-每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變畫面資料，請同時 invoke 對應 `Push*` method。Folder tree 只使用 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。單封屬性更新請使用 `PushMail`，不要為了更新一封 mail 重新 `PushMails`。郵件 body 請只在 `fetch_mail_body` 後以 `PushMailBody` 回推。附件採 `fetch_mail_attachments` 先看 metadata、有需要才 `export_mail_attachment` 匯出到本機路徑；Web UI Host 會透過 `/api/outlook/open-exported-attachment` 開啟已匯出的檔案，AddIn 不負責開檔。
+每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變畫面資料，請同時 invoke 對應 `Push*` method。Folder tree 只使用 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。Search result 只使用 `BeginMailSearch`、`PushMailSearchBatch`、`CompleteMailSearch`，不要用 `PushMails` 覆蓋目前 folder list。單封屬性更新請使用 `PushMail`，不要為了更新一封 mail 重新 `PushMails`。郵件 body 請只在 `fetch_mail_body` 後以 `PushMailBody` 回推。附件採 `fetch_mail_attachments` 先看 metadata、有需要才 `export_mail_attachment` 匯出到本機路徑；Web UI Host 會透過 `/api/outlook/open-exported-attachment` 開啟已匯出的檔案，AddIn 不負責開檔。
 
 AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-addin` 上的 `SendChatMessage(message)`。
 
@@ -174,6 +179,49 @@ AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-a
 ```
 
 Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate` 含當日，`endDate` 不含當日；`daysForward` 保留作為舊 AddIn fallback。
+
+### SearchMailsRequest
+
+```json
+{
+  "searchId": "6fb66d3a-7f4f-4a6d-9b3f-7e1e8c2f2d84",
+  "storeId": "mock-store-primary",
+  "scopeFolderPaths": ["\\\\主要信箱 - User\\Inbox"],
+  "includeSubFolders": true,
+  "keyword": "客戶xxxx",
+  "matchMode": "contains",
+  "fields": ["subject", "sender"],
+  "receivedFrom": "2026-05-01T00:00:00+08:00",
+  "receivedTo": "2026-05-04T23:59:59+08:00",
+  "exactReceivedTime": null,
+  "exactReceivedToleranceSeconds": 60,
+  "maxCount": 50
+}
+```
+
+- `searchId`: Web UI / AI 產生的 search correlation id；AddIn 回推 batch 時必須沿用。
+- `storeId`: 指定單一 Outlook Store。空字串代表全域搜尋，AddIn 必須依 store / folder 分批查找，不得一次做高成本全量搜尋。
+- `scopeFolderPaths`: 指定 folder scope；空陣列代表使用整個 store 或全域分批。
+- `includeSubFolders`: true 時包含 scope folder 底下子 folder。
+- `keyword`: 片段關鍵字，可為空；空值代表只用時間 / folder / store 條件查找。
+- `matchMode`: `contains`、`exact`、`regex`。`regex` 僅能對 bounded result 做後篩，不應造成全量 body 掃描。
+- `fields`: `subject`、`sender`、`categories`、`body`。body search 必須受 `storeId`、folder/time scope 與 `maxCount` 約束。
+- `receivedFrom` / `receivedTo`: 時間區段。
+- `exactReceivedTime`: 單一時間查找；若有值，AddIn 可優先用它與 `exactReceivedToleranceSeconds` 篩選。
+- `maxCount`: 回傳上限；AddIn 端應再 clamp，建議不超過 200。
+
+Search 回推 sample：
+
+```json
+{
+  "searchId": "6fb66d3a-7f4f-4a6d-9b3f-7e1e8c2f2d84",
+  "sequence": 1,
+  "reset": true,
+  "isFinal": false,
+  "mails": [],
+  "message": ""
+}
+```
 
 ### MailMarkerCommandRequest
 

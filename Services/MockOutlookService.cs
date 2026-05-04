@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using SmartOffice.Hub.Hubs;
 using SmartOffice.Hub.Models;
+using System.Text.RegularExpressions;
 
 namespace SmartOffice.Hub.Services
 {
@@ -60,6 +61,8 @@ namespace SmartOffice.Hub.Services
             if (!IsEnabled) return false;
 
             FolderSyncBatchDto? folderBatch = null;
+            MailSearchBatchDto? mailSearchBatch = null;
+            MailSearchCompleteDto? mailSearchComplete = null;
             List<MailItemDto>? mails = null;
             MailItemDto? mail = null;
             MailBodyDto? mailBody = null;
@@ -85,6 +88,27 @@ namespace SmartOffice.Hub.Services
                             command.MailsRequest?.Range ?? "1d",
                             command.MailsRequest?.MaxCount ?? 10);
                         _mailStore.SetMails(mails);
+                        break;
+                    case "search_mails":
+                        var searchResults = SearchMails(command.SearchMailsRequest);
+                        mailSearchBatch = new MailSearchBatchDto
+                        {
+                            SearchId = command.SearchMailsRequest?.SearchId ?? Guid.NewGuid().ToString(),
+                            Sequence = 1,
+                            Reset = true,
+                            IsFinal = true,
+                            Mails = searchResults,
+                            Message = "Mock mail search completed",
+                        };
+                        _mailStore.BeginMailSearch();
+                        _mailStore.ApplyMailSearchBatch(mailSearchBatch);
+                        mailSearchComplete = new MailSearchCompleteDto
+                        {
+                            SearchId = mailSearchBatch.SearchId,
+                            TotalCount = searchResults.Count,
+                            Message = "Mock mail search completed",
+                            Timestamp = DateTime.Now,
+                        };
                         break;
                     case "fetch_mail_body":
                         mailBody = FetchMailBody(command.MailBodyRequest);
@@ -212,6 +236,17 @@ namespace SmartOffice.Hub.Services
                 }, ct);
             }
             if (mails is not null) await _notifications.Clients.All.SendAsync("MailsUpdated", mails, ct);
+            if (mailSearchBatch is not null)
+            {
+                await _notifications.Clients.All.SendAsync("MailSearchStarted", new MailSearchBatchDto
+                {
+                    SearchId = mailSearchBatch.SearchId,
+                    Reset = true,
+                    Sequence = 0,
+                }, ct);
+                await _notifications.Clients.All.SendAsync("MailSearchPatched", mailSearchBatch, ct);
+            }
+            if (mailSearchComplete is not null) await _notifications.Clients.All.SendAsync("MailSearchCompleted", mailSearchComplete, ct);
             if (mail is not null) await _notifications.Clients.All.SendAsync("MailUpdated", mail, ct);
             if (mailBody is not null) await _notifications.Clients.All.SendAsync("MailBodyUpdated", mailBody, ct);
             if (mailAttachments is not null) await _notifications.Clients.All.SendAsync("MailAttachmentsUpdated", mailAttachments, ct);
@@ -404,6 +439,94 @@ namespace SmartOffice.Hub.Services
                 .Take(Math.Max(1, maxCount))
                 .Select(CloneMailMetadata)
                 .ToList();
+        }
+
+        private List<MailItemDto> SearchMails(SearchMailsRequest? request)
+        {
+            request ??= new SearchMailsRequest();
+            var maxCount = Math.Clamp(request.MaxCount <= 0 ? 50 : request.MaxCount, 1, 200);
+            var scopeFolders = request.ScopeFolderPaths
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .ToList();
+            var scopedStore = FindStore(request.StoreId);
+            var keyword = request.Keyword.Trim();
+
+            return _mockMails
+                .Where(mail => InSearchScope(mail, scopedStore, scopeFolders, request.IncludeSubFolders))
+                .Where(mail => InReceivedTime(mail, request))
+                .Where(mail => MatchesKeyword(mail, request.Fields, keyword, request.MatchMode))
+                .OrderByDescending(mail => mail.ReceivedTime)
+                .Take(maxCount)
+                .Select(CloneMailMetadata)
+                .ToList();
+        }
+
+        private OutlookStoreDto? FindStore(string storeId)
+        {
+            if (!string.IsNullOrWhiteSpace(storeId))
+                return _mockStores.FirstOrDefault(store => string.Equals(store.StoreId, storeId, StringComparison.OrdinalIgnoreCase));
+            return null;
+        }
+
+        private static bool InSearchScope(MailItemDto mail, OutlookStoreDto? store, List<string> scopeFolders, bool includeSubFolders)
+        {
+            if (store is not null && !mail.FolderPath.StartsWith(store.RootFolderPath, StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (scopeFolders.Count == 0) return true;
+            return scopeFolders.Any(path =>
+                string.Equals(mail.FolderPath, path, StringComparison.OrdinalIgnoreCase)
+                || (includeSubFolders && mail.FolderPath.StartsWith($"{path}\\", StringComparison.OrdinalIgnoreCase)));
+        }
+
+        private static bool InReceivedTime(MailItemDto mail, SearchMailsRequest request)
+        {
+            if (request.ExactReceivedTime is not null)
+            {
+                var tolerance = Math.Max(0, request.ExactReceivedToleranceSeconds);
+                return Math.Abs((mail.ReceivedTime - request.ExactReceivedTime.Value).TotalSeconds) <= tolerance;
+            }
+            if (request.ReceivedFrom is not null && mail.ReceivedTime < request.ReceivedFrom.Value) return false;
+            if (request.ReceivedTo is not null && mail.ReceivedTime > request.ReceivedTo.Value) return false;
+            return true;
+        }
+
+        private static bool MatchesKeyword(MailItemDto mail, List<string> fields, string keyword, string matchMode)
+        {
+            if (string.IsNullOrWhiteSpace(keyword)) return true;
+            var haystack = SearchHaystack(mail, fields);
+            if (string.Equals(matchMode, "exact", StringComparison.OrdinalIgnoreCase))
+                return haystack.Any(value => string.Equals(value, keyword, StringComparison.OrdinalIgnoreCase));
+            if (string.Equals(matchMode, "regex", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    return haystack.Any(value => Regex.IsMatch(value, keyword, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100)));
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+            return haystack.Any(value => value.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static List<string> SearchHaystack(MailItemDto mail, List<string> fields)
+        {
+            var selected = fields.Count == 0 ? new List<string> { "subject", "sender" } : fields;
+            var values = new List<string>();
+            if (selected.Contains("subject")) values.Add(mail.Subject);
+            if (selected.Contains("sender"))
+            {
+                values.Add(mail.SenderName);
+                values.Add(mail.SenderEmail);
+            }
+            if (selected.Contains("categories")) values.Add(mail.Categories);
+            if (selected.Contains("body"))
+            {
+                values.Add(mail.Body);
+                values.Add(mail.BodyHtml);
+            }
+            return values;
         }
 
         private MailBodyDto? FetchMailBody(FetchMailBodyRequest? request)

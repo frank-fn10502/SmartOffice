@@ -12,6 +12,7 @@ namespace SmartOffice.Hub.Services
         private List<OutlookRuleDto> _rules = new();
         private List<OutlookCategoryDto> _categories = new();
         private List<CalendarEventDto> _calendarEvents = new();
+        private List<MailItemDto> _mailSearchResults = new();
         private readonly Dictionary<string, MailAttachmentsDto> _attachments = new();
         private readonly Dictionary<string, ExportedMailAttachmentDto> _exportedAttachments = new();
 
@@ -112,6 +113,27 @@ namespace SmartOffice.Hub.Services
             lock (_lock) { return new List<MailItemDto>(_mails); }
         }
 
+        public void BeginMailSearch(bool reset = true)
+        {
+            if (!reset) return;
+            lock (_lock) { _mailSearchResults = new List<MailItemDto>(); }
+        }
+
+        public void ApplyMailSearchBatch(MailSearchBatchDto batch)
+        {
+            lock (_lock)
+            {
+                if (batch.Reset) _mailSearchResults = new List<MailItemDto>();
+                foreach (var mail in batch.Mails)
+                    UpsertMail(_mailSearchResults, CloneMail(mail));
+            }
+        }
+
+        public List<MailItemDto> GetMailSearchResults()
+        {
+            lock (_lock) { return _mailSearchResults.Select(CloneMail).ToList(); }
+        }
+
         public FolderSnapshotDto GetFolderSnapshot()
         {
             lock (_lock)
@@ -210,6 +232,13 @@ namespace SmartOffice.Hub.Services
             else folders[index] = next;
         }
 
+        private static void UpsertMail(List<MailItemDto> mails, MailItemDto next)
+        {
+            var index = mails.FindIndex(mail => mail.Id == next.Id);
+            if (index < 0) mails.Add(next);
+            else mails[index] = next;
+        }
+
         private static int CountFolders(List<FolderDto> folders)
         {
             return folders.Count;
@@ -235,6 +264,31 @@ namespace SmartOffice.Hub.Services
         private static List<FolderDto> CloneFolders(List<FolderDto> folders)
         {
             return folders.Select(CloneFolder).ToList();
+        }
+
+        private static MailItemDto CloneMail(MailItemDto mail)
+        {
+            return new MailItemDto
+            {
+                Id = mail.Id,
+                Subject = mail.Subject,
+                SenderName = mail.SenderName,
+                SenderEmail = mail.SenderEmail,
+                ReceivedTime = mail.ReceivedTime,
+                Body = mail.Body,
+                BodyHtml = mail.BodyHtml,
+                FolderPath = mail.FolderPath,
+                Categories = mail.Categories,
+                IsRead = mail.IsRead,
+                IsMarkedAsTask = mail.IsMarkedAsTask,
+                FlagRequest = mail.FlagRequest,
+                FlagInterval = mail.FlagInterval,
+                TaskStartDate = mail.TaskStartDate,
+                TaskDueDate = mail.TaskDueDate,
+                TaskCompletedDate = mail.TaskCompletedDate,
+                Importance = mail.Importance,
+                Sensitivity = mail.Sensitivity,
+            };
         }
 
         private static FolderDto CloneFolder(FolderDto folder)

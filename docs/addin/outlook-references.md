@@ -23,6 +23,9 @@ Office 2016 desktop 深度整合通常會碰到 VSTO、COM automation 或 Outloo
 - [Folders object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folders)：同一層 folder collection。
 - [Folder.Folders property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.folders)：讀取子資料夾。
 - [MailItem object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem)：郵件 item、subject、sender、body、received time 等欄位。
+- [Application.AdvancedSearch method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearch)：非同步搜尋；scope 可含同一個 store 內的多個 folder，不能跨 store。
+- [Application.AdvancedSearchComplete event (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearchcomplete)：`AdvancedSearch` 完成事件，避免以 blocking loop 等待。
+- [Items.Restrict method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict)：在單一 folder items 內做條件篩選，適合搭配日期與 max count 縮小讀取範圍。
 
 ## Office JavaScript Add-in / Office.js
 

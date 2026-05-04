@@ -88,6 +88,41 @@ namespace SmartOffice.Hub.Models
         public int MaxCount { get; set; } = 10;
     }
 
+    public class SearchMailsRequest
+    {
+        public string SearchId { get; set; } = Guid.NewGuid().ToString();
+        public string StoreId { get; set; } = string.Empty;
+        public List<string> ScopeFolderPaths { get; set; } = new();
+        public bool IncludeSubFolders { get; set; } = true;
+        public string Keyword { get; set; } = string.Empty;
+        public string MatchMode { get; set; } = "contains"; // contains、exact、regex。regex 僅能在 bounded result 內後篩。
+        public List<string> Fields { get; set; } = new() { "subject", "sender" };
+        public DateTime? ReceivedFrom { get; set; }
+        public DateTime? ReceivedTo { get; set; }
+        public DateTime? ExactReceivedTime { get; set; }
+        public int ExactReceivedToleranceSeconds { get; set; } = 60;
+        public int MaxCount { get; set; } = 50;
+    }
+
+    public class MailSearchBatchDto
+    {
+        public string SearchId { get; set; } = string.Empty;
+        public int Sequence { get; set; }
+        public bool Reset { get; set; }
+        public bool IsFinal { get; set; }
+        public List<MailItemDto> Mails { get; set; } = new();
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class MailSearchCompleteDto
+    {
+        public string SearchId { get; set; } = string.Empty;
+        public int TotalCount { get; set; }
+        public bool Success { get; set; } = true;
+        public string Message { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
     public class FetchCalendarRequest
     {
         public int DaysForward { get; set; } = 31;
@@ -257,6 +292,7 @@ namespace SmartOffice.Hub.Models
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"export_mail_attachment"、"fetch_folders"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
         public FetchMailsRequest? MailsRequest { get; set; }
+        public SearchMailsRequest? SearchMailsRequest { get; set; }
         public FetchMailBodyRequest? MailBodyRequest { get; set; }
         public FetchMailAttachmentsRequest? MailAttachmentsRequest { get; set; }
         public ExportMailAttachmentRequest? ExportMailAttachmentRequest { get; set; }

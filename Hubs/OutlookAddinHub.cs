@@ -95,6 +95,44 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
+        public async Task BeginMailSearch(MailSearchBatchDto batch)
+        {
+            _mailStore.BeginMailSearch(batch.Reset);
+            _addinStatus.AddLog("info", $"Mail search started: {batch.SearchId}");
+            await _notifications.Clients.All.SendAsync("MailSearchStarted", batch);
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        public async Task PushMailSearchBatch(MailSearchBatchDto batch)
+        {
+            _mailStore.ApplyMailSearchBatch(batch);
+            _addinStatus.RecordPush("mail search results", batch.Mails.Count);
+            await _notifications.Clients.All.SendAsync("MailSearchPatched", batch);
+
+            if (batch.IsFinal)
+            {
+                var complete = new MailSearchCompleteDto
+                {
+                    SearchId = batch.SearchId,
+                    TotalCount = _mailStore.GetMailSearchResults().Count,
+                    Message = string.IsNullOrWhiteSpace(batch.Message) ? "Mail search completed by final batch" : batch.Message,
+                };
+                await _notifications.Clients.All.SendAsync("MailSearchCompleted", complete);
+            }
+
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        public async Task CompleteMailSearch(MailSearchCompleteDto info)
+        {
+            if (info.TotalCount <= 0)
+                info.TotalCount = _mailStore.GetMailSearchResults().Count;
+
+            _addinStatus.AddLog(info.Success ? "info" : "warn", $"Mail search completed: {info.TotalCount} mails. {info.Message}");
+            await _notifications.Clients.All.SendAsync("MailSearchCompleted", info);
+            await BroadcastStatusAndLogsAsync();
+        }
+
         public async Task PushMailBody(MailBodyDto body)
         {
             _mailStore.UpdateMailBody(body);

@@ -11,10 +11,12 @@ import type {
   MailAttachmentDto,
   MailAttachmentsDto,
   MailBodyDto,
+  MailSearchBatchDto,
   MailPropertiesCommandRequest,
   MailItemDto,
   OutlookCategoryDto,
   OutlookRuleDto,
+  SearchMailsRequest,
 } from '../models/outlook'
 import { categoryColorValue, normalizeCategoryColor } from '../utils/categoryColors'
 
@@ -78,6 +80,18 @@ export function normalizeMailItem(item: unknown): MailItemDto {
 
 export function normalizeMailItems(items: unknown): MailItemDto[] {
   return Array.isArray(items) ? items.map(normalizeMailItem) : []
+}
+
+export function normalizeMailSearchBatch(item: unknown): MailSearchBatchDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    searchId: readString(source, 'searchId', 'SearchId'),
+    sequence: readNumber(source, 'sequence', 'Sequence'),
+    reset: readBoolean(source, 'reset', 'Reset'),
+    isFinal: readBoolean(source, 'isFinal', 'IsFinal'),
+    mails: normalizeMailItems(source.mails ?? source.Mails),
+    message: readString(source, 'message', 'Message'),
+  }
 }
 
 export function normalizeMailBody(item: unknown): MailBodyDto {
@@ -171,6 +185,7 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 export const outlookApi = {
   getFolders: () => getJson<FolderSnapshotDto>('/api/outlook/folders'),
   getMails: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mails')),
+  getMailSearchResults: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mail-search')),
   getRules: () => getJson<OutlookRuleDto[]>('/api/outlook/rules'),
   getCategories: async () => normalizeOutlookCategories(await getJson<unknown>('/api/outlook/categories')),
   getCalendar: () => getJson<CalendarEventDto[]>('/api/outlook/calendar'),
@@ -182,6 +197,8 @@ export const outlookApi = {
   requestFolders: () => postJson<CommandDispatchResponse>('/api/outlook/request-folders'),
   requestMails: (body: { folderPath: string; range: string; maxCount: number }) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-mails', body),
+  requestMailSearch: (body: SearchMailsRequest) =>
+    postJson<CommandDispatchResponse>('/api/outlook/request-mail-search', body),
   requestMailBody: (body: { mailId: string; folderPath: string }) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-mail-body', body),
   requestMailAttachments: (body: { mailId: string; folderPath: string }) =>

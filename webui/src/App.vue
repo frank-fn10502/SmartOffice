@@ -10,6 +10,7 @@ import {
   Monitor,
   PriceTag,
   Refresh,
+  Search,
 } from '@element-plus/icons-vue'
 import FolderNode from './components/FolderNode.vue'
 import { useOutlookDashboard } from './composables/useOutlookDashboard'
@@ -68,14 +69,17 @@ const {
   loadingCalendar,
   loadingCategories,
   loadingFolders,
+  loadingMailSearch,
   loadingMails,
   loadingSignalRPing,
   mailCount,
   mailHtmlSandbox,
+  mailListMode,
   mailListNeedsFetch,
   mailHasBody,
   mailPropertiesDraft,
   mailRange,
+  mailSearchDraft,
   mailStats,
   mails,
   moveDraggedMail,
@@ -90,6 +94,7 @@ const {
   requestFolders,
   requestSignalRPing,
   requestMails,
+  requestMailSearch,
   resetMailPropertiesDraft,
   resetAttachmentExportRoot,
   saveAttachmentExportSettings,
@@ -109,6 +114,7 @@ const {
   selectCalendarEvent,
   selectMail,
   sendChat,
+  showFolderMails,
   goToCurrentCalendarMonth,
   setDragOverFolder,
   signalRState,
@@ -218,6 +224,76 @@ const {
               <span>未讀 {{ mailStats.unread }}</span>
               <span>旗標 {{ mailStats.flagged }}</span>
               <span>分類 {{ mailStats.categorized }}</span>
+            </div>
+            <el-button v-if="mailListMode === 'search'" size="small" @click="showFolderMails">回到 folder list</el-button>
+          </div>
+
+          <div class="mail-search-panel">
+            <div class="mail-search-row">
+              <el-input
+                v-model="mailSearchDraft.keyword"
+                clearable
+                :prefix-icon="Search"
+                placeholder="片段關鍵字，例如：客戶xxxx"
+                @keydown.enter.prevent="requestMailSearch"
+              />
+              <el-select v-model="mailSearchDraft.matchMode" class="match-select">
+                <el-option label="片段" value="contains" />
+                <el-option label="完全相同" value="exact" />
+                <el-option label="Regex 後篩" value="regex" />
+              </el-select>
+              <el-select v-model="mailSearchDraft.scopeMode" class="scope-select">
+                <el-option label="目前 folder" value="selected_folder" />
+                <el-option label="目前 store" value="selected_store" />
+                <el-option label="全域分批" value="global" />
+              </el-select>
+              <el-select v-model="mailSearchDraft.maxCount" class="count-select">
+                <el-option :value="25" label="25" />
+                <el-option :value="50" label="50" />
+                <el-option :value="100" label="100" />
+                <el-option :value="200" label="200" />
+              </el-select>
+              <el-button type="primary" :loading="loadingMailSearch" :disabled="loadingMailSearch" @click="requestMailSearch">
+                搜尋
+              </el-button>
+            </div>
+            <div class="mail-search-row search-options-row">
+              <el-date-picker
+                v-model="mailSearchDraft.receivedFrom"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="起始時間"
+              />
+              <el-date-picker
+                v-model="mailSearchDraft.receivedTo"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="結束時間"
+              />
+              <el-date-picker
+                v-model="mailSearchDraft.exactReceivedTime"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="單一時間"
+              />
+              <el-input-number
+                v-model="mailSearchDraft.exactReceivedToleranceSeconds"
+                :min="0"
+                :max="3600"
+                :step="30"
+                controls-position="right"
+                class="tolerance-input"
+              />
+              <el-checkbox v-model="mailSearchDraft.includeSubFolders">含子 folder</el-checkbox>
+            </div>
+            <div class="mail-search-row search-options-row">
+              <el-checkbox-group v-model="mailSearchDraft.fields">
+                <el-checkbox label="subject">Subject</el-checkbox>
+                <el-checkbox label="sender">寄件者</el-checkbox>
+                <el-checkbox label="categories">分類</el-checkbox>
+                <el-checkbox label="body">Body</el-checkbox>
+              </el-checkbox-group>
+              <span class="search-note">Regex 只適合小範圍後篩；大型搜尋請優先使用時間、folder 與 store 條件。</span>
             </div>
           </div>
           <p v-if="mailListNeedsFetch" class="hint">

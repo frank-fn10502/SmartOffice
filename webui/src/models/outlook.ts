@@ -52,6 +52,38 @@ export interface CommandDispatchResponse {
   status: 'mocked' | 'dispatched' | 'addin_unavailable' | string
 }
 
+export interface SearchMailsRequest {
+  searchId: string
+  storeId: string
+  scopeFolderPaths: string[]
+  includeSubFolders: boolean
+  keyword: string
+  matchMode: 'contains' | 'exact' | 'regex'
+  fields: string[]
+  receivedFrom?: string
+  receivedTo?: string
+  exactReceivedTime?: string
+  exactReceivedToleranceSeconds: number
+  maxCount: number
+}
+
+export interface MailSearchBatchDto {
+  searchId: string
+  sequence: number
+  reset: boolean
+  isFinal: boolean
+  mails: MailItemDto[]
+  message: string
+}
+
+export interface MailSearchCompleteDto {
+  searchId: string
+  totalCount: number
+  success: boolean
+  message: string
+  timestamp: string
+}
+
 export interface OutlookCommandResult {
   commandId: string
   success: boolean

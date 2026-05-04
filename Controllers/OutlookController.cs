@@ -49,6 +49,23 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
+        /// Web UI、AI 或 MCP client 要求搜尋 mails；AddIn 應以 store 為邊界分批回推結果。
+        /// </summary>
+        [HttpPost("request-mail-search")]
+        public async Task<IActionResult> RequestMailSearch([FromBody] SearchMailsRequest req, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(req.SearchId))
+                req.SearchId = Guid.NewGuid().ToString();
+
+            var cmd = new PendingCommand
+            {
+                Type = "search_mails",
+                SearchMailsRequest = req
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
+        /// <summary>
         /// Web UI、AI 或 MCP client 要求單封 mail body；mail list 本身只應先載入 metadata。
         /// </summary>
         [HttpPost("request-mail-body")]
@@ -308,6 +325,15 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetMails()
         {
             return Ok(_mailStore.GetMails());
+        }
+
+        /// <summary>
+        /// Web UI 取得 cached mail search results。
+        /// </summary>
+        [HttpGet("mail-search")]
+        public IActionResult GetMailSearchResults()
+        {
+            return Ok(_mailStore.GetMailSearchResults());
         }
 
         /// <summary>

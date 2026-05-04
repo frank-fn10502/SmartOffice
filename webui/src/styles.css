@@ -113,7 +113,7 @@ select {
 
 .outlook-mail-pane {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
 .swagger-layout {
@@ -578,6 +578,45 @@ select {
   padding: 10px 14px;
   border-bottom: 1px solid #edf1f5;
   background: #fbfcfe;
+}
+
+.mail-search-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #edf1f5;
+  background: #fff;
+}
+
+.mail-search-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mail-search-row .el-input {
+  min-width: 220px;
+  flex: 1 1 260px;
+}
+
+.search-options-row {
+  color: #667085;
+  font-size: 0.82rem;
+}
+
+.match-select,
+.scope-select {
+  width: 128px;
+}
+
+.tolerance-input {
+  width: 116px;
+}
+
+.search-note {
+  min-width: 220px;
+  flex: 1 1 260px;
 }
 
 .mail-counts {
