@@ -35,6 +35,68 @@ function readStringList(value: unknown) {
   return typeof value === 'string' ? value : ''
 }
 
+export function normalizeCategoryColor(value: string) {
+  const key = value.trim()
+  if (!key) return 'olCategoryColorNone'
+
+  const outlookColorMap: Record<string, string> = {
+    '0': 'olCategoryColorNone',
+    '1': 'olCategoryColorRed',
+    '2': 'olCategoryColorOrange',
+    '3': 'olCategoryColorPeach',
+    '4': 'olCategoryColorYellow',
+    '5': 'olCategoryColorGreen',
+    '6': 'olCategoryColorTeal',
+    '7': 'olCategoryColorOlive',
+    '8': 'olCategoryColorBlue',
+    '9': 'olCategoryColorPurple',
+    '10': 'olCategoryColorMaroon',
+    '11': 'olCategoryColorSteel',
+    '12': 'olCategoryColorDarkSteel',
+    '13': 'olCategoryColorGray',
+    '14': 'olCategoryColorDarkGray',
+    '15': 'olCategoryColorBlack',
+    '16': 'olCategoryColorDarkRed',
+    '17': 'olCategoryColorDarkOrange',
+    '18': 'olCategoryColorDarkPeach',
+    '19': 'olCategoryColorDarkYellow',
+    '20': 'olCategoryColorDarkGreen',
+    '21': 'olCategoryColorDarkTeal',
+    '22': 'olCategoryColorDarkOlive',
+    '23': 'olCategoryColorDarkBlue',
+    '24': 'olCategoryColorDarkPurple',
+    '25': 'olCategoryColorDarkMaroon',
+    olcategorycolornone: 'olCategoryColorNone',
+    olcategorycolorred: 'olCategoryColorRed',
+    olcategorycolororange: 'olCategoryColorOrange',
+    olcategorycolorpeach: 'olCategoryColorPeach',
+    olcategorycoloryellow: 'olCategoryColorYellow',
+    olcategorycolorgreen: 'olCategoryColorGreen',
+    olcategorycolorteal: 'olCategoryColorTeal',
+    olcategorycolorolive: 'olCategoryColorOlive',
+    olcategorycolorblue: 'olCategoryColorBlue',
+    olcategorycolorpurple: 'olCategoryColorPurple',
+    olcategorycolormaroon: 'olCategoryColorMaroon',
+    olcategorycolorsteel: 'olCategoryColorSteel',
+    olcategorycolordarksteel: 'olCategoryColorDarkSteel',
+    olcategorycolorgray: 'olCategoryColorGray',
+    olcategorycolordarkgray: 'olCategoryColorDarkGray',
+    olcategorycolorblack: 'olCategoryColorBlack',
+    olcategorycolordarkred: 'olCategoryColorDarkRed',
+    olcategorycolordarkorange: 'olCategoryColorDarkOrange',
+    olcategorycolordarkpeach: 'olCategoryColorDarkPeach',
+    olcategorycolordarkyellow: 'olCategoryColorDarkYellow',
+    olcategorycolordarkgreen: 'olCategoryColorDarkGreen',
+    olcategorycolordarkteal: 'olCategoryColorDarkTeal',
+    olcategorycolordarkolive: 'olCategoryColorDarkOlive',
+    olcategorycolordarkblue: 'olCategoryColorDarkBlue',
+    olcategorycolordarkpurple: 'olCategoryColorDarkPurple',
+    olcategorycolordarkmaroon: 'olCategoryColorDarkMaroon',
+  }
+
+  return outlookColorMap[key.toLowerCase()] ?? key
+}
+
 export function normalizeMailItem(item: unknown): MailItemDto {
   const source = (item ?? {}) as LooseRecord
   const flagInterval = readString(source, 'flagInterval', 'FlagInterval', 'none') || 'none'
@@ -73,7 +135,7 @@ export function normalizeOutlookCategory(item: unknown): OutlookCategoryDto {
   const source = (item ?? {}) as LooseRecord
   return {
     name: readString(source, 'name', 'Name'),
-    color: readString(source, 'color', 'Color'),
+    color: normalizeCategoryColor(readString(source, 'color', 'Color')),
     shortcutKey: readString(source, 'shortcutKey', 'ShortcutKey'),
   }
 }

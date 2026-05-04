@@ -272,10 +272,10 @@ namespace SmartOffice.Hub.Services
 
             _mockCategories = new List<OutlookCategoryDto>
             {
-                new() { Name = "客戶", Color = "preset5", ShortcutKey = "" },
-                new() { Name = "待辦", Color = "preset1", ShortcutKey = "" },
-                new() { Name = "測試", Color = "preset4", ShortcutKey = "" },
-                new() { Name = "追蹤", Color = "preset3", ShortcutKey = "" },
+                new() { Name = "客戶", Color = "olCategoryColorBlue", ShortcutKey = "" },
+                new() { Name = "待辦", Color = "olCategoryColorRed", ShortcutKey = "" },
+                new() { Name = "測試", Color = "olCategoryColorGreen", ShortcutKey = "" },
+                new() { Name = "追蹤", Color = "olCategoryColorYellow", ShortcutKey = "" },
             };
 
             _mockRules = new List<OutlookRuleDto>
@@ -418,7 +418,7 @@ namespace SmartOffice.Hub.Services
                 _mockCategories.Add(new OutlookCategoryDto
                 {
                     Name = request.Name.Trim(),
-                    Color = string.IsNullOrWhiteSpace(request.Color) ? "preset0" : request.Color,
+                    Color = string.IsNullOrWhiteSpace(request.Color) ? "olCategoryColorNone" : request.Color,
                     ShortcutKey = request.ShortcutKey,
                 });
                 return;

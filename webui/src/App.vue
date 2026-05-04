@@ -30,6 +30,7 @@ const {
   categories,
   categoryColorOptions,
   categoryColorStyle,
+  categoryTagStyle,
   categoryCreateColor,
   categoryCreateDraft,
   changeCalendarMonth,
@@ -90,6 +91,7 @@ const {
   goToCurrentCalendarMonth,
   setDragOverFolder,
   signalRState,
+  splitCategories,
   startMailDrag,
   switchView,
   toggleFolder,
@@ -223,7 +225,14 @@ const {
                     {{ flagIntervalLabel(mail.flagInterval) }}
                   </el-tag>
                   <el-tag v-if="mail.taskDueDate" type="info" effect="plain">到期 {{ formatDateTime(mail.taskDueDate) }}</el-tag>
-                  <el-tag v-if="mail.categories" type="success" effect="plain">{{ mail.categories }}</el-tag>
+                  <el-tag
+                    v-for="category in splitCategories(mail.categories)"
+                    :key="category"
+                    effect="dark"
+                    :style="categoryTagStyle(category)"
+                  >
+                    {{ category }}
+                  </el-tag>
                 </span>
               </button>
 
@@ -303,7 +312,7 @@ const {
                     <span>{{ category.name }}</span>
                   </span>
                   <el-select
-                    :model-value="category.color || 'preset0'"
+                    :model-value="category.color || 'olCategoryColorNone'"
                     class="category-row-select"
                     :disabled="outlookBusy"
                     @change="(value: string | number | boolean) => updateCategoryColor(category, String(value))"
@@ -372,8 +381,8 @@ const {
                   <el-tag
                     v-for="category in selectedMailCategories"
                     :key="category"
-                    type="success"
-                    effect="plain"
+                    effect="dark"
+                    :style="categoryTagStyle(category)"
                   >
                     {{ category }}
                   </el-tag>

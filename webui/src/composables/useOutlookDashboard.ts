@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
+import { normalizeCategoryColor, normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
 import type {
   AddinLogEntry,
   AddinStatusDto,
@@ -32,15 +32,32 @@ const flagIntervalOptions = [
 ]
 
 const categoryColorOptions = [
-  { label: '無色', value: 'preset0', color: '#eef2f7' },
-  { label: '紅色', value: 'preset1', color: '#f87171' },
-  { label: '橘色', value: 'preset2', color: '#fb923c' },
-  { label: '黃色', value: 'preset3', color: '#facc15' },
-  { label: '綠色', value: 'preset4', color: '#22c55e' },
-  { label: '藍色', value: 'preset5', color: '#38bdf8' },
-  { label: '紫色', value: 'preset6', color: '#a78bfa' },
-  { label: '粉紅', value: 'preset7', color: '#f472b6' },
-  { label: '深藍', value: 'preset8', color: '#2563eb' },
+  { label: '無色', value: 'olCategoryColorNone', color: '#eef2f7' },
+  { label: '紅色', value: 'olCategoryColorRed', color: '#f87171' },
+  { label: '橘色', value: 'olCategoryColorOrange', color: '#fb923c' },
+  { label: '桃色', value: 'olCategoryColorPeach', color: '#f9a8d4' },
+  { label: '黃色', value: 'olCategoryColorYellow', color: '#facc15' },
+  { label: '綠色', value: 'olCategoryColorGreen', color: '#22c55e' },
+  { label: '青色', value: 'olCategoryColorTeal', color: '#14b8a6' },
+  { label: '橄欖', value: 'olCategoryColorOlive', color: '#84cc16' },
+  { label: '藍色', value: 'olCategoryColorBlue', color: '#38bdf8' },
+  { label: '紫色', value: 'olCategoryColorPurple', color: '#a78bfa' },
+  { label: '栗色', value: 'olCategoryColorMaroon', color: '#be123c' },
+  { label: '鋼藍', value: 'olCategoryColorSteel', color: '#64748b' },
+  { label: '深鋼藍', value: 'olCategoryColorDarkSteel', color: '#475569' },
+  { label: '灰色', value: 'olCategoryColorGray', color: '#94a3b8' },
+  { label: '深灰', value: 'olCategoryColorDarkGray', color: '#64748b' },
+  { label: '黑色', value: 'olCategoryColorBlack', color: '#111827' },
+  { label: '深紅', value: 'olCategoryColorDarkRed', color: '#b91c1c' },
+  { label: '深橘', value: 'olCategoryColorDarkOrange', color: '#c2410c' },
+  { label: '深桃色', value: 'olCategoryColorDarkPeach', color: '#db2777' },
+  { label: '深黃', value: 'olCategoryColorDarkYellow', color: '#ca8a04' },
+  { label: '深綠', value: 'olCategoryColorDarkGreen', color: '#15803d' },
+  { label: '深青', value: 'olCategoryColorDarkTeal', color: '#0f766e' },
+  { label: '深橄欖', value: 'olCategoryColorDarkOlive', color: '#4d7c0f' },
+  { label: '深藍', value: 'olCategoryColorDarkBlue', color: '#2563eb' },
+  { label: '深紫', value: 'olCategoryColorDarkPurple', color: '#7e22ce' },
+  { label: '深栗色', value: 'olCategoryColorDarkMaroon', color: '#9f1239' },
 ]
 
 function defaultFlagRequest(value: string) {
@@ -82,6 +99,10 @@ function todayInputValue() {
   return `${year}-${month}-${day}`
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
 function toDateKey(date: Date) {
   const year = date.getFullYear()
   const month = `${date.getMonth() + 1}`.padStart(2, '0')
@@ -109,8 +130,24 @@ function splitCategories(value: string) {
 }
 
 function categoryColorStyle(value?: string) {
-  const color = categoryColorOptions.find((option) => option.value === value)?.color ?? categoryColorOptions[0].color
+  const colorValue = normalizeCategoryColor(value ?? '')
+  const color = categoryColorOptions.find((option) => option.value === colorValue)?.color ?? categoryColorOptions[0].color
   return { backgroundColor: color }
+}
+
+function categoryTextColor(backgroundColor: string) {
+  const hex = backgroundColor.replace('#', '')
+  if (hex.length !== 6) return '#172033'
+  const red = Number.parseInt(hex.slice(0, 2), 16)
+  const green = Number.parseInt(hex.slice(2, 4), 16)
+  const blue = Number.parseInt(hex.slice(4, 6), 16)
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000
+  return luminance > 150 ? '#172033' : '#ffffff'
+}
+
+function categoryOptionColor(value?: string) {
+  const colorValue = normalizeCategoryColor(value ?? '')
+  return categoryColorOptions.find((option) => option.value === colorValue)?.color ?? categoryColorOptions[0].color
 }
 
 function mergeStores(current: OutlookStoreDto[], incoming: OutlookStoreDto[]) {
@@ -168,7 +205,7 @@ export function useOutlookDashboard() {
     categories: [] as string[],
   })
   const categoryCreateDraft = ref('')
-  const categoryCreateColor = ref('preset0')
+  const categoryCreateColor = ref('olCategoryColorNone')
   const creatingFolderParentPath = ref('')
   const creatingFolderName = ref('')
   const draggedMailId = ref('')
@@ -182,6 +219,7 @@ export function useOutlookDashboard() {
   const chatPanelRef = ref<HTMLElement | null>(null)
   const mailHtmlSandbox = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox'
   let connection: signalR.HubConnection | null = null
+  let unmounted = false
 
   const visibleFolders = computed(() => visibleRootFolders(folders.value))
 
@@ -280,6 +318,23 @@ export function useOutlookDashboard() {
 
   const selectedMailHasIdentity = computed(() => Boolean(selectedMail.value?.id?.trim()))
 
+  function categoryColorByName(name: string) {
+    const category = categories.value.find((item) => item.name.toLowerCase() === name.trim().toLowerCase())
+    return categoryOptionColor(category?.color)
+  }
+
+function categoryTagStyle(name: string) {
+  const color = categoryColorByName(name)
+  return {
+    '--el-tag-border-color': color,
+    '--el-tag-bg-color': color,
+    '--el-tag-text-color': categoryTextColor(color),
+    backgroundColor: color,
+    borderColor: color,
+    color: categoryTextColor(color),
+  }
+}
+
   function resetMailPropertiesDraft(mail: MailItemDto | null) {
     if (!mail) return
     const flagInterval = mail.flagInterval || (mail.isMarkedAsTask ? 'today' : 'none')
@@ -339,6 +394,13 @@ export function useOutlookDashboard() {
     if (selectedFolderPath.value || visibleFolders.value.length === 0) return
     const inbox = visibleFolders.value.find((folder) => folderType(folder.name) === 'inbox')
     selectedFolderPath.value = inbox?.folderPath ?? visibleFolders.value[0]?.folderPath ?? ''
+  }
+
+  function selectInboxFolder() {
+    const inbox = folderOptions.value.find((folder) => folderType(folder.name) === 'inbox')
+    selectedFolderPath.value = inbox?.folderPath ?? folderOptions.value[0]?.folderPath ?? ''
+    selectedMailIndex.value = null
+    selectedMailHtml.value = false
   }
 
   function toggleFolder(path: string) {
@@ -452,6 +514,33 @@ export function useOutlookDashboard() {
     }
   }
 
+  async function waitForOutlookIdle(timeoutMs = 12000) {
+    const started = Date.now()
+    while (!unmounted && outlookBusy.value && Date.now() - started < timeoutMs) {
+      await sleep(100)
+    }
+  }
+
+  async function runStartupOutlookSync() {
+    await sleep(1500)
+    if (unmounted) return
+    await waitForOutlookIdle()
+    await requestFolders()
+
+    await waitForOutlookIdle()
+    await sleep(500)
+    if (unmounted) return
+    await requestCategories()
+
+    await waitForOutlookIdle()
+    await sleep(500)
+    if (unmounted) return
+    selectInboxFolder()
+    mailRange.value = '1d'
+    mailCount.value = 10
+    await requestMails()
+  }
+
   async function requestCalendar() {
     if (outlookBusy.value) return
     loadingCalendar.value = true
@@ -502,7 +591,7 @@ export function useOutlookDashboard() {
     const existingCategoryNames = new Set(categories.value.map((category) => category.name.toLowerCase()))
     const newCategories = selectedCategories
       .filter((category) => !existingCategoryNames.has(category.toLowerCase()))
-      .map((name) => ({ name, color: 'preset0', shortcutKey: '' }))
+      .map((name) => ({ name, color: 'olCategoryColorNone', shortcutKey: '' }))
     const isCustomFlag = mailPropertiesDraft.value.flagInterval === 'custom'
     const body: MailPropertiesCommandRequest = {
       mailId: mail.id,
@@ -526,7 +615,7 @@ export function useOutlookDashboard() {
     try {
       await outlookApi.requestUpsertCategory({
         name: categoryName,
-        color: color || 'preset0',
+        color: color || 'olCategoryColorNone',
         shortcutKey,
       })
     } catch {
@@ -539,7 +628,7 @@ export function useOutlookDashboard() {
     if (!name) return
     await upsertCategory(name, categoryCreateColor.value)
     categoryCreateDraft.value = ''
-    categoryCreateColor.value = 'preset0'
+    categoryCreateColor.value = 'olCategoryColorNone'
   }
 
   async function updateCategoryColor(category: OutlookCategoryDto, color: string) {
@@ -788,6 +877,7 @@ export function useOutlookDashboard() {
   )
 
   onMounted(async () => {
+    unmounted = false
     window.addEventListener('click', closeFolderContextMenu)
     await connectSignalR()
     await Promise.allSettled([
@@ -799,11 +889,11 @@ export function useOutlookDashboard() {
       loadChat(),
       refreshAdminData(),
     ])
-    if (folders.value.length === 0) await requestFolders()
-    if (categories.value.length === 0) await requestCategories()
+    void runStartupOutlookSync()
   })
 
   onBeforeUnmount(() => {
+    unmounted = true
     window.removeEventListener('click', closeFolderContextMenu)
     void connection?.stop()
   })
@@ -824,6 +914,7 @@ export function useOutlookDashboard() {
     categories,
     categoryColorOptions,
     categoryColorStyle,
+    categoryTagStyle,
     categoryCreateColor,
     categoryCreateDraft,
     changeCalendarMonth,
@@ -886,6 +977,7 @@ export function useOutlookDashboard() {
     goToCurrentCalendarMonth,
     setDragOverFolder,
     signalRState,
+    splitCategories,
     startMailDrag,
     switchView,
     toggleFolder,

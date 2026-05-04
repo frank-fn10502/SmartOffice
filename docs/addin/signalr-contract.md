@@ -193,7 +193,7 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
   "newCategories": [
     {
       "name": "Customer",
-      "color": "preset4",
+      "color": "olCategoryColorGreen",
       "shortcutKey": ""
     }
   ]
@@ -218,7 +218,7 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
 ```json
 {
   "name": "Project",
-  "color": "preset4",
+  "color": "olCategoryColorGreen",
   "shortcutKey": ""
 }
 ```
@@ -343,7 +343,7 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
 [
   {
     "name": "Customer",
-    "color": "preset4",
+    "color": "olCategoryColorGreen",
     "shortcutKey": ""
   }
 ]
