@@ -93,5 +93,5 @@ export interface AddinLogEntry {
   timestamp: string
 }
 
-export type AppView = 'normal' | 'outlook' | 'calendar' | 'admin' | 'swagger'
+export type AppView = 'outlook' | 'chat' | 'calendar' | 'admin' | 'swagger'
 export type SignalRState = 'connected' | 'reconnecting' | 'disconnected'

@@ -91,7 +91,7 @@ function categoryColorStyle(value?: string) {
 }
 
 export function useOutlookDashboard() {
-  const activeView = ref<AppView>('normal')
+  const activeView = ref<AppView>('outlook')
   const signalRState = ref<SignalRState>('disconnected')
   const folders = ref<FolderDto[]>([])
   const mails = ref<MailItemDto[]>([])

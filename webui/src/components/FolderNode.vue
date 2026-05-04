@@ -67,7 +67,6 @@ function folderIcon(name: string) {
       @contextmenu.prevent="emit('context', { path: folder.folderPath, x: $event.clientX, y: $event.clientY })"
       @dragenter.prevent.stop="!folderBusy && emit('dragMailOver', folder.folderPath)"
       @dragover.prevent.stop="!folderBusy && emit('dragMailOver', folder.folderPath)"
-      @dragleave.stop="emit('dragMailOver', '')"
       @drop.prevent.stop="!folderBusy && emit('dropMail', folder.folderPath)"
     >
       <button

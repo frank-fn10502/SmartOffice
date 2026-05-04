@@ -20,6 +20,7 @@ namespace SmartOffice.Hub
             builder.Services.AddSingleton<ChatStore>();
             builder.Services.AddSingleton<AddinStatusStore>();
             builder.Services.AddSingleton<OutlookSignalRCommandDispatcher>();
+            builder.Services.AddSingleton<MockOutlookService>();
 
             builder.Services.AddCors(options =>
             {
@@ -41,6 +42,8 @@ namespace SmartOffice.Hub
             app.MapControllers();
             app.MapHub<NotificationHub>("/hub/notifications");
             app.MapHub<OutlookAddinHub>("/hub/outlook-addin");
+
+            app.Services.GetRequiredService<MockOutlookService>().Seed();
 
             app.Run();
         }

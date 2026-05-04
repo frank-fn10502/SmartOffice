@@ -44,7 +44,6 @@ const {
   flagIntervalLabel,
   flagIntervalOptions,
   folderContextMenu,
-  htmlMailIndexes,
   loadingCalendar,
   loadingFolders,
   loadingMails,
@@ -57,7 +56,6 @@ const {
   mails,
   moveDraggedMail,
   openFolderContextMenu,
-  openMailIndexes,
   operationLoading,
   outlookBusy,
   outlookBusyText,
@@ -82,8 +80,6 @@ const {
   startMailDrag,
   switchView,
   toggleFolder,
-  toggleMail,
-  toggleMailFormat,
   updateCategoryColor,
   visibleFolders,
 } = useOutlookDashboard()
@@ -105,8 +101,8 @@ const {
           <el-segmented
             :model-value="activeView"
             :options="[
-              { label: 'Normal', value: 'normal' },
               { label: 'Outlook', value: 'outlook' },
+              { label: 'Chat', value: 'chat' },
               { label: 'Calendar', value: 'calendar' },
               { label: 'Admin', value: 'admin' },
               { label: 'Swagger', value: 'swagger' },
@@ -116,127 +112,7 @@ const {
         </nav>
       </header>
 
-      <main v-if="activeView === 'normal'" class="normal-layout">
-        <section class="panel folder-panel">
-          <div class="panel-header">
-            <div class="panel-title">
-              <el-icon><Folder /></el-icon>
-              <span>Folders</span>
-            </div>
-            <el-button :icon="Refresh" circle :loading="loadingFolders" :disabled="outlookBusy && !loadingFolders" @click="requestFolders" />
-          </div>
-
-          <div class="folder-list">
-            <p v-if="visibleFolders.length === 0" class="hint">Waiting for folders...</p>
-            <FolderNode
-              v-for="folder in visibleFolders"
-              :key="folder.folderPath"
-              :folder="folder"
-              :level="0"
-              :expanded-folders="expandedFolders"
-              :selected-folder-path="selectedFolderPath"
-              :creating-folder-parent-path="creatingFolderParentPath"
-              :creating-folder-name="creatingFolderName"
-              :folder-busy="outlookBusy"
-              :can-drop-mail="Boolean(draggedMailId) && !outlookBusy"
-              :active-drop-folder-path="dragOverFolderPath"
-              @toggle="toggleFolder"
-              @select="selectFolder"
-              @context="openFolderContextMenu"
-              @update:creating-folder-name="creatingFolderName = $event"
-              @create="createFolder($event.parentPath, $event.name)"
-              @cancel-create="cancelCreateFolder"
-              @drag-mail-over="setDragOverFolder"
-              @drop-mail="moveDraggedMail"
-            />
-            <div v-if="outlookBusy" class="pane-loading">
-              <span>{{ outlookBusyText }}</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel mail-panel">
-          <div class="panel-header">
-            <div class="panel-title">
-              <el-icon><Document /></el-icon>
-              <span>Mails</span>
-              <el-tag effect="plain">{{ mails.length }}</el-tag>
-            </div>
-
-            <div class="mail-controls">
-              <el-select v-model="mailRange" class="range-select">
-                <el-option label="Today" value="1d" />
-                <el-option label="Last 7 days" value="1w" />
-                <el-option label="Last 30 days" value="1m" />
-              </el-select>
-              <el-select v-model="mailCount" class="count-select">
-                <el-option :value="10" label="10" />
-                <el-option :value="20" label="20" />
-                <el-option :value="30" label="30" />
-                <el-option :value="100" label="100" />
-              </el-select>
-              <el-button type="primary" :loading="loadingMails" :disabled="outlookBusy && !loadingMails" @click="requestMails">
-                Fetch Mails
-              </el-button>
-            </div>
-          </div>
-
-          <div class="mail-list">
-            <p v-if="mails.length === 0" class="hint">Click Fetch Mails to load emails from the selected folder.</p>
-            <article v-for="(mail, index) in mails" :key="`${mail.receivedTime}-${index}`" class="mail-item">
-              <button class="mail-summary" type="button" @click="toggleMail(index)">
-                <span class="mail-main">
-                  <span class="mail-subject">{{ mail.subject }}</span>
-                  <span class="mail-sender">{{ mail.senderName }} &lt;{{ mail.senderEmail }}&gt;</span>
-                </span>
-                <span class="mail-time">{{ formatDateTime(mail.receivedTime) }}</span>
-              </button>
-
-              <div v-if="openMailIndexes.has(index)" class="mail-detail">
-                <el-button size="small" @click="toggleMailFormat(index)">
-                  {{ htmlMailIndexes.has(index) ? 'Switch to Text' : 'Switch to HTML' }}
-                </el-button>
-                <iframe
-                  v-if="htmlMailIndexes.has(index)"
-                  class="mail-html"
-                  :sandbox="mailHtmlSandbox"
-                  referrerpolicy="no-referrer"
-                  :srcdoc="mail.bodyHtml || mail.body"
-                />
-                <pre v-else class="mail-text">{{ mail.body }}</pre>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel chat-panel">
-          <div class="panel-header">
-            <div class="panel-title">
-              <el-icon><ChatDotRound /></el-icon>
-              <span>Chat</span>
-            </div>
-          </div>
-
-          <div ref="chatPanelRef" class="chat-messages">
-            <div
-              v-for="(message, index) in chatMessages"
-              :key="message.id ?? `${message.timestamp}-${index}`"
-              class="chat-message"
-              :class="{ web: message.source === 'web' }"
-            >
-              <span class="chat-meta">[{{ message.source }}] {{ formatTime(message.timestamp) }}</span>
-              <span class="chat-bubble">{{ message.text }}</span>
-            </div>
-          </div>
-
-          <div class="chat-input">
-            <el-input v-model="chatText" placeholder="Send message..." @keydown.enter="sendChat" />
-            <el-button type="primary" @click="sendChat">Send</el-button>
-          </div>
-        </section>
-      </main>
-
-      <main v-else-if="activeView === 'outlook'" class="outlook-layout">
+      <main v-if="activeView === 'outlook'" class="outlook-layout">
         <section class="panel outlook-folder-pane">
           <div class="panel-header">
             <div class="panel-title">
@@ -558,6 +434,34 @@ const {
           </section>
         </div>
 
+      </main>
+
+      <main v-else-if="activeView === 'chat'" class="chat-layout">
+        <section class="panel chat-page-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <el-icon><ChatDotRound /></el-icon>
+              <span>Chat</span>
+            </div>
+          </div>
+
+          <div ref="chatPanelRef" class="chat-messages">
+            <div
+              v-for="(message, index) in chatMessages"
+              :key="message.id ?? `${message.timestamp}-${index}`"
+              class="chat-message"
+              :class="{ web: message.source === 'web' }"
+            >
+              <span class="chat-meta">[{{ message.source }}] {{ formatTime(message.timestamp) }}</span>
+              <span class="chat-bubble">{{ message.text }}</span>
+            </div>
+          </div>
+
+          <div class="chat-input">
+            <el-input v-model="chatText" placeholder="Send message..." @keydown.enter="sendChat" />
+            <el-button type="primary" @click="sendChat">Send</el-button>
+          </div>
+        </section>
       </main>
 
       <main v-else-if="activeView === 'calendar'" class="calendar-layout">

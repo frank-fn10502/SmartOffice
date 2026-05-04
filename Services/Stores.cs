@@ -130,6 +130,16 @@ namespace SmartOffice.Hub.Services
             }
         }
 
+        public void RecordMockDispatch(string commandType)
+        {
+            lock (_lock)
+            {
+                _lastCommand = commandType;
+                _lastPushTime = DateTime.Now;
+                AddLogInternal("info", $"Mock Outlook command handled: {commandType}");
+            }
+        }
+
         public void AddLog(string level, string message)
         {
             lock (_lock) { AddLogInternal(level, message); }

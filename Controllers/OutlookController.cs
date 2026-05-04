@@ -13,15 +13,17 @@ namespace SmartOffice.Hub.Controllers
         private readonly MailStore _mailStore;
         private readonly ChatStore _chatStore;
         private readonly OutlookSignalRCommandDispatcher _commandDispatcher;
+        private readonly MockOutlookService _mockOutlook;
         private readonly IHubContext<NotificationHub> _hub;
         private readonly AddinStatusStore _addinStatus;
 
         public OutlookController(MailStore mailStore, ChatStore chatStore,
-            OutlookSignalRCommandDispatcher commandDispatcher, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus)
+            OutlookSignalRCommandDispatcher commandDispatcher, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus)
         {
             _mailStore = mailStore;
             _chatStore = chatStore;
             _commandDispatcher = commandDispatcher;
+            _mockOutlook = mockOutlook;
             _hub = hub;
             _addinStatus = addinStatus;
         }
@@ -189,6 +191,9 @@ namespace SmartOffice.Hub.Controllers
 
         private async Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)
         {
+            if (await _mockOutlook.TryDispatchAsync(cmd, ct))
+                return Ok(new { commandId = cmd.Id, status = "mocked" });
+
             var dispatched = await _commandDispatcher.DispatchAsync(cmd, ct);
             if (!dispatched)
                 return Conflict(new { commandId = cmd.Id, status = "addin_unavailable" });
