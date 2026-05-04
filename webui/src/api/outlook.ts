@@ -12,6 +12,78 @@ import type {
   OutlookRuleDto,
 } from '../models/outlook'
 
+type LooseRecord = Record<string, unknown>
+
+function readString(source: LooseRecord, camelName: string, pascalName: string, fallback = '') {
+  return String(source[camelName] ?? source[pascalName] ?? fallback)
+}
+
+function readBoolean(source: LooseRecord, camelName: string, pascalName: string, fallback = false) {
+  const value = source[camelName] ?? source[pascalName]
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function readDate(source: LooseRecord, camelName: string, pascalName: string) {
+  const value = source[camelName] ?? source[pascalName]
+  return typeof value === 'string' ? value : undefined
+}
+
+function readStringList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean).join(', ')
+  }
+  return typeof value === 'string' ? value : ''
+}
+
+export function normalizeMailItem(item: unknown): MailItemDto {
+  const source = (item ?? {}) as LooseRecord
+  const flagInterval = readString(source, 'flagInterval', 'FlagInterval', 'none') || 'none'
+  const flagRequest = readString(source, 'flagRequest', 'FlagRequest')
+  const isMarkedAsTask = readBoolean(source, 'isMarkedAsTask', 'IsMarkedAsTask')
+    || flagInterval !== 'none'
+    || Boolean(flagRequest.trim())
+
+  return {
+    id: readString(source, 'id', 'Id'),
+    subject: readString(source, 'subject', 'Subject'),
+    senderName: readString(source, 'senderName', 'SenderName'),
+    senderEmail: readString(source, 'senderEmail', 'SenderEmail'),
+    receivedTime: readString(source, 'receivedTime', 'ReceivedTime'),
+    body: readString(source, 'body', 'Body'),
+    bodyHtml: readString(source, 'bodyHtml', 'BodyHtml'),
+    folderPath: readString(source, 'folderPath', 'FolderPath'),
+    categories: readStringList(source.categories ?? source.Categories),
+    isRead: readBoolean(source, 'isRead', 'IsRead'),
+    isMarkedAsTask,
+    flagRequest,
+    flagInterval,
+    taskStartDate: readDate(source, 'taskStartDate', 'TaskStartDate'),
+    taskDueDate: readDate(source, 'taskDueDate', 'TaskDueDate'),
+    taskCompletedDate: readDate(source, 'taskCompletedDate', 'TaskCompletedDate'),
+    importance: readString(source, 'importance', 'Importance', 'normal'),
+    sensitivity: readString(source, 'sensitivity', 'Sensitivity', 'normal'),
+  }
+}
+
+export function normalizeMailItems(items: unknown): MailItemDto[] {
+  return Array.isArray(items) ? items.map(normalizeMailItem) : []
+}
+
+export function normalizeOutlookCategory(item: unknown): OutlookCategoryDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    name: readString(source, 'name', 'Name'),
+    color: readString(source, 'color', 'Color'),
+    shortcutKey: readString(source, 'shortcutKey', 'ShortcutKey'),
+  }
+}
+
+export function normalizeOutlookCategories(items: unknown): OutlookCategoryDto[] {
+  return Array.isArray(items)
+    ? items.map(normalizeOutlookCategory).filter((category) => category.name.trim())
+    : []
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`Request failed: ${response.status}`)
@@ -30,9 +102,9 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 
 export const outlookApi = {
   getFolders: () => getJson<FolderSnapshotDto>('/api/outlook/folders'),
-  getMails: () => getJson<MailItemDto[]>('/api/outlook/mails'),
+  getMails: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mails')),
   getRules: () => getJson<OutlookRuleDto[]>('/api/outlook/rules'),
-  getCategories: () => getJson<OutlookCategoryDto[]>('/api/outlook/categories'),
+  getCategories: async () => normalizeOutlookCategories(await getJson<unknown>('/api/outlook/categories')),
   getCalendar: () => getJson<CalendarEventDto[]>('/api/outlook/calendar'),
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),

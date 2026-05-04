@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { outlookApi } from '../api/outlook'
+import { normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
 import type {
   AddinLogEntry,
   AddinStatusDto,
@@ -594,6 +594,14 @@ export function useOutlookDashboard() {
   }
 
   function selectMail(index: number) {
+    if (selectedMailIndex.value === index) {
+      const next = new Set(openMailIndexes.value)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      openMailIndexes.value = next
+      return
+    }
+
     selectedMailIndex.value = index
     selectedMailHtml.value = false
     const next = new Set<number>()
@@ -721,8 +729,8 @@ export function useOutlookDashboard() {
       loadingFolders.value = false
       operationLoading.value = false
     })
-    connection.on('MailsUpdated', (items: MailItemDto[]) => {
-      setMails(items)
+    connection.on('MailsUpdated', (items: unknown) => {
+      setMails(normalizeMailItems(items))
       loadingMails.value = false
       operationLoading.value = false
     })
@@ -731,8 +739,8 @@ export function useOutlookDashboard() {
       loadingRules.value = false
       operationLoading.value = false
     })
-    connection.on('CategoriesUpdated', (items: OutlookCategoryDto[]) => {
-      categories.value = items
+    connection.on('CategoriesUpdated', (items: unknown) => {
+      categories.value = normalizeOutlookCategories(items)
       loadingCategories.value = false
       operationLoading.value = false
     })
@@ -839,6 +847,7 @@ export function useOutlookDashboard() {
     folderStores,
     htmlMailIndexes,
     loadingCalendar,
+    loadingCategories,
     loadingFolders,
     loadingMails,
     loadingSignalRPing,
@@ -856,6 +865,7 @@ export function useOutlookDashboard() {
     outlookBusyText,
     refreshAdminData,
     requestCalendar,
+    requestCategories,
     requestFolders,
     requestSignalRPing,
     requestMails,

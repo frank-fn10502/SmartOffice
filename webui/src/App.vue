@@ -52,6 +52,7 @@ const {
   folderContextMenu,
   folderStores,
   loadingCalendar,
+  loadingCategories,
   loadingFolders,
   loadingMails,
   loadingSignalRPing,
@@ -68,6 +69,7 @@ const {
   outlookBusyText,
   refreshAdminData,
   requestCalendar,
+  requestCategories,
   requestFolders,
   requestSignalRPing,
   requestMails,
@@ -256,7 +258,17 @@ const {
 
             <div class="inspector-panel-body">
               <div class="library-group">
-                <div class="library-heading">Master Category List</div>
+                <div class="category-heading-row">
+                  <div class="library-heading">Master Category List</div>
+                  <el-button
+                    :icon="Refresh"
+                    circle
+                    size="small"
+                    :loading="loadingCategories"
+                    :disabled="outlookBusy && !loadingCategories"
+                    @click="requestCategories"
+                  />
+                </div>
                 <div class="category-add-row">
                   <el-input
                     v-model="categoryCreateDraft"
@@ -336,8 +348,19 @@ const {
                 </div>
 
                 <div class="marker-tags">
-                  <el-tag :type="selectedMail.isRead ? 'info' : 'warning'" effect="plain">
-                    {{ selectedMail.isRead ? '已讀' : '未讀' }}
+                  <el-tag
+                    class="clickable-marker-tag"
+                    :class="{ disabled: outlookBusy }"
+                    :type="mailPropertiesDraft.isRead ? 'info' : 'warning'"
+                    effect="plain"
+                    role="button"
+                    tabindex="0"
+                    :aria-disabled="outlookBusy"
+                    @click="!outlookBusy && (mailPropertiesDraft.isRead = !mailPropertiesDraft.isRead)"
+                    @keydown.enter.prevent="!outlookBusy && (mailPropertiesDraft.isRead = !mailPropertiesDraft.isRead)"
+                    @keydown.space.prevent="!outlookBusy && (mailPropertiesDraft.isRead = !mailPropertiesDraft.isRead)"
+                  >
+                    {{ mailPropertiesDraft.isRead ? '已讀' : '未讀' }}
                   </el-tag>
                   <el-tag v-if="selectedMail.isMarkedAsTask" type="danger" effect="plain">
                     {{ flagIntervalLabel(selectedMail.flagInterval) }}
@@ -357,11 +380,6 @@ const {
                 </div>
 
                 <div class="mail-property-form">
-                  <label class="inspector-check">
-                    <el-switch v-model="mailPropertiesDraft.isRead" :disabled="outlookBusy" />
-                    <span>{{ mailPropertiesDraft.isRead ? '已讀' : '未讀' }}</span>
-                  </label>
-
                   <div class="inspector-field">
                     <span>旗標種類</span>
                     <el-select v-model="mailPropertiesDraft.flagInterval" :disabled="outlookBusy">

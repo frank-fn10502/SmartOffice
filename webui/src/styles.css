@@ -784,6 +784,14 @@ select {
   text-transform: uppercase;
 }
 
+.category-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .category-add-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 118px auto;
@@ -844,21 +852,9 @@ select {
   background: #fbfcfe;
 }
 
-.inspector-check,
 .date-grid {
   display: grid;
   gap: 8px;
-}
-
-.inspector-check {
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  color: #172033;
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.date-grid {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   min-width: 0;
 }
@@ -883,9 +879,9 @@ select {
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
   position: sticky;
-  bottom: -12px;
-  margin: 4px -12px -12px;
-  padding: 12px;
+  bottom: 0;
+  margin: 4px 0 0;
+  padding: 12px 0 0;
   border-top: 1px solid #d9e2ec;
   background: #fff;
   box-shadow: 0 -8px 18px rgb(15 23 42 / 8%);
@@ -894,6 +890,10 @@ select {
 .commit-actions .el-button {
   width: 100%;
   min-width: 0;
+}
+
+.commit-actions .el-button + .el-button {
+  margin-left: 0;
 }
 
 .commit-button {
@@ -1116,6 +1116,21 @@ select {
 
 .marker-tags .el-tag {
   gap: 4px;
+}
+
+.clickable-marker-tag {
+  cursor: pointer;
+  user-select: none;
+}
+
+.clickable-marker-tag.disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.clickable-marker-tag:focus-visible {
+  outline: 2px solid #1f5f99;
+  outline-offset: 2px;
 }
 
 .rule-detail {
