@@ -102,6 +102,8 @@ Payload：
 | `delete_folder` | `deleteFolderRequest` | 刪除 folder |
 | `move_mail` | `moveMailRequest` | 移動單封 mail |
 
+本 Hub contract 不提供 `delete_mail` command。任何 Web UI 上的「刪除郵件」語意都必須實作為 `move_mail` 到 Outlook 的「刪除的郵件 / Deleted Items」folder；AddIn 不得呼叫 Outlook `MailItem.Delete()` 或永久刪除郵件。
+
 ## AddIn 回報結果
 
 AddIn 可 invoke 下列 server method：
@@ -112,6 +114,7 @@ AddIn 可 invoke 下列 server method：
 | `PushFolderBatch` | `FolderSyncBatchDto` | 推送一批 stores / folders，Hub merge 到 cache 並 broadcast `FoldersPatched` |
 | `CompleteFolderSync` | `FolderSyncCompleteDto` | 結束 folder 增量同步並 broadcast `FolderSyncCompleted` |
 | `PushMails` | `MailItemDto[]` | 取代 cached mails 並 broadcast `MailsUpdated` |
+| `PushMail` | `MailItemDto` | 更新 cached mails 中同 id 的單封 mail 並 broadcast `MailUpdated`；用於 `update_mail_properties` 這類不應重抓列表的單封 mutation |
 | `PushRules` | `OutlookRuleDto[]` | 取代 cached rules 並 broadcast `RulesUpdated` |
 | `PushCategories` | `OutlookCategoryDto[]` | 取代 cached categories 並 broadcast `CategoriesUpdated` |
 | `PushCalendar` | `CalendarEventDto[]` | 取代 cached calendar events 並 broadcast `CalendarUpdated` |
@@ -119,7 +122,7 @@ AddIn 可 invoke 下列 server method：
 | `ReportAddinLog` | `AddinLogEntry` | 回報診斷 log |
 | `ReportCommandResult` | `OutlookCommandResult` | 回報 command 成敗 |
 
-每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變畫面資料，請同時 invoke 對應 `Push*` method。Folder tree 只使用 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。
+每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變畫面資料，請同時 invoke 對應 `Push*` method。Folder tree 只使用 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。單封屬性更新請使用 `PushMail`，不要為了更新一封 mail 重新 `PushMails`。
 
 AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-addin` 上的 `SendChatMessage(message)`。
 
@@ -253,6 +256,8 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
 ```
 
 `move_mail` 只有在目前 mail 有非空 `id` 時才會由 Web UI 送出。AddIn 應用 `mailId` 找到 Outlook item，將 `destinationFolderPath` 解析成 Outlook `Folder` object，呼叫 Outlook `MailItem.Move(destinationFolder)`，完成後回推最新 `PushMails`，並用 folder 增量同步更新 folder count。
+
+若 `destinationFolderPath` 是 Outlook 的「刪除的郵件 / Deleted Items」folder，這仍然只是移動郵件到該 folder，不是永久刪除。AddIn 必須沿用同一個 `MailItem.Move(destinationFolder)` 流程。
 
 注意：Microsoft 文件說 Outlook `MailItem.EntryID` 在 item save 或 send 後才會存在，跨 store 移動時可能改變。因此 AddIn 若使用 EntryID 當 `MailItemDto.id`，移動後應重新讀取並回推最新 mail snapshot。相關官方依據與 Web UI 操作對照請看 `docs/addin/features-checklist.md`。
 

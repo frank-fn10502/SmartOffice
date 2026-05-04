@@ -53,7 +53,8 @@
 6. 設定或覆蓋單封郵件 categories。
 7. 使用較新的 `mailPropertiesRequest` 時，可一次更新 read state、flag、task dates、categories 與需要新增的 master categories。
 8. 移動單封郵件到指定 destination folder。
-9. 每個 mutation 完成後，至少重新 invoke `PushMails` 回報受影響 folder 的 mails；若 folder count 或 categories 受影響，也要使用 folder 增量同步或 `PushCategories`。
+9. 刪除郵件只能視為移動到 Outlook 的「刪除的郵件 / Deleted Items」folder；不得直接呼叫 Outlook `MailItem.Delete()` 或永久刪除郵件。
+10. 單封屬性 mutation 完成後 invoke `PushMail` 回報該 mail；只有會改變列表成員的操作才重新 invoke `PushMails` 回報受影響 folder 的 mails。若 folder count 或 categories 受影響，也要使用 folder 增量同步或 `PushCategories`。
 
 ## Folder 與 Category 操作功能
 

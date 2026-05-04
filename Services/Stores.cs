@@ -18,6 +18,16 @@ namespace SmartOffice.Hub.Services
             lock (_lock) { _mails = new List<MailItemDto>(mails); }
         }
 
+        public void UpsertMail(MailItemDto mail)
+        {
+            lock (_lock)
+            {
+                var index = _mails.FindIndex(item => item.Id == mail.Id);
+                if (index < 0) return;
+                _mails[index] = mail;
+            }
+        }
+
         public List<MailItemDto> GetMails()
         {
             lock (_lock) { return new List<MailItemDto>(_mails); }

@@ -11,7 +11,7 @@ Outlook AddIn 正式 protocol 已改為 SignalR-only：
 3. Web UI、AI 或 MCP client 透過 Hub HTTP request endpoint 發出要求。
 4. Hub 透過 SignalR client event `OutlookCommand` 即時 dispatch command 給 AddIn。
 5. AddIn 在本機執行 Outlook automation。
-6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果。
+6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushMail`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果。
 7. Hub 更新 cache，並透過 `/hub/notifications` broadcast 給 Web UI。
 
 目前不保留舊 AddIn HTTP long-poll / push channel；工作機 AddIn 不應再呼叫 `/api/outlook/poll` 或 `/api/outlook/push-*`。
@@ -82,6 +82,7 @@ AddIn 連到 `/hub/outlook-addin` 後可以 invoke：
 - `PushFolderBatch(batch)`：merge stores / folders 小批次並 broadcast `FoldersPatched`。
 - `CompleteFolderSync(info)`：結束 folder 增量同步並 broadcast `FolderSyncCompleted`。
 - `PushMails(mails)`：取代 cached mails 並 broadcast update。
+- `PushMail(mail)`：只更新 cached mails 中同 id 的單封 mail 並 broadcast update；`update_mail_properties` 應使用這個方法。
 - `PushRules(rules)`：取代 cached Outlook rules 並 broadcast update。
 - `PushCategories(categories)`：取代 cached Outlook master category list 並 broadcast update。
 - `PushCalendar(events)`：取代 cached Outlook calendar events 並 broadcast update。
@@ -113,6 +114,7 @@ Web UI notification endpoint 是 `/hub/notifications`。
 - `FoldersPatched`
 - `FolderSyncCompleted`
 - `MailsUpdated`
+- `MailUpdated`
 - `RulesUpdated`
 - `CategoriesUpdated`
 - `CalendarUpdated`

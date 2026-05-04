@@ -48,6 +48,7 @@ const {
   draggedMailId,
   expandedFolders,
   fetchMailsFromContext,
+  fetchedMailFolderName,
   flagIntervalLabel,
   flagIntervalOptions,
   folderContextMenu,
@@ -59,6 +60,7 @@ const {
   loadingSignalRPing,
   mailCount,
   mailHtmlSandbox,
+  mailListNeedsFetch,
   mailPropertiesDraft,
   mailRange,
   mailStats,
@@ -80,6 +82,7 @@ const {
   selectedCalendarEvent,
   selectedMail,
   selectedMailCategories,
+  selectedMailFolderName,
   selectedMailHasIdentity,
   selectedMailHtml,
   selectedMailIndex,
@@ -171,8 +174,9 @@ const {
           <div class="panel-header">
             <div class="panel-title">
               <el-icon><Document /></el-icon>
-              <span>{{ selectedFolderName }}</span>
+              <span>{{ fetchedMailFolderName }}</span>
               <el-tag effect="plain">{{ mails.length }}</el-tag>
+              <el-tag v-if="mailListNeedsFetch" type="warning" effect="plain">需抓取：{{ selectedFolderName }}</el-tag>
             </div>
 
             <el-button type="primary" :loading="loadingMails" :disabled="outlookBusy && !loadingMails" @click="requestMails">
@@ -198,6 +202,9 @@ const {
               <span>分類 {{ mailStats.categorized }}</span>
             </div>
           </div>
+          <p v-if="mailListNeedsFetch" class="hint">
+            目前列表仍是上次抓取的 {{ fetchedMailFolderName }}；已選取 {{ selectedFolderName }}，請按「抓取郵件」更新列表。
+          </p>
 
           <div class="mail-table">
             <p v-if="mails.length === 0 && !loadingMails" class="hint">選取左邊 folder 後抓取郵件。</p>
@@ -356,7 +363,7 @@ const {
                 <div class="inspector-meta">
                   <span>{{ selectedMail.senderName }} &lt;{{ selectedMail.senderEmail }}&gt;</span>
                   <span>{{ formatDateTime(selectedMail.receivedTime) }}</span>
-                  <span>來源：{{ selectedFolderName }}</span>
+                  <span>來源：{{ selectedMailFolderName }}</span>
                 </div>
                 <div v-if="!selectedMailHasIdentity" class="identity-warning">
                   這封郵件缺少 id，Add-in 需在 PushMails 回傳 Outlook EntryID 或穩定識別後才能修改或移動。

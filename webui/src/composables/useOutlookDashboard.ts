@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
+import { normalizeMailItem, normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
 import type {
   AddinLogEntry,
   AddinStatusDto,
@@ -61,6 +61,8 @@ export function useOutlookDashboard() {
   })
   const addinLogs = ref<AddinLogEntry[]>([])
   const selectedFolderPath = ref('')
+  const fetchedMailFolderPath = ref('')
+  const pendingMailFolderPath = ref('')
   const selectedMailIndex = ref<number | null>(null)
   const selectedMailHtml = ref(false)
   const activePropertyLibrarySections = ref(['property-library'])
@@ -179,7 +181,19 @@ export function useOutlookDashboard() {
   })
 
   const selectedFolderName = computed(() => {
-    return folderOptions.value.find((folder) => folder.folderPath === selectedFolderPath.value)?.label.trim() ?? '未選擇'
+    return folderNameForPath(selectedFolderPath.value)
+  })
+
+  const fetchedMailFolderName = computed(() => {
+    return fetchedMailFolderPath.value ? folderNameForPath(fetchedMailFolderPath.value) : '尚未抓取郵件'
+  })
+
+  const selectedMailFolderName = computed(() => {
+    return selectedMail.value?.folderPath ? folderNameForPath(selectedMail.value.folderPath) : '未選擇'
+  })
+
+  const mailListNeedsFetch = computed(() => {
+    return Boolean(selectedFolderPath.value && selectedFolderPath.value !== fetchedMailFolderPath.value)
   })
 
   const contextFolderName = computed(() => {
@@ -204,6 +218,16 @@ export function useOutlookDashboard() {
   })
 
   const selectedMailHasIdentity = computed(() => Boolean(selectedMail.value?.id?.trim()))
+
+  function folderNameForPath(path: string) {
+    if (!path) return '未選擇'
+    return folderOptions.value.find((folder) => folder.folderPath === path)?.label.trim() ?? path
+  }
+
+  function inferMailFolderPath(items: MailItemDto[], fallback = '') {
+    const paths = [...new Set(items.map((mail) => mail.folderPath).filter(Boolean))]
+    return paths.length === 1 ? paths[0] : fallback
+  }
 
   function categoryColorByName(name: string) {
     const category = categories.value.find((item) => item.name.toLowerCase() === name.trim().toLowerCase())
@@ -253,6 +277,15 @@ function categoryTagStyle(name: string) {
     if (wasOpen && selectedMailIndex.value !== null) {
       openMailIndexes.value = new Set([selectedMailIndex.value])
     }
+  }
+
+  function patchMail(nextMail: MailItemDto) {
+    if (!nextMail.id) return
+    const index = mails.value.findIndex((mail) => mail.id === nextMail.id)
+    if (index < 0) return
+    const items = [...mails.value]
+    items[index] = nextMail
+    mails.value = items
   }
 
   async function loadCachedFolders() {
@@ -367,7 +400,9 @@ function categoryTagStyle(name: string) {
   }
 
   async function loadCachedMails() {
-    setMails(await outlookApi.getMails())
+    const items = await outlookApi.getMails()
+    setMails(items)
+    fetchedMailFolderPath.value = inferMailFolderPath(items)
   }
 
   async function loadCachedRules() {
@@ -391,6 +426,7 @@ function categoryTagStyle(name: string) {
       return
     }
     loadingMails.value = true
+    pendingMailFolderPath.value = selectedFolderPath.value
     openMailIndexes.value = new Set()
     htmlMailIndexes.value = new Set()
     selectedMailIndex.value = null
@@ -402,6 +438,7 @@ function categoryTagStyle(name: string) {
         maxCount: mailCount.value,
       })
     } catch {
+      pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
       loadingMails.value = false
     }
@@ -777,9 +814,16 @@ function categoryTagStyle(name: string) {
       operationLoading.value = false
     })
     connection.on('MailsUpdated', (items: unknown) => {
-      setMails(normalizeMailItems(items))
+      const nextMails = normalizeMailItems(items)
+      setMails(nextMails)
+      fetchedMailFolderPath.value = pendingMailFolderPath.value || inferMailFolderPath(nextMails, fetchedMailFolderPath.value)
+      pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
       loadingMails.value = false
+      operationLoading.value = false
+    })
+    connection.on('MailUpdated', (item: unknown) => {
+      patchMail(normalizeMailItem(item))
       operationLoading.value = false
     })
     connection.on('RulesUpdated', (items: OutlookRuleDto[]) => {
@@ -921,11 +965,14 @@ function categoryTagStyle(name: string) {
     requestSignalRPing,
     requestMails,
     resetMailPropertiesDraft,
+    fetchedMailFolderName,
+    mailListNeedsFetch,
     selectedFolderName,
     selectedCalendarEvent,
     selectedFolderPath,
     selectedMail,
     selectedMailCategories,
+    selectedMailFolderName,
     selectedMailHasIdentity,
     selectedMailHtml,
     selectedMailIndex,

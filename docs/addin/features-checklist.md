@@ -27,7 +27,7 @@
 | AddIn 連線 | Admin / 啟動狀態 | `ping` | `ReportCommandResult` |
 | Store-first folder tree | Folders refresh | `fetch_folders` | `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync` |
 | 讀取郵件 | 選 folder 後抓取郵件 | `fetch_mails` | `PushMails` |
-| 修改郵件屬性 | 右側屬性面板送出 | `update_mail_properties` | `PushMails`，必要時 `PushCategories` |
+| 修改郵件屬性 | 右側屬性面板送出 | `update_mail_properties` | `PushMail`，必要時 `PushCategories` |
 | 拖曳移動郵件 | Drag mail row 到 folder | `move_mail` | `PushMails`、folder 增量同步 |
 | Master categories | Category refresh / 新增 / 改色 | `fetch_categories`、`upsert_category` | `PushCategories` |
 | Rules snapshot | Rules refresh | `fetch_rules` | `PushRules` |
@@ -118,7 +118,7 @@ Web UI 目前使用 `update_mail_properties` 一次送出已讀、flag、categor
 - [ ] 若 `newCategories` 不存在於 master category list，先建立或更新 master category。
 - [ ] 儲存 mail item。
 - [ ] invoke `ReportCommandResult`。
-- [ ] invoke `PushMails` 更新畫面。
+- [ ] invoke `PushMail` 更新畫面中的同一封 mail；不要重新抓取整個 mail list。
 - [ ] 若 master category 有變更，invoke `PushCategories`。
 
 驗收：
@@ -132,10 +132,13 @@ Web UI 目前使用 `update_mail_properties` 一次送出已讀、flag、categor
 
 Web UI 只支援 drag/drop 移動，不提供額外移動表單。
 
+刪除郵件的唯一允許語意是移動到 Outlook 的「刪除的郵件 / Deleted Items」folder。AddIn 不得直接呼叫 `MailItem.Delete()` 或永久刪除郵件；若 Web UI 要刪除郵件，也必須送 `move_mail` 並指定刪除的郵件 folder 作為 `destinationFolderPath`。
+
 - [ ] AddIn 收到 `move_mail`。
 - [ ] 用 `moveMailRequest.mailId` 找回 mail item。
 - [ ] 用 `destinationFolderPath` 找到 Outlook destination `Folder`。
 - [ ] 呼叫 Outlook `MailItem.Move(destinationFolder)`。
+- [ ] 若 destination 是「刪除的郵件 / Deleted Items」，仍只呼叫 `Move(destinationFolder)`，不可呼叫 `Delete()`。
 - [ ] 移動後重新讀取目前 source folder 或以正確方式移除已移動 mail。
 - [ ] invoke `ReportCommandResult`。
 - [ ] invoke `PushMails`，讓目前 mail list 反映移動後結果。

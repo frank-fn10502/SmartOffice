@@ -58,6 +58,7 @@ namespace SmartOffice.Hub.Services
 
             FolderSyncBatchDto? folderBatch = null;
             List<MailItemDto>? mails = null;
+            MailItemDto? mail = null;
             List<OutlookCategoryDto>? categories = null;
             List<OutlookRuleDto>? rules = null;
             List<CalendarEventDto>? calendar = null;
@@ -140,10 +141,9 @@ namespace SmartOffice.Hub.Services
                         _mailStore.SetCategories(categories);
                         break;
                     case "update_mail_properties":
-                        UpdateMailProperties(command.MailPropertiesRequest);
-                        mails = SyncVisibleMails();
+                        mail = UpdateMailProperties(command.MailPropertiesRequest);
                         categories = new List<OutlookCategoryDto>(_mockCategories);
-                        _mailStore.SetMails(mails);
+                        if (mail is not null) _mailStore.UpsertMail(mail);
                         _mailStore.SetCategories(categories);
                         break;
                     case "create_folder":
@@ -194,6 +194,7 @@ namespace SmartOffice.Hub.Services
                 }, ct);
             }
             if (mails is not null) await _notifications.Clients.All.SendAsync("MailsUpdated", mails, ct);
+            if (mail is not null) await _notifications.Clients.All.SendAsync("MailUpdated", mail, ct);
             if (categories is not null) await _notifications.Clients.All.SendAsync("CategoriesUpdated", categories, ct);
             if (rules is not null) await _notifications.Clients.All.SendAsync("RulesUpdated", rules, ct);
             if (calendar is not null) await _notifications.Clients.All.SendAsync("CalendarUpdated", calendar, ct);
@@ -438,11 +439,11 @@ namespace SmartOffice.Hub.Services
             update(mail);
         }
 
-        private void UpdateMailProperties(MailPropertiesCommandRequest? request)
+        private MailItemDto? UpdateMailProperties(MailPropertiesCommandRequest? request)
         {
-            if (request is null) return;
+            if (request is null) return null;
             var mail = _mockMails.FirstOrDefault(item => item.Id == request.MailId);
-            if (mail is null) return;
+            if (mail is null) return null;
 
             if (request.IsRead.HasValue) mail.IsRead = request.IsRead.Value;
             ApplyFlag(mail, request);
@@ -450,6 +451,8 @@ namespace SmartOffice.Hub.Services
 
             foreach (var category in request.NewCategories)
                 UpsertCategory(new CategoryCommandRequest { Name = category.Name, Color = category.Color, ColorValue = category.ColorValue, ShortcutKey = category.ShortcutKey });
+
+            return CloneMail(mail);
         }
 
         private void CreateFolder(CreateFolderRequest? request)
