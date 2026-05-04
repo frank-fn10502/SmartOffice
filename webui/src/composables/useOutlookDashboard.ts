@@ -13,6 +13,7 @@ import type {
   FolderTreeNode,
   MailItemDto,
   MailPropertiesCommandRequest,
+  OutlookCommandResult,
   OutlookStoreDto,
   OutlookCategoryDto,
   OutlookRuleDto,
@@ -109,6 +110,8 @@ export function useOutlookDashboard() {
   let initialMailsFetchCompleted = false
   let initialCategoriesFetchCompleted = false
   let startupSyncStarted = false
+  let activeOperationCommandId = ''
+  let operationTimeoutId = 0
 
   const visibleFolders = computed(() => visibleRootFolders(folders.value))
 
@@ -569,12 +572,41 @@ function categoryTagStyle(name: string) {
 
   async function runMailOperation(action: () => Promise<unknown>) {
     if (outlookBusy.value) return
+    window.clearTimeout(operationTimeoutId)
+    activeOperationCommandId = ''
     operationLoading.value = true
     try {
-      await action()
+      const response = await action()
+      if (!operationLoading.value) return
+      if (isCommandDispatchResponse(response)) {
+        activeOperationCommandId = response.commandId
+        if (response.status !== 'dispatched' && response.status !== 'mocked') {
+          operationLoading.value = false
+          activeOperationCommandId = ''
+          return
+        }
+      }
+      operationTimeoutId = window.setTimeout(() => {
+        operationLoading.value = false
+        activeOperationCommandId = ''
+      }, 30000)
     } catch {
       operationLoading.value = false
+      activeOperationCommandId = ''
+      window.clearTimeout(operationTimeoutId)
     }
+  }
+
+  function isCommandDispatchResponse(value: unknown): value is { commandId: string; status: string } {
+    const response = value as { commandId?: unknown; status?: unknown }
+    return typeof response?.commandId === 'string' && typeof response?.status === 'string'
+  }
+
+  function completeOperation(commandId = '') {
+    if (commandId && activeOperationCommandId && commandId !== activeOperationCommandId) return
+    operationLoading.value = false
+    activeOperationCommandId = ''
+    window.clearTimeout(operationTimeoutId)
   }
 
   async function applyMailProperties(mail: MailItemDto) {
@@ -806,12 +838,12 @@ function categoryTagStyle(name: string) {
       folders.value = applyFolderBatch(folders.value, folderStores.value, batch)
       selectDefaultFolder()
       loadingFolders.value = !batch.isFinal
-      if (batch.isFinal) operationLoading.value = false
+      if (batch.isFinal) completeOperation()
     })
     connection.on('FolderSyncCompleted', (_info: FolderSyncCompleteDto) => {
       initialFoldersFetchCompleted = true
       loadingFolders.value = false
-      operationLoading.value = false
+      completeOperation()
     })
     connection.on('MailsUpdated', (items: unknown) => {
       const nextMails = normalizeMailItems(items)
@@ -820,27 +852,30 @@ function categoryTagStyle(name: string) {
       pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
       loadingMails.value = false
-      operationLoading.value = false
+      completeOperation()
     })
     connection.on('MailUpdated', (item: unknown) => {
       patchMail(normalizeMailItem(item))
-      operationLoading.value = false
+      completeOperation()
     })
     connection.on('RulesUpdated', (items: OutlookRuleDto[]) => {
       rules.value = items
       loadingRules.value = false
-      operationLoading.value = false
+      completeOperation()
     })
     connection.on('CategoriesUpdated', (items: unknown) => {
       categories.value = normalizeOutlookCategories(items)
       initialCategoriesFetchCompleted = true
       loadingCategories.value = false
-      operationLoading.value = false
+      completeOperation()
     })
     connection.on('CalendarUpdated', (items: CalendarEventDto[]) => {
       calendarEvents.value = items
       loadingCalendar.value = false
-      operationLoading.value = false
+      completeOperation()
+    })
+    connection.on('CommandResult', (result: OutlookCommandResult) => {
+      completeOperation(result.commandId)
     })
     connection.on('NewChatMessage', async (message: ChatMessageDto) => {
       chatMessages.value = [...chatMessages.value, message]
@@ -899,6 +934,7 @@ function categoryTagStyle(name: string) {
   onBeforeUnmount(() => {
     unmounted = true
     window.removeEventListener('click', closeFolderContextMenu)
+    window.clearTimeout(operationTimeoutId)
     void connection?.stop()
   })
 

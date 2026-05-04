@@ -52,6 +52,14 @@ export interface CommandDispatchResponse {
   status: 'mocked' | 'dispatched' | 'addin_unavailable' | string
 }
 
+export interface OutlookCommandResult {
+  commandId: string
+  success: boolean
+  message: string
+  payload: string
+  timestamp: string
+}
+
 export interface MailItemDto {
   id: string
   subject: string
