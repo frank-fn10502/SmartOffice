@@ -12,6 +12,7 @@
 - `Plan/status.md` 是 VS Code Copilot custom agent 的任務佇列狀態檔；切分或執行 `Plan/` 任務時也必須遵守 `docs/ai/plan-splitting.md`。
 - 修改時維持 SmartOffice.Hub 的邊界：Add-in 負責 Office automation，Hub 負責 HTTP API、SignalR、command routing 與 temporary state，Web UI 負責檢視、手動 request、chat 與 diagnostics。
 - 偏好小而明確、backward-compatible 的 contract；不要隨意 rename JSON field 或破壞既有 route。
+- 修改時留意檔案長度與職責邊界；接近或超過約 800 行要評估切分，超過約 1000 行應優先抽出自然模組。詳見 `docs/ai/coding.md` 與 `docs/ai/frontend.md`。
 - Office 2016 與受限企業環境是設計約束。除非任務明確需要，避免引入 database、frontend build system、background job framework 或 AI SDK。
 - 請假設 mail body、folder name 與 chat message 都可能含有敏感 business data。
 

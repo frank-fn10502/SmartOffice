@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { categoryColorValue, normalizeCategoryColor, normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
+import { normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
 import type {
   AddinLogEntry,
   AddinStatusDto,
@@ -18,147 +18,30 @@ import type {
   OutlookRuleDto,
   SignalRState,
 } from '../models/outlook'
+import {
+  categoryColorOptions,
+  categoryColorStyle,
+  categoryColorValue,
+  categoryOptionColor,
+  categoryTextColor,
+} from '../utils/categoryColors'
 import { applyFolderBatch, buildFolderTree, collectFolderOptions, folderType, visibleRootFolders } from '../utils/folders'
-
-const flagIntervalOptions = [
-  { label: '不設定旗標', value: 'none' },
-  { label: '今天', value: 'today' },
-  { label: '明天', value: 'tomorrow' },
-  { label: '本週', value: 'this_week' },
-  { label: '下週', value: 'next_week' },
-  { label: '無日期', value: 'no_date' },
-  { label: '自訂日期', value: 'custom' },
-  { label: '標示完成', value: 'complete' },
-]
-
-const categoryColorOptions = [
-  { label: '無色', value: 'olCategoryColorNone', color: '#eef2f7' },
-  { label: '紅色', value: 'olCategoryColorRed', color: '#f87171' },
-  { label: '橘色', value: 'olCategoryColorOrange', color: '#fb923c' },
-  { label: '桃色', value: 'olCategoryColorPeach', color: '#f9a8d4' },
-  { label: '黃色', value: 'olCategoryColorYellow', color: '#facc15' },
-  { label: '綠色', value: 'olCategoryColorGreen', color: '#22c55e' },
-  { label: '青色', value: 'olCategoryColorTeal', color: '#14b8a6' },
-  { label: '橄欖', value: 'olCategoryColorOlive', color: '#84cc16' },
-  { label: '藍色', value: 'olCategoryColorBlue', color: '#38bdf8' },
-  { label: '紫色', value: 'olCategoryColorPurple', color: '#a78bfa' },
-  { label: '栗色', value: 'olCategoryColorMaroon', color: '#be123c' },
-  { label: '鋼藍', value: 'olCategoryColorSteel', color: '#64748b' },
-  { label: '深鋼藍', value: 'olCategoryColorDarkSteel', color: '#475569' },
-  { label: '灰色', value: 'olCategoryColorGray', color: '#94a3b8' },
-  { label: '深灰', value: 'olCategoryColorDarkGray', color: '#64748b' },
-  { label: '黑色', value: 'olCategoryColorBlack', color: '#111827' },
-  { label: '深紅', value: 'olCategoryColorDarkRed', color: '#b91c1c' },
-  { label: '深橘', value: 'olCategoryColorDarkOrange', color: '#c2410c' },
-  { label: '深桃色', value: 'olCategoryColorDarkPeach', color: '#db2777' },
-  { label: '深黃', value: 'olCategoryColorDarkYellow', color: '#ca8a04' },
-  { label: '深綠', value: 'olCategoryColorDarkGreen', color: '#15803d' },
-  { label: '深青', value: 'olCategoryColorDarkTeal', color: '#0f766e' },
-  { label: '深橄欖', value: 'olCategoryColorDarkOlive', color: '#4d7c0f' },
-  { label: '深藍', value: 'olCategoryColorDarkBlue', color: '#2563eb' },
-  { label: '深紫', value: 'olCategoryColorDarkPurple', color: '#7e22ce' },
-  { label: '深栗色', value: 'olCategoryColorDarkMaroon', color: '#9f1239' },
-]
-
-function defaultFlagRequest(value: string) {
-  return value === 'none' ? '' : flagIntervalLabel(value)
-}
-
-function flagIntervalLabel(value?: string) {
-  return flagIntervalOptions.find((option) => option.value === value)?.label ?? '旗標'
-}
-
-function isDefaultFlagRequest(value: string, previousInterval = '') {
-  const normalized = value.trim()
-  return (
-    !normalized
-    || normalized === 'Follow up'
-    || normalized === '旗標'
-    || normalized === flagIntervalLabel(previousInterval)
-    || flagIntervalOptions.some((option) => option.label === normalized)
-  )
-}
-
-function toDateInput(value?: string) {
-  if (!value) return ''
-  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10)
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toISOString().slice(0, 10)
-}
-
-function dateInputToIso(value: string) {
-  return value ? `${value}T00:00:00` : undefined
-}
-
-function todayInputValue() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = `${now.getMonth() + 1}`.padStart(2, '0')
-  const day = `${now.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
-function toDateKey(date: Date) {
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function monthStart(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
-function monthEndExclusive(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 1)
-}
-
-function addMonths(date: Date, count: number) {
-  return new Date(date.getFullYear(), date.getMonth() + count, 1)
-}
-
-function splitCategories(value: string) {
-  return value
-    .split(',')
-    .map((category) => category.trim())
-    .filter(Boolean)
-}
-
-function categoryColorStyle(value?: string) {
-  const colorValue = normalizeCategoryColor(value ?? '')
-  const color = categoryColorOptions.find((option) => option.value === colorValue)?.color ?? categoryColorOptions[0].color
-  return { backgroundColor: color }
-}
-
-function categoryTextColor(backgroundColor: string) {
-  const hex = backgroundColor.replace('#', '')
-  if (hex.length !== 6) return '#172033'
-  const red = Number.parseInt(hex.slice(0, 2), 16)
-  const green = Number.parseInt(hex.slice(2, 4), 16)
-  const blue = Number.parseInt(hex.slice(4, 6), 16)
-  const luminance = (red * 299 + green * 587 + blue * 114) / 1000
-  return luminance > 150 ? '#172033' : '#ffffff'
-}
-
-function categoryOptionColor(value?: string) {
-  const colorValue = normalizeCategoryColor(value ?? '')
-  return categoryColorOptions.find((option) => option.value === colorValue)?.color ?? categoryColorOptions[0].color
-}
-
-function mergeStores(current: OutlookStoreDto[], incoming: OutlookStoreDto[]) {
-  const stores = [...current]
-  for (const next of incoming) {
-    const index = stores.findIndex((store) => store.storeId === next.storeId)
-    if (index < 0) stores.push(next)
-    else stores[index] = next
-  }
-  return stores
-}
+import {
+  addMonths,
+  dateInputToIso,
+  defaultFlagRequest,
+  flagIntervalLabel,
+  flagIntervalOptions,
+  isDefaultFlagRequest,
+  mergeStores,
+  monthEndExclusive,
+  monthStart,
+  sleep,
+  splitCategories,
+  toDateInput,
+  toDateKey,
+  todayInputValue,
+} from '../utils/outlookDashboardHelpers'
 
 export function useOutlookDashboard() {
   const activeView = ref<AppView>('outlook')
@@ -223,6 +106,7 @@ export function useOutlookDashboard() {
   let initialFoldersFetchCompleted = false
   let initialMailsFetchCompleted = false
   let initialCategoriesFetchCompleted = false
+  let startupSyncStarted = false
 
   const visibleFolders = computed(() => visibleRootFolders(folders.value))
 
@@ -574,8 +458,20 @@ function categoryTagStyle(name: string) {
     }
   }
 
+  async function waitForNotificationSignalRConnected(timeoutMs = 12000) {
+    const started = Date.now()
+    while (!unmounted && signalRState.value !== 'connected' && Date.now() - started < timeoutMs) {
+      await sleep(100)
+    }
+    return signalRState.value === 'connected'
+  }
+
   async function runStartupOutlookSync() {
-    await sleep(1500)
+    if (startupSyncStarted) return
+    const connected = await waitForNotificationSignalRConnected()
+    if (!connected || unmounted) return
+    startupSyncStarted = true
+    await sleep(500)
     if (unmounted) return
     await requestFolders(true)
     await waitForFoldersReady()
@@ -856,6 +752,7 @@ function categoryTagStyle(name: string) {
     })
     connection.onreconnected(() => {
       signalRState.value = 'connected'
+      void runStartupOutlookSync()
     })
     connection.onclose(() => {
       signalRState.value = 'disconnected'
@@ -915,6 +812,7 @@ function categoryTagStyle(name: string) {
     try {
       await connection.start()
       signalRState.value = 'connected'
+      void runStartupOutlookSync()
     } catch {
       signalRState.value = 'disconnected'
     }
@@ -952,7 +850,6 @@ function categoryTagStyle(name: string) {
       loadChat(),
       refreshAdminData(),
     ])
-    void runStartupOutlookSync()
   })
 
   onBeforeUnmount(() => {

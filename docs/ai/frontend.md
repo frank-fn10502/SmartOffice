@@ -48,6 +48,19 @@ wwwroot/
 
 `wwwroot/` 是 Vue/Vite 產物目錄，build 時會清空後重建。不要在 `wwwroot/` 放手寫檔案，包括 README；修改 UI 時請改 `webui/src/`。
 
+## 檔案切分原則
+
+前端要避免單一檔案長期膨脹。修改 `webui/src/` 時請主動留意行數與職責：
+
+- 接近或超過約 800 行的檔案，後續修改前要先評估是否能自然切分。
+- 超過約 1000 行的檔案，除非只是短期過渡，應優先切分。
+- 先抽出純資料與 pure helper，例如 enum mapping、formatting、normalizer、date helper、color helper。
+- UI 很自然成為獨立區塊時，再拆成 component；例如 folder tree、mail row、category editor、calendar grid。
+- CSS 可依畫面區塊或 feature 拆分，但不要把每個 selector 拆成獨立檔案；以「能一次理解一個 UI 區塊」為準。
+- 不要為了追求短檔案而建立大量只有 trivial function 的檔案。偏好少量、穩定、命名清楚的模組。
+
+若當次任務會讓檔案明顯變長，應同時安排小幅切分；若暫時不切分，需在 change summary 中說明原因與後續合理切分點。
+
 ## Dependency 原則
 
 - `node_modules/` 不可 commit。

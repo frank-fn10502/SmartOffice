@@ -11,6 +11,7 @@ import type {
   OutlookCategoryDto,
   OutlookRuleDto,
 } from '../models/outlook'
+import { categoryColorValue, normalizeCategoryColor } from '../utils/categoryColors'
 
 type LooseRecord = Record<string, unknown>
 
@@ -33,101 +34,6 @@ function readStringList(value: unknown) {
     return value.map((item) => String(item).trim()).filter(Boolean).join(', ')
   }
   return typeof value === 'string' ? value : ''
-}
-
-export function normalizeCategoryColor(value: string) {
-  const key = value.trim()
-  if (!key) return 'olCategoryColorNone'
-
-  const outlookColorMap: Record<string, string> = {
-    '0': 'olCategoryColorNone',
-    '1': 'olCategoryColorRed',
-    '2': 'olCategoryColorOrange',
-    '3': 'olCategoryColorPeach',
-    '4': 'olCategoryColorYellow',
-    '5': 'olCategoryColorGreen',
-    '6': 'olCategoryColorTeal',
-    '7': 'olCategoryColorOlive',
-    '8': 'olCategoryColorBlue',
-    '9': 'olCategoryColorPurple',
-    '10': 'olCategoryColorMaroon',
-    '11': 'olCategoryColorSteel',
-    '12': 'olCategoryColorDarkSteel',
-    '13': 'olCategoryColorGray',
-    '14': 'olCategoryColorDarkGray',
-    '15': 'olCategoryColorBlack',
-    '16': 'olCategoryColorDarkRed',
-    '17': 'olCategoryColorDarkOrange',
-    '18': 'olCategoryColorDarkPeach',
-    '19': 'olCategoryColorDarkYellow',
-    '20': 'olCategoryColorDarkGreen',
-    '21': 'olCategoryColorDarkTeal',
-    '22': 'olCategoryColorDarkOlive',
-    '23': 'olCategoryColorDarkBlue',
-    '24': 'olCategoryColorDarkPurple',
-    '25': 'olCategoryColorDarkMaroon',
-    olcategorycolornone: 'olCategoryColorNone',
-    olcategorycolorred: 'olCategoryColorRed',
-    olcategorycolororange: 'olCategoryColorOrange',
-    olcategorycolorpeach: 'olCategoryColorPeach',
-    olcategorycoloryellow: 'olCategoryColorYellow',
-    olcategorycolorgreen: 'olCategoryColorGreen',
-    olcategorycolorteal: 'olCategoryColorTeal',
-    olcategorycolorolive: 'olCategoryColorOlive',
-    olcategorycolorblue: 'olCategoryColorBlue',
-    olcategorycolorpurple: 'olCategoryColorPurple',
-    olcategorycolormaroon: 'olCategoryColorMaroon',
-    olcategorycolorsteel: 'olCategoryColorSteel',
-    olcategorycolordarksteel: 'olCategoryColorDarkSteel',
-    olcategorycolorgray: 'olCategoryColorGray',
-    olcategorycolordarkgray: 'olCategoryColorDarkGray',
-    olcategorycolorblack: 'olCategoryColorBlack',
-    olcategorycolordarkred: 'olCategoryColorDarkRed',
-    olcategorycolordarkorange: 'olCategoryColorDarkOrange',
-    olcategorycolordarkpeach: 'olCategoryColorDarkPeach',
-    olcategorycolordarkyellow: 'olCategoryColorDarkYellow',
-    olcategorycolordarkgreen: 'olCategoryColorDarkGreen',
-    olcategorycolordarkteal: 'olCategoryColorDarkTeal',
-    olcategorycolordarkolive: 'olCategoryColorDarkOlive',
-    olcategorycolordarkblue: 'olCategoryColorDarkBlue',
-    olcategorycolordarkpurple: 'olCategoryColorDarkPurple',
-    olcategorycolordarkmaroon: 'olCategoryColorDarkMaroon',
-  }
-
-  return outlookColorMap[key.toLowerCase()] ?? key
-}
-
-export function categoryColorValue(value: string) {
-  const color = normalizeCategoryColor(value)
-  const outlookColorValues: Record<string, number> = {
-    olCategoryColorNone: 0,
-    olCategoryColorRed: 1,
-    olCategoryColorOrange: 2,
-    olCategoryColorPeach: 3,
-    olCategoryColorYellow: 4,
-    olCategoryColorGreen: 5,
-    olCategoryColorTeal: 6,
-    olCategoryColorOlive: 7,
-    olCategoryColorBlue: 8,
-    olCategoryColorPurple: 9,
-    olCategoryColorMaroon: 10,
-    olCategoryColorSteel: 11,
-    olCategoryColorDarkSteel: 12,
-    olCategoryColorGray: 13,
-    olCategoryColorDarkGray: 14,
-    olCategoryColorBlack: 15,
-    olCategoryColorDarkRed: 16,
-    olCategoryColorDarkOrange: 17,
-    olCategoryColorDarkPeach: 18,
-    olCategoryColorDarkYellow: 19,
-    olCategoryColorDarkGreen: 20,
-    olCategoryColorDarkTeal: 21,
-    olCategoryColorDarkOlive: 22,
-    olCategoryColorDarkBlue: 23,
-    olCategoryColorDarkPurple: 24,
-    olCategoryColorDarkMaroon: 25,
-  }
-  return outlookColorValues[color] ?? 0
 }
 
 export function normalizeMailItem(item: unknown): MailItemDto {
