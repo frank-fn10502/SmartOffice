@@ -76,8 +76,8 @@ MCP tool schema 應盡量保守。例如 `outlook_get_mails` 只收：
 ```json
 {
   "folderPath": "\\\\Mailbox - User\\Inbox",
-  "range": "1d",
-  "maxCount": 10
+  "range": "1m",
+  "maxCount": 30
 }
 ```
 

@@ -47,7 +47,7 @@ namespace SmartOffice.Hub.Services
             {
                 EnsureSeeded();
                 _mailStore.ApplyFolderBatch(BuildFolderBatch(reset: true, isFinal: true));
-                _mailStore.SetMails(FilterMails(MockPaths.Inbox, "1w", 10));
+                _mailStore.SetMails(FilterMails(MockPaths.Inbox, "1m", 30));
                 _mailStore.SetCategories(new List<OutlookCategoryDto>(_mockCategories));
                 _mailStore.SetRules(new List<OutlookRuleDto>(_mockRules));
                 _mailStore.SetCalendarEvents(new List<CalendarEventDto>(_mockCalendar));
@@ -85,8 +85,8 @@ namespace SmartOffice.Hub.Services
                     case "fetch_mails":
                         mails = FilterMails(
                             command.MailsRequest?.FolderPath ?? MockPaths.Inbox,
-                            command.MailsRequest?.Range ?? "1d",
-                            command.MailsRequest?.MaxCount ?? 10);
+                            command.MailsRequest?.Range ?? "1m",
+                            command.MailsRequest?.MaxCount ?? 30);
                         _mailStore.SetMails(mails);
                         break;
                     case "search_mails":

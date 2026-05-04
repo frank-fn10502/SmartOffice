@@ -43,7 +43,6 @@ namespace SmartOffice.Hub.Hubs
 
         public async Task BeginFolderSync(FolderSyncBeginDto info)
         {
-            _mailStore.BeginFolderSync(info.Reset);
             _addinStatus.AddLog("info", $"Folder sync started: {info.SyncId}");
             await _notifications.Clients.All.SendAsync("FolderSyncStarted", info);
             await BroadcastStatusAndLogsAsync();
@@ -51,6 +50,21 @@ namespace SmartOffice.Hub.Hubs
 
         public async Task PushFolderBatch(FolderSyncBatchDto batch)
         {
+            if (batch.Reset && batch.IsFinal && batch.Stores.Count == 0 && batch.Folders.Count == 0 && _mailStore.CountFolders() > 0)
+            {
+                var currentCount = _mailStore.CountFolders();
+                _addinStatus.AddLog("warn", $"Ignored empty final folder sync batch: {batch.SyncId}. Kept {currentCount} cached folders.");
+                await _notifications.Clients.All.SendAsync("FolderSyncCompleted", new FolderSyncCompleteDto
+                {
+                    SyncId = batch.SyncId,
+                    TotalCount = currentCount,
+                    Success = false,
+                    Message = "Ignored empty final folder sync batch; kept cached folders.",
+                });
+                await BroadcastStatusAndLogsAsync();
+                return;
+            }
+
             _mailStore.ApplyFolderBatch(batch);
             _addinStatus.RecordPush("folder batch", batch.Stores.Count + batch.Folders.Count);
             await _notifications.Clients.All.SendAsync("FoldersPatched", batch);
@@ -73,6 +87,14 @@ namespace SmartOffice.Hub.Hubs
         {
             if (info.TotalCount <= 0)
                 info.TotalCount = _mailStore.CountFolders();
+
+            if (info.Success && info.TotalCount <= 0)
+            {
+                info.Success = false;
+                info.Message = string.IsNullOrWhiteSpace(info.Message)
+                    ? "Folder sync completed without any folders."
+                    : $"{info.Message} Folder sync completed without any folders.";
+            }
 
             _addinStatus.AddLog(info.Success ? "info" : "warn", $"Folder sync completed: {info.TotalCount} folders. {info.Message}");
             await _notifications.Clients.All.SendAsync("FolderSyncCompleted", info);

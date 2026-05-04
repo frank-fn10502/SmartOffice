@@ -105,8 +105,8 @@ export function useOutlookDashboard() {
   const mailAttachmentsByMailId = ref<Record<string, MailAttachmentDto[]>>({})
   const loadingAttachmentMailIds = ref<Set<string>>(new Set())
   const exportingAttachmentIds = ref<Set<string>>(new Set())
-  const mailRange = ref('1d')
-  const mailCount = ref(10)
+  const mailRange = ref('1m')
+  const mailCount = ref(30)
   const loadingMailSearch = ref(false)
   const activeMailSearchId = ref('')
   const mailSearchDraft = ref({
@@ -728,8 +728,8 @@ function categoryTagStyle(name: string) {
     await sleep(500)
     if (unmounted) return
     if (!selectedFolderPath.value) selectInboxFolder()
-    mailRange.value = '1d'
-    mailCount.value = 10
+    mailRange.value = '1m'
+    mailCount.value = 30
     await requestMails(true)
     await waitForInitialFetch(() => initialMailsFetchCompleted || !loadingMails.value)
   }
@@ -1196,14 +1196,16 @@ function categoryTagStyle(name: string) {
     connection.onclose(() => {
       signalRState.value = 'disconnected'
     })
-    connection.on('FolderSyncStarted', (info: FolderSyncBeginDto) => {
-      if (info.reset) {
-        folders.value = []
-        folderStores.value = []
-      }
+    connection.on('FolderSyncStarted', (_info: FolderSyncBeginDto) => {
       loadingFolders.value = true
     })
     connection.on('FoldersPatched', (batch: FolderSyncBatchDto) => {
+      if (batch.reset && batch.isFinal && batch.stores.length === 0 && batch.folders.length === 0 && folderOptions.value.length > 0) {
+        loadingFolders.value = false
+        completeOperation()
+        return
+      }
+
       folderStores.value = mergeStores(batch.reset ? [] : folderStores.value, batch.stores)
       folders.value = applyFolderBatch(folders.value, folderStores.value, batch)
       selectDefaultFolder()

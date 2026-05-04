@@ -84,8 +84,8 @@ namespace SmartOffice.Hub.Models
     public class FetchMailsRequest
     {
         public string FolderPath { get; set; } = string.Empty;
-        public string Range { get; set; } = "1d"; // 目前預期值："1d"、"1w"、"1m"。
-        public int MaxCount { get; set; } = 10;
+        public string Range { get; set; } = "1m"; // 目前預期值："1d"、"1w"、"1m"。
+        public int MaxCount { get; set; } = 30;
     }
 
     public class SearchMailsRequest

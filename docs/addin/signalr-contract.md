@@ -68,8 +68,8 @@ Payload：
   "type": "fetch_mails",
   "mailsRequest": {
     "folderPath": "\\\\Mailbox - User\\Inbox",
-    "range": "1d",
-    "maxCount": 10
+    "range": "1m",
+    "maxCount": 30
   },
   "searchMailsRequest": null,
   "mailBodyRequest": null,
@@ -136,6 +136,8 @@ AddIn 可 invoke 下列 server method：
 
 每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變畫面資料，請同時 invoke 對應 `Push*` method。Folder tree 只使用 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。Search result 只使用 `BeginMailSearch`、`PushMailSearchBatch`、`CompleteMailSearch`，不要用 `PushMails` 覆蓋目前 folder list。單封屬性更新請使用 `PushMail`，不要為了更新一封 mail 重新 `PushMails`。郵件 body 請只在 `fetch_mail_body` 後以 `PushMailBody` 回推。附件採 `fetch_mail_attachments` 先看 metadata、有需要才 `export_mail_attachment` 匯出到本機路徑；Web UI Host 會透過 `/api/outlook/open-exported-attachment` 開啟已匯出的檔案，AddIn 不負責開檔。
 
+`fetch_folders` 不應只回 `ReportCommandResult(success=true)`。AddIn 必須在成功結果前至少完成 `PushFolderBatch` 或 `CompleteFolderSync`；如果 Outlook store 尚未 ready 或列舉結果為 0，請回報 `success=false` 與可診斷訊息，避免 Hub/Web UI 把空 folder tree 視為有效成功同步。
+
 AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-addin` 上的 `SendChatMessage(message)`。
 
 `OutlookCommandResult` sample：
@@ -157,8 +159,8 @@ AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-a
 ```json
 {
   "folderPath": "\\\\Mailbox - User\\Inbox",
-  "range": "1d",
-  "maxCount": 10
+  "range": "1m",
+  "maxCount": 30
 }
 ```
 
