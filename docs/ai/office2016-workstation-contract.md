@@ -475,6 +475,92 @@ Hub 在 AddIn poll、push 或寫入 log 後，會 broadcast 下列事件給 Web 
 | `AddinStatus` | `AddinStatusDto` |
 | `AddinLog` | `AddinLogEntry[]` |
 
+## SignalR 測試介面
+
+目前另有一個旁路測試 hub，用來驗證工作機 Outlook AddIn 是否能以 SignalR client 連進 Hub。這個介面不參與現有 Outlook polling protocol，也不會修改 Hub cache。
+
+Endpoint：
+
+```text
+/hub/outlook-test
+```
+
+AddIn 連線後建議先 invoke：
+
+```text
+RegisterOutlookAddinTest(info)
+```
+
+```json
+{
+  "clientName": "Outlook VSTO AddIn",
+  "workstation": "WORKSTATION-01",
+  "version": "0.1.0"
+}
+```
+
+Web UI 測試頁會透過 server method 送出測試 command：
+
+```text
+SendOutlookSignalRTestCommand(command)
+```
+
+AddIn 需要 listen 的 client event：
+
+```text
+OutlookSignalRTestCommand
+```
+
+Payload：
+
+```json
+{
+  "id": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "type": "ping",
+  "payload": "{\"message\":\"hello from Web UI\"}",
+  "createdAt": "2026-05-04T09:30:00+08:00"
+}
+```
+
+AddIn 可回報測試訊息：
+
+```text
+ReportOutlookSignalRTestMessage(message)
+```
+
+```json
+{
+  "source": "addin",
+  "level": "info",
+  "text": "SignalR command received.",
+  "timestamp": "2026-05-04T09:30:05+08:00"
+}
+```
+
+AddIn 可回報 command result：
+
+```text
+ReportOutlookSignalRTestResult(result)
+```
+
+```json
+{
+  "commandId": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "success": true,
+  "message": "Ping handled by Outlook AddIn.",
+  "payload": "{\"outlookVersion\":\"16.0\"}",
+  "timestamp": "2026-05-04T09:30:06+08:00"
+}
+```
+
+Web UI 測試頁目前會顯示下列 event：
+
+- `OutlookSignalRTestAddinConnected`
+- `OutlookSignalRTestAddinDisconnected`
+- `OutlookSignalRTestCommandDispatched`
+- `OutlookSignalRTestMessage`
+- `OutlookSignalRTestResult`
+
 ## DTO 欄位速查
 
 ### MailItemDto

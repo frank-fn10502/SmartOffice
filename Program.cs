@@ -46,6 +46,7 @@ namespace SmartOffice.Hub
             app.UseAuthorization();
             app.MapControllers();
             app.MapHub<NotificationHub>("/hub/notifications");
+            app.MapHub<OutlookSignalRTestHub>("/hub/outlook-test");
 
             app.Run();
         }

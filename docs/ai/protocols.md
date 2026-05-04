@@ -109,3 +109,11 @@ SignalR endpoint：
 - `NewChatMessage`
 - `AddinStatus`
 - `AddinLog`
+
+測試用 Outlook AddIn SignalR endpoint：
+
+```text
+/hub/outlook-test
+```
+
+這個 hub 只用來驗證工作機 AddIn SignalR client 連線、接收測試 command 與回報測試 result；不參與目前 production polling protocol。

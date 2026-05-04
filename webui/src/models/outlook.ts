@@ -93,5 +93,40 @@ export interface AddinLogEntry {
   timestamp: string
 }
 
-export type AppView = 'normal' | 'outlook' | 'calendar' | 'admin' | 'swagger'
+export interface OutlookSignalRTestClientInfo {
+  clientName: string
+  workstation: string
+  version: string
+}
+
+export interface OutlookSignalRTestConnectionEvent extends OutlookSignalRTestClientInfo {
+  connectionId: string
+  timestamp: string
+}
+
+export interface OutlookSignalRTestCommand {
+  id: string
+  type: string
+  payload: string
+  createdAt: string
+}
+
+export interface OutlookSignalRTestMessage {
+  connectionId: string
+  source: string
+  level: string
+  text: string
+  timestamp: string
+}
+
+export interface OutlookSignalRTestResult {
+  connectionId: string
+  commandId: string
+  success: boolean
+  message: string
+  payload: string
+  timestamp: string
+}
+
+export type AppView = 'normal' | 'outlook' | 'calendar' | 'admin' | 'signalr-test' | 'swagger'
 export type SignalRState = 'connected' | 'reconnecting' | 'disconnected'
