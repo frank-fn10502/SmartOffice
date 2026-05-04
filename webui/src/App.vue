@@ -5,6 +5,7 @@ import {
   Calendar,
   ChatDotRound,
   Connection,
+  Delete,
   Document,
   Folder,
   Monitor,
@@ -53,6 +54,7 @@ const {
   creatingFolderName,
   creatingFolderParentPath,
   deleteFolderFromContext,
+  deleteMail,
   dragOverFolderPath,
   draggedMailId,
   expandedFolders,
@@ -144,6 +146,7 @@ const {
             :model-value="activeView"
             :options="[
               { label: 'Outlook', value: 'outlook' },
+              { label: 'Search', value: 'search' },
               { label: 'Chat', value: 'chat' },
               { label: 'Calendar', value: 'calendar' },
               { label: 'Admin', value: 'admin' },
@@ -227,75 +230,6 @@ const {
             </div>
             <el-button v-if="mailListMode === 'search'" size="small" @click="showFolderMails">回到 folder list</el-button>
           </div>
-
-          <div class="mail-search-panel">
-            <div class="mail-search-row">
-              <el-input
-                v-model="mailSearchDraft.keyword"
-                clearable
-                :prefix-icon="Search"
-                placeholder="片段關鍵字，例如：客戶xxxx"
-                @keydown.enter.prevent="requestMailSearch"
-              />
-              <el-select v-model="mailSearchDraft.matchMode" class="match-select">
-                <el-option label="片段" value="contains" />
-                <el-option label="完全相同" value="exact" />
-                <el-option label="Regex 後篩" value="regex" />
-              </el-select>
-              <el-select v-model="mailSearchDraft.scopeMode" class="scope-select">
-                <el-option label="目前 folder" value="selected_folder" />
-                <el-option label="目前 store" value="selected_store" />
-                <el-option label="全域分批" value="global" />
-              </el-select>
-              <el-select v-model="mailSearchDraft.maxCount" class="count-select">
-                <el-option :value="25" label="25" />
-                <el-option :value="50" label="50" />
-                <el-option :value="100" label="100" />
-                <el-option :value="200" label="200" />
-              </el-select>
-              <el-button type="primary" :loading="loadingMailSearch" :disabled="loadingMailSearch" @click="requestMailSearch">
-                搜尋
-              </el-button>
-            </div>
-            <div class="mail-search-row search-options-row">
-              <el-date-picker
-                v-model="mailSearchDraft.receivedFrom"
-                type="datetime"
-                value-format="YYYY-MM-DDTHH:mm:ss"
-                placeholder="起始時間"
-              />
-              <el-date-picker
-                v-model="mailSearchDraft.receivedTo"
-                type="datetime"
-                value-format="YYYY-MM-DDTHH:mm:ss"
-                placeholder="結束時間"
-              />
-              <el-date-picker
-                v-model="mailSearchDraft.exactReceivedTime"
-                type="datetime"
-                value-format="YYYY-MM-DDTHH:mm:ss"
-                placeholder="單一時間"
-              />
-              <el-input-number
-                v-model="mailSearchDraft.exactReceivedToleranceSeconds"
-                :min="0"
-                :max="3600"
-                :step="30"
-                controls-position="right"
-                class="tolerance-input"
-              />
-              <el-checkbox v-model="mailSearchDraft.includeSubFolders">含子 folder</el-checkbox>
-            </div>
-            <div class="mail-search-row search-options-row">
-              <el-checkbox-group v-model="mailSearchDraft.fields">
-                <el-checkbox label="subject">Subject</el-checkbox>
-                <el-checkbox label="sender">寄件者</el-checkbox>
-                <el-checkbox label="categories">分類</el-checkbox>
-                <el-checkbox label="body">Body</el-checkbox>
-              </el-checkbox-group>
-              <span class="search-note">Regex 只適合小範圍後篩；大型搜尋請優先使用時間、folder 與 store 條件。</span>
-            </div>
-          </div>
           <p v-if="mailListNeedsFetch" class="hint">
             目前列表仍是上次抓取的 {{ fetchedMailFolderName }}；已選取 {{ selectedFolderName }}，請按「抓取郵件」更新列表。
           </p>
@@ -308,34 +242,46 @@ const {
               class="mail-card-row"
               :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
             >
-              <button
-                class="mail-row"
-                type="button"
-                draggable="true"
-                @click="selectMail(index)"
-                @dragstart="startMailDrag(mail, index, $event)"
-                @dragend="clearMailDrag"
-              >
-                <span class="mail-row-main">
-                  <strong>{{ mail.subject }}</strong>
-                  <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
-                </span>
-                <span class="mail-row-tags">
-                  <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
-                  <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
-                    {{ flagIntervalLabel(mail.flagInterval) }}
-                  </el-tag>
-                  <el-tag v-if="mail.taskDueDate" type="info" effect="plain">到期 {{ formatDateTime(mail.taskDueDate) }}</el-tag>
-                  <el-tag
-                    v-for="category in splitCategories(mail.categories)"
-                    :key="category"
-                    effect="dark"
-                    :style="categoryTagStyle(category)"
-                  >
-                    {{ category }}
-                  </el-tag>
-                </span>
-              </button>
+              <div class="mail-row-shell">
+                <el-button
+                  class="mail-delete-button"
+                  :icon="Delete"
+                  circle
+                  size="small"
+                  type="danger"
+                  plain
+                  :disabled="!mail.id?.trim() || outlookBusy"
+                  @click.stop="deleteMail(mail)"
+                />
+                <button
+                  class="mail-row"
+                  type="button"
+                  draggable="true"
+                  @click="selectMail(index)"
+                  @dragstart="startMailDrag(mail, index, $event)"
+                  @dragend="clearMailDrag"
+                >
+                  <span class="mail-row-main">
+                    <strong>{{ mail.subject }}</strong>
+                    <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                  </span>
+                  <span class="mail-row-tags">
+                    <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
+                    <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
+                      {{ flagIntervalLabel(mail.flagInterval) }}
+                    </el-tag>
+                    <el-tag v-if="mail.taskDueDate" type="info" effect="plain">到期 {{ formatDateTime(mail.taskDueDate) }}</el-tag>
+                    <el-tag
+                      v-for="category in splitCategories(mail.categories)"
+                      :key="category"
+                      effect="dark"
+                      :style="categoryTagStyle(category)"
+                    >
+                      {{ category }}
+                    </el-tag>
+                  </span>
+                </button>
+              </div>
 
               <div v-if="selectedMailIndex === index && selectedMailIsOpen" class="mail-inline-detail">
                 <div v-if="isMailBodyLoading(mail)" class="pane-loading">
@@ -624,6 +570,178 @@ const {
 
       </main>
 
+      <main v-else-if="activeView === 'search'" class="search-layout">
+        <section class="panel outlook-folder-pane">
+          <div class="panel-header">
+            <div class="panel-title">
+              <el-icon><Folder /></el-icon>
+              <span>Folders</span>
+            </div>
+            <el-button :icon="Refresh" circle :loading="loadingFolders" :disabled="outlookBusy && !loadingFolders" @click="requestFolders" />
+          </div>
+
+          <div class="folder-list outlook-folder-list">
+            <p v-if="visibleFolders.length === 0 && !loadingFolders" class="hint">Waiting for folders...</p>
+            <FolderNode
+              v-for="folder in visibleFolders"
+              :key="folder.folderPath"
+              :folder="folder"
+              :store="folderStores.find((store) => store.storeId === folder.storeId)"
+              :level="0"
+              :expanded-folders="expandedFolders"
+              :selected-folder-path="selectedFolderPath"
+              :creating-folder-parent-path="creatingFolderParentPath"
+              :creating-folder-name="creatingFolderName"
+              :folder-busy="outlookBusy"
+              :can-drop-mail="false"
+              :active-drop-folder-path="dragOverFolderPath"
+              @toggle="toggleFolder"
+              @select="selectFolder"
+              @context="openFolderContextMenu"
+              @update:creating-folder-name="creatingFolderName = $event"
+              @create="createFolder($event.parentPath, $event.name)"
+              @cancel-create="cancelCreateFolder"
+              @drag-mail-over="setDragOverFolder"
+              @drop-mail="moveDraggedMail"
+            />
+            <div v-if="loadingFolders" class="pane-loading">
+              <span>Outlook folder 同步中...</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel search-page-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <el-icon><Search /></el-icon>
+              <span>搜尋郵件</span>
+              <el-tag effect="plain">{{ mails.length }}</el-tag>
+            </div>
+            <el-button type="primary" :loading="loadingMailSearch" :disabled="loadingMailSearch" @click="requestMailSearch">
+              搜尋
+            </el-button>
+          </div>
+
+          <div class="mail-search-panel standalone-search-panel">
+            <div class="mail-search-row">
+              <el-input
+                v-model="mailSearchDraft.keyword"
+                clearable
+                :prefix-icon="Search"
+                placeholder="片段關鍵字，例如：客戶xxxx"
+                @keydown.enter.prevent="requestMailSearch"
+              />
+              <el-select v-model="mailSearchDraft.matchMode" class="match-select">
+                <el-option label="片段" value="contains" />
+                <el-option label="完全相同" value="exact" />
+                <el-option label="Regex 後篩" value="regex" />
+              </el-select>
+              <el-select v-model="mailSearchDraft.scopeMode" class="scope-select">
+                <el-option label="目前 folder" value="selected_folder" />
+                <el-option label="目前 store" value="selected_store" />
+                <el-option label="全域分批" value="global" />
+              </el-select>
+              <el-select v-model="mailSearchDraft.maxCount" class="count-select">
+                <el-option :value="25" label="25" />
+                <el-option :value="50" label="50" />
+                <el-option :value="100" label="100" />
+                <el-option :value="200" label="200" />
+              </el-select>
+            </div>
+            <div class="mail-search-row search-options-row">
+              <el-date-picker
+                v-model="mailSearchDraft.receivedFrom"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="起始時間"
+              />
+              <el-date-picker
+                v-model="mailSearchDraft.receivedTo"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="結束時間"
+              />
+              <el-date-picker
+                v-model="mailSearchDraft.exactReceivedTime"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="單一時間"
+              />
+              <el-input-number
+                v-model="mailSearchDraft.exactReceivedToleranceSeconds"
+                :min="0"
+                :max="3600"
+                :step="30"
+                controls-position="right"
+                class="tolerance-input"
+              />
+              <el-checkbox v-model="mailSearchDraft.includeSubFolders">含子 folder</el-checkbox>
+            </div>
+            <div class="mail-search-row search-options-row">
+              <el-checkbox-group v-model="mailSearchDraft.fields">
+                <el-checkbox label="subject">Subject</el-checkbox>
+                <el-checkbox label="sender">寄件者</el-checkbox>
+                <el-checkbox label="categories">分類</el-checkbox>
+                <el-checkbox label="body">Body</el-checkbox>
+              </el-checkbox-group>
+              <span class="search-note">Regex 只適合小範圍後篩；大型搜尋請優先使用時間、folder 與 store 條件。</span>
+            </div>
+          </div>
+
+          <div class="mail-table search-result-table">
+            <p v-if="mails.length === 0 && !loadingMailSearch" class="hint">尚未取得搜尋結果。</p>
+            <article
+              v-for="(mail, index) in mails"
+              :key="mail.id || `${mail.receivedTime}-${index}`"
+              class="mail-card-row"
+              :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
+            >
+              <button class="mail-row" type="button" @click="selectMail(index)">
+                <span class="mail-row-main">
+                  <strong>{{ mail.subject }}</strong>
+                  <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }} · {{ mail.folderPath }}</span>
+                </span>
+                <span class="mail-row-tags">
+                  <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
+                  <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
+                    {{ flagIntervalLabel(mail.flagInterval) }}
+                  </el-tag>
+                  <el-tag
+                    v-for="category in splitCategories(mail.categories)"
+                    :key="category"
+                    effect="dark"
+                    :style="categoryTagStyle(category)"
+                  >
+                    {{ category }}
+                  </el-tag>
+                </span>
+              </button>
+
+              <div v-if="selectedMailIndex === index && selectedMailIsOpen" class="mail-inline-detail">
+                <div v-if="isMailBodyLoading(mail)" class="pane-loading">
+                  <span>郵件內容載入中...</span>
+                </div>
+                <el-button v-else-if="mailHasBody(mail)" size="small" @click="selectedMailHtml = !selectedMailHtml">
+                  {{ selectedMailHtml ? '切到文字' : '切到 HTML' }}
+                </el-button>
+                <iframe
+                  v-if="mailHasBody(mail) && selectedMailHtml"
+                  class="mail-html"
+                  :sandbox="mailHtmlSandbox"
+                  referrerpolicy="no-referrer"
+                  :srcdoc="mail.bodyHtml || mail.body"
+                />
+                <pre v-else-if="mailHasBody(mail)" class="mail-text">{{ mail.body }}</pre>
+                <p v-else class="hint">點開郵件後才會載入內容；目前沒有可顯示的 body。</p>
+              </div>
+            </article>
+            <div v-if="loadingMailSearch" class="pane-loading">
+              <span>Outlook 郵件搜尋中...</span>
+            </div>
+          </div>
+        </section>
+      </main>
+
       <main v-else-if="activeView === 'chat'" class="chat-layout">
         <section class="panel chat-page-panel">
           <div class="panel-header">
@@ -674,33 +792,39 @@ const {
           <div class="calendar-page">
             <div class="calendar-grid">
               <div v-for="day in calendarWeekdays" :key="day" class="calendar-weekday">{{ day }}</div>
-              <template v-for="week in calendarWeeks" :key="week.map((day) => day.key).join('-')">
-                <div
-                  v-for="day in week"
-                  :key="day.key"
-                  class="calendar-day"
-                  :class="{ muted: !day.inMonth, today: day.isToday }"
-                >
-                  <div class="calendar-day-number">{{ day.dayNumber }}</div>
-                  <button
-                    v-for="event in day.events"
-                    :key="event.id || `${event.start}-${event.subject}`"
-                    class="calendar-event"
-                    type="button"
-                    @click="selectCalendarEvent(event)"
+              <div v-for="week in calendarWeeks" :key="week.key" class="calendar-week-row">
+                <div class="calendar-week-days">
+                  <div
+                    v-for="day in week.days"
+                    :key="day.key"
+                    class="calendar-day"
+                    :class="{ muted: !day.inMonth, today: day.isToday }"
                   >
-                    <span>{{ formatTime(event.start) }}</span>
-                    <strong>{{ event.subject }}</strong>
+                    <div class="calendar-day-number">{{ day.dayNumber }}</div>
+                  </div>
+                </div>
+                <div class="calendar-week-events">
+                  <button
+                    v-for="segment in week.segments"
+                    :key="`${segment.event.id || segment.event.start}-${segment.startColumn}`"
+                    class="calendar-event"
+                    :class="{ continued: segment.isMultiDay, 'continues-before': !segment.isStart, 'continues-after': !segment.isEnd }"
+                    type="button"
+                    :style="{ gridColumn: `${segment.startColumn} / span ${segment.span}` }"
+                    @click="selectCalendarEvent(segment.event)"
+                  >
+                    <span>{{ segment.isMultiDay ? `${formatDateTime(segment.event.start)} - ${formatDateTime(segment.event.end)}` : formatTime(segment.event.start) }}</span>
+                    <strong>{{ segment.event.subject }}</strong>
                   </button>
                 </div>
-              </template>
+              </div>
             </div>
 
             <aside class="calendar-detail">
               <template v-if="selectedCalendarEvent">
                 <div class="calendar-detail-title">{{ selectedCalendarEvent.subject }}</div>
                 <div class="rule-detail">
-                  <span>{{ formatDateTime(selectedCalendarEvent.start) }} - {{ formatTime(selectedCalendarEvent.end) }}</span>
+                  <span>{{ formatDateTime(selectedCalendarEvent.start) }} - {{ formatDateTime(selectedCalendarEvent.end) }}</span>
                   <span>地點：{{ selectedCalendarEvent.location || '-' }}</span>
                   <span>召集人：{{ selectedCalendarEvent.organizer || '-' }}</span>
                   <span>出席者：{{ selectedCalendarEvent.requiredAttendees || '-' }}</span>
@@ -776,7 +900,7 @@ const {
               <el-input v-model="attachmentExportRootDraft" :placeholder="attachmentExportSettings.defaultRootPath || '$HOME/SmartOffice/Attachments'" />
             </div>
             <div class="field-hint">
-              macOS / Linux 預設會放在使用者 home 底下的 SmartOffice/Attachments；Windows 會優先使用 D:\SmartOffice\Attachments，沒有 D 槽時使用 C:\SmartOffice\Attachments。
+              macOS / Linux 預設會放在使用者 home 底下的 SmartOffice/Attachments；Windows 會依序使用 E:\、D:\、C:\ 底下的 SmartOffice\Attachments。
             </div>
             <div class="admin-actions">
               <el-button :loading="savingAttachmentExportSettings" @click="saveAttachmentExportSettings">

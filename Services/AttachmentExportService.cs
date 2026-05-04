@@ -119,7 +119,8 @@ namespace SmartOffice.Hub.Services
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                var preferredDrive = Directory.Exists(@"D:\") ? @"D:\" : @"C:\";
+                var preferredDrive = new[] { @"E:\", @"D:\", @"C:\" }
+                    .FirstOrDefault(Directory.Exists) ?? @"C:\";
                 return Path.GetFullPath(Path.Combine(preferredDrive, "SmartOffice", "Attachments"));
             }
 

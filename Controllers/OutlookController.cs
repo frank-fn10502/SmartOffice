@@ -281,6 +281,17 @@ namespace SmartOffice.Hub.Controllers
             return await DispatchCommandAsync(cmd, ct);
         }
 
+        [HttpPost("request-delete-mail")]
+        public async Task<IActionResult> RequestDeleteMail([FromBody] DeleteMailRequest req, CancellationToken ct)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "delete_mail",
+                DeleteMailRequest = req
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
         private Task<IActionResult> DispatchMailMarkerCommandAsync(string type, MailMarkerCommandRequest req, CancellationToken ct)
         {
             var cmd = new PendingCommand

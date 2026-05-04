@@ -61,7 +61,7 @@ import {
 
 function estimatedAttachmentExportRoot() {
   const platform = window.navigator.platform.toLowerCase()
-  if (platform.includes('win')) return 'D:\\SmartOffice\\Attachments 或 C:\\SmartOffice\\Attachments'
+  if (platform.includes('win')) return 'E:\\SmartOffice\\Attachments、D:\\SmartOffice\\Attachments 或 C:\\SmartOffice\\Attachments'
   return '$HOME/SmartOffice/Attachments'
 }
 
@@ -199,30 +199,18 @@ export function useOutlookDashboard() {
     return calendarMonthDate.value.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long' })
   })
 
-  const calendarEventsByDay = computed(() => {
-    const groups = new Map<string, CalendarEventDto[]>()
-    for (const event of calendarEvents.value) {
-      const key = toDateKey(new Date(event.start))
-      const items = groups.get(key) ?? []
-      items.push(event)
-      groups.set(key, items)
-    }
-
-    for (const items of groups.values()) {
-      items.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
-    }
-
-    return groups
-  })
-
   const calendarWeeks = computed(() => {
     const first = monthStart(calendarMonthDate.value)
     const gridStart = new Date(first)
     gridStart.setDate(first.getDate() - first.getDay())
     const todayKey = toDateKey(new Date())
 
-    return Array.from({ length: 6 }, (_, weekIndex) =>
-      Array.from({ length: 7 }, (_, dayIndex) => {
+    return Array.from({ length: 6 }, (_, weekIndex) => {
+      const weekStart = new Date(gridStart)
+      weekStart.setDate(gridStart.getDate() + weekIndex * 7)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 6)
+      const days = Array.from({ length: 7 }, (_, dayIndex) => {
         const date = new Date(gridStart)
         date.setDate(gridStart.getDate() + weekIndex * 7 + dayIndex)
         const key = toDateKey(date)
@@ -232,10 +220,20 @@ export function useOutlookDashboard() {
           dayNumber: date.getDate(),
           inMonth: date.getMonth() === calendarMonthDate.value.getMonth(),
           isToday: key === todayKey,
-          events: calendarEventsByDay.value.get(key) ?? [],
         }
-      }),
-    )
+      })
+
+      const segments = calendarEvents.value
+        .map((event) => calendarEventSegment(event, weekStart, weekEnd))
+        .filter((segment): segment is NonNullable<typeof segment> => Boolean(segment))
+        .sort((a, b) => new Date(a.event.start).getTime() - new Date(b.event.start).getTime())
+
+      return {
+        key: days.map((day) => day.key).join('-'),
+        days,
+        segments,
+      }
+    })
   })
 
   const selectedFolderName = computed(() => {
@@ -286,6 +284,31 @@ export function useOutlookDashboard() {
   function folderNameForPath(path: string) {
     if (!path) return '未選擇'
     return folderOptions.value.find((folder) => folder.folderPath === path)?.label.trim() ?? path
+  }
+
+  function calendarEventSegment(event: CalendarEventDto, weekStart: Date, weekEnd: Date) {
+    const start = new Date(event.start)
+    const end = new Date(event.end)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null
+    const eventEnd = new Date(end)
+    if (eventEnd.getTime() > start.getTime()) eventEnd.setMilliseconds(eventEnd.getMilliseconds() - 1)
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    const endDay = new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate())
+    if (endDay < weekStart || startDay > weekEnd) return null
+
+    const segmentStart = startDay < weekStart ? weekStart : startDay
+    const segmentEnd = endDay > weekEnd ? weekEnd : endDay
+    const startColumn = Math.floor((segmentStart.getTime() - weekStart.getTime()) / 86400000) + 1
+    const span = Math.floor((segmentEnd.getTime() - segmentStart.getTime()) / 86400000) + 1
+
+    return {
+      event,
+      startColumn,
+      span,
+      isStart: startDay >= weekStart,
+      isEnd: endDay <= weekEnd,
+      isMultiDay: endDay.getTime() > startDay.getTime(),
+    }
   }
 
   function inferMailFolderPath(items: MailItemDto[], fallback = '') {
@@ -1076,6 +1099,20 @@ function categoryTagStyle(name: string) {
     )
   }
 
+  async function deleteMail(mail: MailItemDto) {
+    if (!mail?.id?.trim() || outlookBusy.value) return
+    const deletedFolder = folderOptions.value.find((folder) => folderType(folder.name) === 'deleted')
+    const targetName = deletedFolder?.label.trim() || '刪除的郵件 / Deleted Items'
+    const confirmed = window.confirm(`將郵件「${mail.subject || mail.id}」移到「${targetName}」？`)
+    if (!confirmed) return
+    await runMailOperation(() =>
+      outlookApi.requestDeleteMail({
+        mailId: mail.id,
+        folderPath: mail.folderPath,
+      }),
+    )
+  }
+
   function startMailDrag(mail: MailItemDto, index: number, event: DragEvent) {
     if (!mail.id?.trim()) {
       event.preventDefault()
@@ -1169,6 +1206,13 @@ function categoryTagStyle(name: string) {
 
   async function switchView(view: AppView) {
     activeView.value = view
+    if (view === 'search') {
+      mailListMode.value = 'search'
+      selectedMailIndex.value = null
+      openMailIndexes.value = new Set()
+      htmlMailIndexes.value = new Set()
+      selectedMailHtml.value = false
+    }
     if (view === 'admin') {
       await refreshAdminData()
       await loadAttachmentExportSettings()
@@ -1386,6 +1430,7 @@ function categoryTagStyle(name: string) {
     creatingFolderName,
     creatingFolderParentPath,
     deleteFolderFromContext,
+    deleteMail,
     dragOverFolderPath,
     draggedMailId,
     expandedFolders,

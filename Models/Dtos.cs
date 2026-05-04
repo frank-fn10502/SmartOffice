@@ -252,6 +252,12 @@ namespace SmartOffice.Hub.Models
         public string DestinationFolderPath { get; set; } = string.Empty;
     }
 
+    public class DeleteMailRequest
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+    }
+
     public class OutlookRuleDto
     {
         public string Name { get; set; } = string.Empty;
@@ -303,6 +309,7 @@ namespace SmartOffice.Hub.Models
         public CreateFolderRequest? CreateFolderRequest { get; set; }
         public DeleteFolderRequest? DeleteFolderRequest { get; set; }
         public MoveMailRequest? MoveMailRequest { get; set; }
+        public DeleteMailRequest? DeleteMailRequest { get; set; }
     }
 
     public class OutlookAddinClientInfo

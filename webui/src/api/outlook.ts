@@ -235,4 +235,6 @@ export const outlookApi = {
   requestDeleteFolder: (body: { folderPath: string }) => postJson('/api/outlook/request-delete-folder', body),
   requestMoveMail: (body: { mailId: string; sourceFolderPath: string; destinationFolderPath: string }) =>
     postJson('/api/outlook/request-move-mail', body),
+  requestDeleteMail: (body: { mailId: string; folderPath: string }) =>
+    postJson('/api/outlook/request-delete-mail', body),
 }

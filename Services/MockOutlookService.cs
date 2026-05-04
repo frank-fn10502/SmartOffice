@@ -205,6 +205,13 @@ namespace SmartOffice.Hub.Services
                         folderBatch = BuildFolderSyncBatch();
                         _mailStore.ApplyFolderBatch(folderBatch);
                         break;
+                    case "delete_mail":
+                        DeleteMail(command.DeleteMailRequest);
+                        mails = SyncVisibleMails(command.DeleteMailRequest?.MailId);
+                        _mailStore.SetMails(mails);
+                        folderBatch = BuildFolderSyncBatch();
+                        _mailStore.ApplyFolderBatch(folderBatch);
+                        break;
                     case "ping":
                         break;
                     default:
@@ -734,6 +741,17 @@ namespace SmartOffice.Hub.Services
             if (mail is null || mail.FolderPath == request.DestinationFolderPath) return;
             mail.FolderPath = request.DestinationFolderPath;
             RefreshFolderCounts();
+        }
+
+        private void DeleteMail(DeleteMailRequest? request)
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.MailId)) return;
+            MoveMail(new MoveMailRequest
+            {
+                MailId = request.MailId,
+                SourceFolderPath = request.FolderPath,
+                DestinationFolderPath = MockPaths.Deleted,
+            });
         }
 
         private static void ApplyFlag(MailItemDto mail, MailPropertiesCommandRequest request)
