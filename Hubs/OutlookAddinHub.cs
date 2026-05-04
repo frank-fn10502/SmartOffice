@@ -14,15 +14,18 @@ namespace SmartOffice.Hub.Hubs
         public const string AddinGroupName = "outlook-addins";
 
         private readonly MailStore _mailStore;
+        private readonly ChatStore _chatStore;
         private readonly AddinStatusStore _addinStatus;
         private readonly IHubContext<NotificationHub> _notifications;
 
         public OutlookAddinHub(
             MailStore mailStore,
+            ChatStore chatStore,
             AddinStatusStore addinStatus,
             IHubContext<NotificationHub> notifications)
         {
             _mailStore = mailStore;
+            _chatStore = chatStore;
             _addinStatus = addinStatus;
             _notifications = notifications;
         }
@@ -79,6 +82,16 @@ namespace SmartOffice.Hub.Hubs
         {
             _addinStatus.AddLog(entry.Level, entry.Message);
             await _notifications.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
+        }
+
+        public async Task SendChatMessage(ChatMessageDto message)
+        {
+            if (string.IsNullOrWhiteSpace(message.Source))
+                message.Source = "outlook";
+
+            message.Timestamp = DateTime.Now;
+            _chatStore.Add(message);
+            await _notifications.Clients.All.SendAsync("NewChatMessage", message);
         }
 
         public async Task ReportCommandResult(OutlookCommandResult result)

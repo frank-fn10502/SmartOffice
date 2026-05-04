@@ -113,10 +113,13 @@ AddIn 可 invoke 下列 server method：
 | `PushRules` | `OutlookRuleDto[]` | 取代 cached rules 並 broadcast `RulesUpdated` |
 | `PushCategories` | `OutlookCategoryDto[]` | 取代 cached categories 並 broadcast `CategoriesUpdated` |
 | `PushCalendar` | `CalendarEventDto[]` | 取代 cached calendar events 並 broadcast `CalendarUpdated` |
+| `SendChatMessage` | `ChatMessageDto` | AddIn 透過 SignalR 送出 chat message，Hub 會 broadcast `NewChatMessage` |
 | `ReportAddinLog` | `AddinLogEntry` | 回報診斷 log |
 | `ReportCommandResult` | `OutlookCommandResult` | 回報 command 成敗 |
 
 每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變畫面資料，請同時 invoke 對應 `Push*` method。
+
+AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-addin` 上的 `SendChatMessage(message)`。
 
 `OutlookCommandResult` sample：
 
@@ -365,6 +368,19 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
 ]
 ```
 
+### ChatMessageDto
+
+```json
+{
+  "id": "[optional client-generated id]",
+  "source": "outlook",
+  "text": "AddIn message",
+  "timestamp": "2026-05-04T10:00:00+08:00"
+}
+```
+
+AddIn 透過 `SendChatMessage(message)` 送出時，Hub 會覆寫 `timestamp` 為收到訊息的時間；`source` 空白時會設為 `outlook`。
+
 ## Web UI / AI Request Endpoint 摘要
 
 這些 endpoint 由 Web UI、AI 或 MCP client 呼叫；Hub 收到後會 dispatch `OutlookCommand` 給 SignalR AddIn。
@@ -459,6 +475,13 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
 - `requiredAttendees`: string
 - `isRecurring`: boolean
 - `busyStatus`: string
+
+### ChatMessageDto
+
+- `id`: string，可空；未填時 Hub DTO 會產生預設 id。
+- `source`: string，AddIn 建議填 `outlook`。
+- `text`: string
+- `timestamp`: DateTime，AddIn 送出時可空；Hub 會覆寫為收到訊息的時間。
 
 ### AddinStatusDto
 

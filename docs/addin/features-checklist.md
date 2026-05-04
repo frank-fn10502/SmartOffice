@@ -32,6 +32,7 @@
 | Master categories | Category refresh / 新增 / 改色 | `fetch_categories`、`upsert_category` | `PushCategories` |
 | Rules snapshot | Rules refresh | `fetch_rules` | `PushRules` |
 | 月曆 | Calendar 同步整月 | `fetch_calendar` | `PushCalendar` |
+| Chat | AddIn 主動送訊息 | `SendChatMessage` SignalR server method | Hub broadcast `NewChatMessage` |
 | Folder 建立 / 刪除 | Folder 右鍵選單 | `create_folder`、`delete_folder` | `PushFolders`，必要時 `PushMails` |
 
 ## 必做 Checklist
@@ -181,7 +182,21 @@ Web UI 只支援 drag/drop 移動，不提供額外移動表單。
 
 - [ ] Web UI Rules 清單可顯示 rule name、enabled、order、conditions、actions、exceptions。
 
-### 9. Folder 建立與刪除
+### 9. Chat
+
+AddIn 送 chat 必須使用 `/hub/outlook-addin` 的 SignalR method，不要再用 HTTP `/api/outlook/chat`。
+
+- [ ] AddIn 要送 chat message 時 invoke `SendChatMessage(message)`。
+- [ ] `message.source` 建議填 `outlook`。
+- [ ] `message.text` 填入要顯示的訊息。
+- [ ] 不需要自行呼叫 Web UI notification hub；Hub 會 broadcast `NewChatMessage`。
+
+驗收：
+
+- [ ] AddIn invoke `SendChatMessage` 後，Web UI Chat 頁面立即出現該訊息。
+- [ ] AddIn code 不再呼叫 HTTP `/api/outlook/chat`。
+
+### 10. Folder 建立與刪除
 
 - [ ] AddIn 收到 `create_folder`。
 - [ ] 用 `parentFolderPath` 找到 parent folder。
@@ -207,6 +222,7 @@ Web UI 只支援 drag/drop 移動，不提供額外移動表單。
 | Category 空白 | AddIn 是否處理 `fetch_categories` 並 `PushCategories` |
 | Flag 修改沒效果 | AddIn 是否處理 `update_mail_properties` 的 flag 欄位並儲存 item |
 | Calendar 空白 | AddIn 是否處理 `fetch_calendar` 的 `startDate/endDate` 並 `PushCalendar` |
+| AddIn chat 沒出現在 Web UI | 是否 invoke `/hub/outlook-addin` 的 `SendChatMessage`，而不是 HTTP `/api/outlook/chat` |
 | Folder 沒分 OST/PST | `PushFolders` 是否以 store root list 作為第一層，且填 store metadata |
 
 ## 需要時查看的官方文件

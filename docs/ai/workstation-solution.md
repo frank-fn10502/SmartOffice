@@ -43,7 +43,7 @@ Hub：
 - 讀取 folders、mails、rules、calendar。
 - 修改 mail read state、flag、categories。
 - 建立 folder、移動單封 mail。
-- 透過 `PushFolders`、`PushMails`、`PushRules`、`PushCategories`、`PushCalendar`、`ReportAddinLog` 與 `ReportCommandResult` 將結果回報 Hub。
+- 透過 `PushFolders`、`PushMails`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 與 `ReportCommandResult` 將結果回報 Hub。
 
 ## Plan 使用方式
 
