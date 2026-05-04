@@ -48,6 +48,22 @@ function folderIcon(name: string) {
   }
   return icons[folderType(name)]
 }
+
+function storeLabel(folder: FolderDto) {
+  if (!folder.isStoreRoot) return ''
+  const kind = folder.storeKind?.toUpperCase() || 'STORE'
+  return kind === 'OST' ? '主要 OST' : kind
+}
+
+function folderTitle(folder: FolderDto) {
+  const parts = [
+    folder.folderPath,
+    folder.storeDisplayName ? `Store: ${folder.storeDisplayName}` : '',
+    folder.storeKind ? `Type: ${folder.storeKind.toUpperCase()}` : '',
+    folder.storeFilePath ? `File: ${folder.storeFilePath}` : '',
+  ].filter(Boolean)
+  return parts.join('\n')
+}
 </script>
 
 <template>
@@ -58,11 +74,13 @@ function folderIcon(name: string) {
         folderType(folder.name),
         {
           selected: selectedFolderPath === folder.folderPath,
+          'store-root': folder.isStoreRoot,
           'drop-target': canDropMail && !folderBusy,
           'drop-active': activeDropFolderPath === folder.folderPath,
         },
       ]"
       :style="{ paddingLeft: `${level * 16 + 6}px` }"
+      :title="folderTitle(folder)"
       @click="emit('select', folder.folderPath)"
       @contextmenu.prevent="emit('context', { path: folder.folderPath, x: $event.clientX, y: $event.clientY })"
       @dragenter.prevent.stop="!folderBusy && emit('dragMailOver', folder.folderPath)"
@@ -82,6 +100,7 @@ function folderIcon(name: string) {
         <component :is="folderIcon(folder.name)" />
       </el-icon>
       <span class="folder-name">{{ folder.name }}</span>
+      <span v-if="storeLabel(folder)" class="store-kind" :class="folder.storeKind">{{ storeLabel(folder) }}</span>
       <span class="folder-count">{{ folder.itemCount }}</span>
     </div>
 

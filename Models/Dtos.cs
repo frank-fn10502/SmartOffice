@@ -35,6 +35,11 @@ namespace SmartOffice.Hub.Models
         public string Name { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
         public int ItemCount { get; set; }
+        public string StoreId { get; set; } = string.Empty;
+        public string StoreDisplayName { get; set; } = string.Empty;
+        public string StoreKind { get; set; } = string.Empty; // ost、pst、exchange、other。
+        public string StoreFilePath { get; set; } = string.Empty;
+        public bool IsStoreRoot { get; set; }
         public List<FolderDto> SubFolders { get; set; } = new();
     }
 
@@ -47,7 +52,9 @@ namespace SmartOffice.Hub.Models
 
     public class FetchCalendarRequest
     {
-        public int DaysForward { get; set; } = 14;
+        public int DaysForward { get; set; } = 31;
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
     }
 
     public class MailMarkerCommandRequest

@@ -95,6 +95,7 @@ select {
 .outlook-inspector-column,
 .outlook-property-pane {
   min-height: 0;
+  min-width: 0;
 }
 
 .outlook-inspector-column {
@@ -106,6 +107,7 @@ select {
 
 .outlook-property-pane {
   display: flex;
+  overflow: hidden;
   flex-direction: column;
 }
 
@@ -214,6 +216,13 @@ select {
   font-weight: 700;
 }
 
+.folder-row.store-root {
+  min-height: 32px;
+  border-bottom: 1px solid #edf1f5;
+  color: #172033;
+  font-weight: 800;
+}
+
 .folder-row.inbox {
   color: #1f5f99;
 }
@@ -277,6 +286,30 @@ select {
   flex: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.store-kind {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 1px solid #cfd9e5;
+  border-radius: 4px;
+  background: #f6f8fb;
+  color: #667085;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.store-kind.ost {
+  border-color: #b8d7f1;
+  background: #edf4fb;
+  color: #1f5f99;
+}
+
+.store-kind.pst {
+  border-color: #c8e6d2;
+  background: #edf8f1;
+  color: #16803c;
 }
 
 .folder-count {
@@ -623,8 +656,10 @@ select {
 }
 
 .inspector-panel-body {
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   padding: 12px 14px;
 }
@@ -633,6 +668,7 @@ select {
   display: grid;
   align-content: start;
   gap: 12px;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -652,6 +688,7 @@ select {
 .inspector-field {
   display: grid;
   gap: 5px;
+  min-width: 0;
 }
 
 .inspector-field > span {
@@ -726,6 +763,7 @@ select {
 .mail-property-form {
   display: grid;
   gap: 10px;
+  min-width: 0;
   padding: 2px 0 4px;
 }
 
@@ -822,6 +860,7 @@ select {
 
 .date-grid {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-width: 0;
 }
 
 .date-grid .el-date-editor.el-input,
@@ -841,7 +880,7 @@ select {
 
 .commit-actions {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   position: sticky;
   bottom: -12px;
@@ -850,6 +889,11 @@ select {
   border-top: 1px solid #d9e2ec;
   background: #fff;
   box-shadow: 0 -8px 18px rgb(15 23 42 / 8%);
+}
+
+.commit-actions .el-button {
+  width: 100%;
+  min-width: 0;
 }
 
 .commit-button {
@@ -916,6 +960,126 @@ select {
 
 .folder-context-menu button.danger:disabled {
   color: #c7a5a2;
+}
+
+.calendar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.calendar-actions strong {
+  min-width: 120px;
+  color: #172033;
+  text-align: center;
+}
+
+.calendar-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  min-height: 0;
+  padding: 14px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #d9e2ec;
+  gap: 1px;
+}
+
+.calendar-weekday,
+.calendar-day {
+  min-width: 0;
+  background: #fff;
+}
+
+.calendar-weekday {
+  padding: 8px;
+  color: #667085;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.calendar-day {
+  display: grid;
+  align-content: start;
+  min-height: 106px;
+  gap: 5px;
+  padding: 7px;
+}
+
+.calendar-day.muted {
+  background: #f6f8fb;
+  color: #98a2b3;
+}
+
+.calendar-day.today {
+  box-shadow: inset 0 0 0 2px #1f5f99;
+}
+
+.calendar-day-number {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.calendar-event {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid #cfe3f6;
+  border-radius: 5px;
+  background: #edf4fb;
+  color: #17466f;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendar-event:hover {
+  border-color: #1f5f99;
+  background: #dceeff;
+}
+
+.calendar-event span,
+.calendar-event strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-event span {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.calendar-event strong {
+  font-size: 0.78rem;
+}
+
+.calendar-detail {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.calendar-detail-title {
+  color: #172033;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .workspace-item {
@@ -1062,6 +1226,15 @@ select {
 
   .chat-layout {
     height: auto;
+  }
+
+  .calendar-page {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-day {
+    min-height: 86px;
+    padding: 5px;
   }
 
   .outlook-folder-pane,

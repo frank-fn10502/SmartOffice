@@ -2,6 +2,11 @@ export interface FolderDto {
   name: string
   folderPath: string
   itemCount: number
+  storeId: string
+  storeDisplayName: string
+  storeKind: string
+  storeFilePath: string
+  isStoreRoot: boolean
   subFolders: FolderDto[]
 }
 

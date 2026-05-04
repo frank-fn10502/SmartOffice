@@ -62,8 +62,8 @@ Hub：
 2. `..\SmartOffice.Hub\AGENTS.md`
 3. `..\SmartOffice.Hub\docs\ai\workstation-solution.md`
 4. `..\SmartOffice.Hub\docs\ai\protocols.md`
-5. `..\SmartOffice.Hub\docs\ai\office2016-workstation-contract.md`
-6. `..\SmartOffice.Hub\docs\ai\outlook-signalr-migration.md`
+5. `..\SmartOffice.Hub\docs\addin\features-checklist.md`
+6. `..\SmartOffice.Hub\docs\addin\signalr-contract.md`
 7. 當次 `..\SmartOffice.Hub\Plan\NNN-*.md`
 
 ## 敏感資料

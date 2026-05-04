@@ -43,7 +43,8 @@ export const outlookApi = {
   requestRules: () => postJson('/api/outlook/request-rules'),
   requestCategories: () => postJson('/api/outlook/request-categories'),
   requestSignalRPing: () => postJson('/api/outlook/request-signalr-ping'),
-  requestCalendar: (body: { daysForward: number }) => postJson('/api/outlook/request-calendar', body),
+  requestCalendar: (body: { daysForward: number; startDate?: string; endDate?: string }) =>
+    postJson('/api/outlook/request-calendar', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
 
   requestMarkMailRead: (body: { mailId: string; folderPath: string }) =>

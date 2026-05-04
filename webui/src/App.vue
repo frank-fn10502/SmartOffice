@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import {
+  ArrowLeft,
+  ArrowRight,
   Calendar,
   ChatDotRound,
   Connection,
@@ -21,12 +23,16 @@ const {
   addinStatus,
   applyMailProperties,
   calendarEvents,
+  calendarMonthLabel,
+  calendarWeekdays,
+  calendarWeeks,
   cancelCreateFolder,
   categories,
   categoryColorOptions,
   categoryColorStyle,
   categoryCreateColor,
   categoryCreateDraft,
+  changeCalendarMonth,
   chatMessages,
   chatPanelRef,
   chatText,
@@ -67,6 +73,7 @@ const {
   resetMailPropertiesDraft,
   selectedFolderName,
   selectedFolderPath,
+  selectedCalendarEvent,
   selectedMail,
   selectedMailCategories,
   selectedMailHasIdentity,
@@ -74,8 +81,10 @@ const {
   selectedMailIndex,
   selectedMailIsOpen,
   selectFolder,
+  selectCalendarEvent,
   selectMail,
   sendChat,
+  goToCurrentCalendarMonth,
   setDragOverFolder,
   signalRState,
   startMailDrag,
@@ -473,31 +482,63 @@ const {
           <div class="panel-header">
             <div class="panel-title">
               <el-icon><Calendar /></el-icon>
-              <span>Calendar</span>
+              <span>月曆</span>
               <el-tag effect="plain">{{ calendarEvents.length }}</el-tag>
             </div>
-            <el-button :icon="Refresh" :loading="loadingCalendar" :disabled="outlookBusy && !loadingCalendar" @click="requestCalendar">
-              Fetch Calendar
-            </el-button>
+            <div class="calendar-actions">
+              <el-button :icon="ArrowLeft" :disabled="outlookBusy" @click="changeCalendarMonth(-1)" />
+              <strong>{{ calendarMonthLabel }}</strong>
+              <el-button :disabled="outlookBusy" @click="goToCurrentCalendarMonth">本月</el-button>
+              <el-button :icon="ArrowRight" :disabled="outlookBusy" @click="changeCalendarMonth(1)" />
+              <el-button :icon="Refresh" :loading="loadingCalendar" :disabled="outlookBusy && !loadingCalendar" @click="requestCalendar">
+                同步整月
+              </el-button>
+            </div>
           </div>
 
-          <div class="workspace-list">
-            <p v-if="calendarEvents.length === 0" class="hint">No cached calendar events yet.</p>
-            <article v-for="event in calendarEvents" :key="event.id || `${event.start}-${event.subject}`" class="workspace-item">
-              <div class="workspace-item-main">
-                <strong>{{ event.subject }}</strong>
-                <span>{{ formatDateTime(event.start) }} - {{ formatTime(event.end) }}</span>
+          <div class="calendar-page">
+            <div class="calendar-grid">
+              <div v-for="day in calendarWeekdays" :key="day" class="calendar-weekday">{{ day }}</div>
+              <template v-for="week in calendarWeeks" :key="week.map((day) => day.key).join('-')">
+                <div
+                  v-for="day in week"
+                  :key="day.key"
+                  class="calendar-day"
+                  :class="{ muted: !day.inMonth, today: day.isToday }"
+                >
+                  <div class="calendar-day-number">{{ day.dayNumber }}</div>
+                  <button
+                    v-for="event in day.events"
+                    :key="event.id || `${event.start}-${event.subject}`"
+                    class="calendar-event"
+                    type="button"
+                    @click="selectCalendarEvent(event)"
+                  >
+                    <span>{{ formatTime(event.start) }}</span>
+                    <strong>{{ event.subject }}</strong>
+                  </button>
+                </div>
+              </template>
+            </div>
+
+            <aside class="calendar-detail">
+              <template v-if="selectedCalendarEvent">
+                <div class="calendar-detail-title">{{ selectedCalendarEvent.subject }}</div>
+                <div class="rule-detail">
+                  <span>{{ formatDateTime(selectedCalendarEvent.start) }} - {{ formatTime(selectedCalendarEvent.end) }}</span>
+                  <span>地點：{{ selectedCalendarEvent.location || '-' }}</span>
+                  <span>召集人：{{ selectedCalendarEvent.organizer || '-' }}</span>
+                  <span>出席者：{{ selectedCalendarEvent.requiredAttendees || '-' }}</span>
+                </div>
+                <div class="marker-tags">
+                  <el-tag effect="plain">{{ selectedCalendarEvent.busyStatus || 'unknown' }}</el-tag>
+                  <el-tag v-if="selectedCalendarEvent.isRecurring" type="warning" effect="plain">週期性</el-tag>
+                </div>
+              </template>
+              <div v-else class="empty-inspector">
+                點選月曆中的項目查看詳細資訊。
               </div>
-              <div class="rule-detail">
-                <span>Location: {{ event.location || '-' }}</span>
-                <span>Organizer: {{ event.organizer || '-' }}</span>
-                <span>Attendees: {{ event.requiredAttendees || '-' }}</span>
-              </div>
-              <div class="marker-tags">
-                <el-tag effect="plain">{{ event.busyStatus || 'unknown' }}</el-tag>
-                <el-tag v-if="event.isRecurring" type="warning" effect="plain">Recurring</el-tag>
-              </div>
-            </article>
+            </aside>
           </div>
         </section>
       </main>

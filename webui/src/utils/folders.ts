@@ -28,10 +28,7 @@ export function visibleChildren(folder: FolderDto) {
 }
 
 export function visibleRootFolders(folders: FolderDto[]) {
-  return folders.flatMap((root) => {
-    if (root.subFolders?.length) return root.subFolders.filter((folder) => !isHiddenFolder(folder.name))
-    return isHiddenFolder(root.name) ? [] : [root]
-  })
+  return folders.filter((root) => !isHiddenFolder(root.name))
 }
 
 export function collectFolderOptions(items: FolderDto[], level = 0): Array<FolderDto & { label: string }> {

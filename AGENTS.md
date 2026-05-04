@@ -23,9 +23,11 @@
 - `docs/ai/protocols.md`：Office AddIn SignalR protocol、route 與 SignalR event。
 - `docs/ai/workstation-solution.md`：Hub 與工作機 SmartOffice solution 的關係，以及 AddIn 任務應在哪裡實作。
 - `docs/ai/plan-splitting.md`：切分 `Plan/` 任務給工作機 AI 或 VS Code Copilot custom agent 的粒度、必要文件與狀態追蹤規範。
-- `docs/ai/office2016-addin-references.md`：Office 2016 Add-in 線上文件入口。
-- `docs/ai/office2016-workstation-contract.md`：工作機需要傳送與接收的目前格式。
-- `docs/ai/office2016-test-report.md`：工作機實測資料、差異與錯誤回報格式。
+- `docs/addin/README.md`：工作機 Outlook AddIn 實作者文件入口。
+- `docs/addin/features-checklist.md`：工作機 AI 對照 Web UI 所需 AddIn 功能與驗收項目的 checklist。
+- `docs/addin/outlook-references.md`：Office 2016 Add-in 線上文件入口。
+- `docs/addin/signalr-contract.md`：工作機需要傳送與接收的目前格式。
+- `docs/addin/test-report.md`：工作機實測資料、差異與錯誤回報格式。
 - `docs/ai/validation.md`：本機驗證、Docker Quick Mode、API 與 Web UI 檢查方式。
 
 ## 預設驗證

@@ -1,6 +1,6 @@
 # Office 2016 工作機測試回報
 
-本文件規範工作機實測資料、差異與錯誤要如何回傳。回報不只用於格式不符合；開發 Web UI、mock、Add-in mapping、檔案寫入策略或 protocol 時，只要需要真實 Office 2016 行為作為依據，都可以回傳已匿名化的實測資料。線上文件入口請看 `docs/ai/office2016-addin-references.md`；目前傳送與接收格式請看 `docs/ai/office2016-workstation-contract.md`。
+本文件規範工作機實測資料、差異與錯誤要如何回傳。回報不只用於格式不符合；開發 Web UI、mock、Add-in mapping、檔案寫入策略或 protocol 時，只要需要真實 Office 2016 行為作為依據，都可以回傳已匿名化的實測資料。線上文件入口請看 `docs/addin/outlook-references.md`；目前傳送與接收格式請看 `docs/addin/signalr-contract.md`。
 
 ## 何時需要回報
 
@@ -150,7 +150,7 @@ Use this sample to update the Web UI mail detail fallback and add one mock mail 
 工作機回報確認後，開發機應依影響範圍更新：
 
 - `docs/ai/protocols.md`：協定行為或 route 語意改變時更新。
-- `docs/ai/office2016-workstation-contract.md`：工作機傳送或接收格式改變時更新。
+- `docs/addin/signalr-contract.md`：工作機傳送或接收格式改變時更新。
 - `Models/Dtos.cs`：新增 backward-compatible field 或補註解。
 - `Hubs/OutlookAddinHub.cs` 或 `Services/Stores.cs`：SignalR command/result 或 cache 行為需要調整時更新。
 - Web UI：需要呈現真實資料邊界、空值、排序、fallback 或 diagnostics 時更新；不要把 Office-specific mapping 塞進前端。

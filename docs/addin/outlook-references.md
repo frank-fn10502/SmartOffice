@@ -1,6 +1,6 @@
 # Office 2016 Add-in 線上文件
 
-本文件只紀錄 Office 2016 Add-in 開發與 mock 校準時可查的線上文件入口。工作機與 Hub 的 JSON 格式請看 `docs/ai/office2016-workstation-contract.md`；工作機實測資料、差異與錯誤回報格式請看 `docs/ai/office2016-test-report.md`。
+本文件只紀錄 Office 2016 Add-in 開發與 mock 校準時可查的線上文件入口。工作機與 Hub 的 JSON 格式請看 `docs/addin/signalr-contract.md`；工作機實測資料、差異與錯誤回報格式請看 `docs/addin/test-report.md`。
 
 最後確認日期：2026-04-29。
 
@@ -9,7 +9,7 @@
 - 優先使用 Microsoft Learn 官方文件。
 - 第三方文章只能作為輔助，不應作為 SmartOffice.Hub contract 依據。
 - Office 2016 desktop 是主要目標環境；不要只看最新 API 文件就假設 Office 2016 可用。
-- 如果工作機實測結果與文件描述不一致，或開發機需要真實資料校準 Web UI、mock、Add-in mapping、檔案寫入或 protocol，請用 `docs/ai/office2016-test-report.md` 的格式回報。
+- 如果工作機實測結果與文件描述不一致，或開發機需要真實資料校準 Web UI、mock、Add-in mapping、檔案寫入或 protocol，請用 `docs/addin/test-report.md` 的格式回報。
 
 ## VSTO / COM Add-in
 

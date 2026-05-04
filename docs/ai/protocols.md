@@ -1,6 +1,6 @@
 # Protocol Notes for AI Agents
 
-Office 2016 AddIn 線上文件請參考 `docs/ai/office2016-addin-references.md`。工作機傳送與接收格式請參考 `docs/ai/office2016-workstation-contract.md`。HTTP polling 到 SignalR 的差異與過渡方式請參考 `docs/ai/outlook-signalr-migration.md`。工作機測試回報格式請參考 `docs/ai/office2016-test-report.md`。
+Office 2016 AddIn 功能 checklist 請參考 `docs/addin/features-checklist.md`。工作機傳送與接收格式請參考 `docs/addin/signalr-contract.md`。Office 2016 AddIn 線上文件請參考 `docs/addin/outlook-references.md`。工作機測試回報格式請參考 `docs/addin/test-report.md`。
 
 ## AddIn Protocol
 
@@ -88,7 +88,7 @@ AddIn 需要 listen：
 
 - `OutlookCommand`
 
-Payload 是 `PendingCommand`，command type 與 request object 請看 `docs/ai/office2016-workstation-contract.md`。
+Payload 是 `PendingCommand`，command type 與 request object 請看 `docs/addin/signalr-contract.md`。
 
 ## Admin Endpoint
 

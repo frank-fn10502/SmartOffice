@@ -1,6 +1,6 @@
 # Outlook AddIn SignalR 溝通介面
 
-本文件整理目前 `SmartOffice.Hub` 與工作機 Outlook AddIn 的正式 SignalR-only contract。Web UI 每個功能會送出的 command 與工作機實作注意事項請看 `docs/ai/webui-features.md`；HTTP polling 到 SignalR 的差異與過渡方式請看 `docs/ai/outlook-signalr-migration.md`。
+本文件整理目前 `SmartOffice.Hub` 與工作機 Outlook AddIn 的正式 SignalR-only contract。Web UI 每個功能會送出的 command 與工作機實作 checklist 請先看 `docs/addin/features-checklist.md`；本文件只保留 SignalR method、request object、DTO 與 payload 細節。
 
 ## 適用範圍
 
@@ -152,9 +152,13 @@ AddIn 可 invoke 下列 server method：
 
 ```json
 {
-  "daysForward": 14
+  "daysForward": 31,
+  "startDate": "2026-05-01",
+  "endDate": "2026-06-01"
 }
 ```
+
+Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate` 含當日，`endDate` 不含當日；`daysForward` 保留作為舊 AddIn fallback。
 
 ### MailMarkerCommandRequest
 
@@ -243,7 +247,7 @@ AddIn 可 invoke 下列 server method：
 
 `move_mail` 只有在目前 mail 有非空 `id` 時才會由 Web UI 送出。AddIn 應用 `mailId` 找到 Outlook item，將 `destinationFolderPath` 解析成 Outlook `Folder` object，呼叫 Outlook `MailItem.Move(destinationFolder)`，完成後回推最新 `PushMails` 與 `PushFolders`。
 
-注意：Microsoft 文件說 Outlook `MailItem.EntryID` 在 item save 或 send 後才會存在，跨 store 移動時可能改變。因此 AddIn 若使用 EntryID 當 `MailItemDto.id`，移動後應重新讀取並回推最新 mail snapshot。相關官方依據與 Web UI 操作對照請看 `docs/ai/webui-features.md`。
+注意：Microsoft 文件說 Outlook `MailItem.EntryID` 在 item save 或 send 後才會存在，跨 store 移動時可能改變。因此 AddIn 若使用 EntryID 當 `MailItemDto.id`，移動後應重新讀取並回推最新 mail snapshot。相關官方依據與 Web UI 操作對照請看 `docs/addin/features-checklist.md`。
 
 ## Push Payload Sample
 
@@ -252,17 +256,38 @@ AddIn 可 invoke 下列 server method：
 ```json
 [
   {
-    "name": "Mailbox - User",
-    "folderPath": "\\\\Mailbox - User",
-    "itemCount": 42,
+    "name": "主要信箱 - User",
+    "folderPath": "\\\\主要信箱 - User",
+    "itemCount": 0,
+    "storeId": "[redacted primary store id]",
+    "storeDisplayName": "主要信箱 - User",
+    "storeKind": "ost",
+    "storeFilePath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\Outlook\\user@example.com.ost",
+    "isStoreRoot": true,
     "subFolders": [
       {
         "name": "Inbox",
-        "folderPath": "\\\\Mailbox - User\\Inbox",
+        "folderPath": "\\\\主要信箱 - User\\Inbox",
         "itemCount": 18,
+        "storeId": "[redacted primary store id]",
+        "storeDisplayName": "主要信箱 - User",
+        "storeKind": "ost",
+        "storeFilePath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\Outlook\\user@example.com.ost",
+        "isStoreRoot": false,
         "subFolders": []
       }
     ]
+  },
+  {
+    "name": "Archive.pst",
+    "folderPath": "\\\\Archive.pst",
+    "itemCount": 0,
+    "storeId": "[redacted pst store id]",
+    "storeDisplayName": "Archive.pst",
+    "storeKind": "pst",
+    "storeFilePath": "D:\\Outlook Archives\\Archive.pst",
+    "isStoreRoot": true,
+    "subFolders": []
   }
 ]
 ```
@@ -400,6 +425,11 @@ AddIn 可 invoke 下列 server method：
 - `name`: string
 - `folderPath`: string
 - `itemCount`: number
+- `storeId`: string，Outlook Store ID 或 AddIn 內可追蹤的 store identifier。
+- `storeDisplayName`: string，Outlook store 顯示名稱。
+- `storeKind`: string，目前預期 `ost`、`pst`、`exchange` 或 `other`。
+- `storeFilePath`: string，`.pst` 或 `.ost` 的完整檔案路徑；沒有檔案路徑時可空字串。
+- `isStoreRoot`: boolean，第一層 store root 必須是 `true`，底下 folder 為 `false`。
 - `subFolders`: `FolderDto[]`
 
 ### OutlookRuleDto

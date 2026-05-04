@@ -87,7 +87,7 @@ namespace SmartOffice.Hub.Services
                         _mailStore.SetRules(rules);
                         break;
                     case "fetch_calendar":
-                        calendar = FilterCalendar(command.CalendarRequest?.DaysForward ?? 14);
+                        calendar = FilterCalendar(command.CalendarRequest);
                         _mailStore.SetCalendarEvents(calendar);
                         break;
                     case "mark_mail_read":
@@ -222,20 +222,31 @@ namespace SmartOffice.Hub.Services
 
             _mockFolders = new List<FolderDto>
             {
-                new()
-                {
-                    Name = "Mailbox - Mock User",
-                    FolderPath = "\\\\Mailbox - Mock User",
-                    ItemCount = 0,
-                    SubFolders = new List<FolderDto>
-                    {
-                        Folder("Inbox", MockPaths.Inbox, 4, Folder("客戶專案", MockPaths.ClientProjects, 1)),
-                        Folder("Sent Items", MockPaths.Sent, 1),
-                        Folder("Archive", MockPaths.Archive, 2, Folder("2026 專案封存", MockPaths.Archive2026, 1)),
-                        Folder("Drafts", MockPaths.Drafts, 1),
-                        Folder("Deleted Items", MockPaths.Deleted, 0),
-                    }
-                }
+                StoreRoot(
+                    "主要信箱 - Mock User",
+                    MockPaths.PrimaryRoot,
+                    "mock-store-primary",
+                    "ost",
+                    @"C:\Users\mock\AppData\Local\Microsoft\Outlook\mock.user@example.test.ost",
+                    Folder("Inbox", MockPaths.Inbox, 4, Folder("客戶專案", MockPaths.ClientProjects, 1)),
+                    Folder("Sent Items", MockPaths.Sent, 1),
+                    Folder("Drafts", MockPaths.Drafts, 1),
+                    Folder("Deleted Items", MockPaths.Deleted, 0)),
+                StoreRoot(
+                    "客戶專案封存.pst",
+                    MockPaths.ClientArchiveRoot,
+                    "mock-store-client-archive",
+                    "pst",
+                    @"D:\Outlook Archives\客戶專案封存.pst",
+                    Folder("Archive", MockPaths.Archive, 2, Folder("2026 專案封存", MockPaths.Archive2026, 1))),
+                StoreRoot(
+                    "歷史郵件.pst",
+                    MockPaths.LegacyArchiveRoot,
+                    "mock-store-legacy-archive",
+                    "pst",
+                    @"E:\MailBackup\歷史郵件.pst",
+                    Folder("Legacy Inbox", MockPaths.LegacyInbox, 0),
+                    Folder("Vendors", MockPaths.LegacyVendors, 0)),
             };
 
             var now = DateTime.Now;
@@ -317,6 +328,28 @@ namespace SmartOffice.Hub.Services
                     RequiredAttendees = "product@example.test",
                     IsRecurring = true,
                     BusyStatus = "busy",
+                },
+                new()
+                {
+                    Id = "mock-cal-004",
+                    Subject = "月中客戶回顧",
+                    Start = now.Date.AddDays(14).AddHours(14),
+                    End = now.Date.AddDays(14).AddHours(15),
+                    Location = "Teams",
+                    Organizer = "chris.wang@example.test",
+                    RequiredAttendees = "mock.user@example.test; ada.chen@example.test",
+                    BusyStatus = "busy",
+                },
+                new()
+                {
+                    Id = "mock-cal-005",
+                    Subject = "月底交付檢查",
+                    Start = now.Date.AddDays(24).AddHours(16),
+                    End = now.Date.AddDays(24).AddHours(17),
+                    Location = "會議室 2B",
+                    Organizer = "mock.user@example.test",
+                    RequiredAttendees = "qa@example.test",
+                    BusyStatus = "free",
                 }
             };
         }
@@ -344,10 +377,10 @@ namespace SmartOffice.Hub.Services
                 .ToList();
         }
 
-        private List<CalendarEventDto> FilterCalendar(int daysForward)
+        private List<CalendarEventDto> FilterCalendar(FetchCalendarRequest? request)
         {
-            var start = DateTime.Now.Date;
-            var end = start.AddDays(Math.Max(1, daysForward));
+            var start = request?.StartDate?.Date ?? DateTime.Now.Date;
+            var end = request?.EndDate?.Date ?? start.AddDays(Math.Max(1, request?.DaysForward ?? 31));
             return _mockCalendar
                 .Where(item => item.Start >= start && item.Start < end)
                 .OrderBy(item => item.Start)
@@ -504,6 +537,19 @@ namespace SmartOffice.Hub.Services
                 folder.ItemCount = _mockMails.Count(mail => mail.FolderPath == folder.FolderPath);
         }
 
+        private static FolderDto StoreRoot(
+            string name,
+            string folderPath,
+            string storeId,
+            string storeKind,
+            string storeFilePath,
+            params FolderDto[] children)
+        {
+            var root = Folder(name, folderPath, 0, children);
+            ApplyStore(root, storeId, name, storeKind, storeFilePath, true);
+            return root;
+        }
+
         private static FolderDto Folder(string name, string folderPath, int itemCount, params FolderDto[] children)
         {
             return new FolderDto
@@ -513,6 +559,24 @@ namespace SmartOffice.Hub.Services
                 ItemCount = itemCount,
                 SubFolders = children.ToList(),
             };
+        }
+
+        private static void ApplyStore(
+            FolderDto folder,
+            string storeId,
+            string storeDisplayName,
+            string storeKind,
+            string storeFilePath,
+            bool isStoreRoot)
+        {
+            folder.StoreId = storeId;
+            folder.StoreDisplayName = storeDisplayName;
+            folder.StoreKind = storeKind;
+            folder.StoreFilePath = storeFilePath;
+            folder.IsStoreRoot = isStoreRoot;
+
+            foreach (var child in folder.SubFolders)
+                ApplyStore(child, storeId, storeDisplayName, storeKind, storeFilePath, false);
         }
 
         private static MailItemDto Mail(
@@ -587,6 +651,11 @@ namespace SmartOffice.Hub.Services
                 Name = folder.Name,
                 FolderPath = folder.FolderPath,
                 ItemCount = folder.ItemCount,
+                StoreId = folder.StoreId,
+                StoreDisplayName = folder.StoreDisplayName,
+                StoreKind = folder.StoreKind,
+                StoreFilePath = folder.StoreFilePath,
+                IsStoreRoot = folder.IsStoreRoot,
                 SubFolders = CloneFolders(folder.SubFolders),
             }).ToList();
         }
@@ -634,13 +703,18 @@ namespace SmartOffice.Hub.Services
 
         private static class MockPaths
         {
-            public const string Inbox = "\\\\Mailbox - Mock User\\Inbox";
-            public const string ClientProjects = "\\\\Mailbox - Mock User\\Inbox\\客戶專案";
-            public const string Sent = "\\\\Mailbox - Mock User\\Sent Items";
-            public const string Archive = "\\\\Mailbox - Mock User\\Archive";
-            public const string Archive2026 = "\\\\Mailbox - Mock User\\Archive\\2026 專案封存";
-            public const string Drafts = "\\\\Mailbox - Mock User\\Drafts";
-            public const string Deleted = "\\\\Mailbox - Mock User\\Deleted Items";
+            public const string PrimaryRoot = "\\\\主要信箱 - Mock User";
+            public const string Inbox = "\\\\主要信箱 - Mock User\\Inbox";
+            public const string ClientProjects = "\\\\主要信箱 - Mock User\\Inbox\\客戶專案";
+            public const string Sent = "\\\\主要信箱 - Mock User\\Sent Items";
+            public const string Drafts = "\\\\主要信箱 - Mock User\\Drafts";
+            public const string Deleted = "\\\\主要信箱 - Mock User\\Deleted Items";
+            public const string ClientArchiveRoot = "\\\\客戶專案封存.pst";
+            public const string Archive = "\\\\客戶專案封存.pst\\Archive";
+            public const string Archive2026 = "\\\\客戶專案封存.pst\\Archive\\2026 專案封存";
+            public const string LegacyArchiveRoot = "\\\\歷史郵件.pst";
+            public const string LegacyInbox = "\\\\歷史郵件.pst\\Legacy Inbox";
+            public const string LegacyVendors = "\\\\歷史郵件.pst\\Vendors";
         }
     }
 }

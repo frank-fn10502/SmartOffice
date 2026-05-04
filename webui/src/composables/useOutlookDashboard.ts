@@ -78,6 +78,25 @@ function todayInputValue() {
   return `${year}-${month}-${day}`
 }
 
+function toDateKey(date: Date) {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function monthStart(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function monthEndExclusive(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 1)
+}
+
+function addMonths(date: Date, count: number) {
+  return new Date(date.getFullYear(), date.getMonth() + count, 1)
+}
+
 function splitCategories(value: string) {
   return value
     .split(',')
@@ -98,6 +117,8 @@ export function useOutlookDashboard() {
   const rules = ref<OutlookRuleDto[]>([])
   const categories = ref<OutlookCategoryDto[]>([])
   const calendarEvents = ref<CalendarEventDto[]>([])
+  const calendarMonthDate = ref(monthStart(new Date()))
+  const selectedCalendarEvent = ref<CalendarEventDto | null>(null)
   const chatMessages = ref<ChatMessageDto[]>([])
   const addinStatus = ref<AddinStatusDto>({
     connected: false,
@@ -171,6 +192,51 @@ export function useOutlookDashboard() {
   })
 
   const folderOptions = computed(() => collectFolderOptions(visibleFolders.value))
+
+  const calendarWeekdays = ['日', '一', '二', '三', '四', '五', '六']
+
+  const calendarMonthLabel = computed(() => {
+    return calendarMonthDate.value.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long' })
+  })
+
+  const calendarEventsByDay = computed(() => {
+    const groups = new Map<string, CalendarEventDto[]>()
+    for (const event of calendarEvents.value) {
+      const key = toDateKey(new Date(event.start))
+      const items = groups.get(key) ?? []
+      items.push(event)
+      groups.set(key, items)
+    }
+
+    for (const items of groups.values()) {
+      items.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+    }
+
+    return groups
+  })
+
+  const calendarWeeks = computed(() => {
+    const first = monthStart(calendarMonthDate.value)
+    const gridStart = new Date(first)
+    gridStart.setDate(first.getDate() - first.getDay())
+    const todayKey = toDateKey(new Date())
+
+    return Array.from({ length: 6 }, (_, weekIndex) =>
+      Array.from({ length: 7 }, (_, dayIndex) => {
+        const date = new Date(gridStart)
+        date.setDate(gridStart.getDate() + weekIndex * 7 + dayIndex)
+        const key = toDateKey(date)
+        return {
+          key,
+          date,
+          dayNumber: date.getDate(),
+          inMonth: date.getMonth() === calendarMonthDate.value.getMonth(),
+          isToday: key === todayKey,
+          events: calendarEventsByDay.value.get(key) ?? [],
+        }
+      }),
+    )
+  })
 
   const selectedFolderName = computed(() => {
     return folderOptions.value.find((folder) => folder.folderPath === selectedFolderPath.value)?.label.trim() ?? '未選擇'
@@ -368,10 +434,34 @@ export function useOutlookDashboard() {
     if (outlookBusy.value) return
     loadingCalendar.value = true
     try {
-      await outlookApi.requestCalendar({ daysForward: 14 })
+      const start = monthStart(calendarMonthDate.value)
+      const end = monthEndExclusive(calendarMonthDate.value)
+      await outlookApi.requestCalendar({
+        daysForward: Math.ceil((end.getTime() - start.getTime()) / 86400000),
+        startDate: toDateKey(start),
+        endDate: toDateKey(end),
+      })
     } catch {
       loadingCalendar.value = false
     }
+  }
+
+  async function changeCalendarMonth(offset: number) {
+    if (outlookBusy.value) return
+    calendarMonthDate.value = addMonths(calendarMonthDate.value, offset)
+    selectedCalendarEvent.value = null
+    await requestCalendar()
+  }
+
+  async function goToCurrentCalendarMonth() {
+    if (outlookBusy.value) return
+    calendarMonthDate.value = monthStart(new Date())
+    selectedCalendarEvent.value = null
+    await requestCalendar()
+  }
+
+  function selectCalendarEvent(event: CalendarEventDto) {
+    selectedCalendarEvent.value = event
   }
 
   async function runMailOperation(action: () => Promise<unknown>) {
@@ -685,12 +775,16 @@ export function useOutlookDashboard() {
     addinStatus,
     applyMailProperties,
     calendarEvents,
+    calendarMonthLabel,
+    calendarWeekdays,
+    calendarWeeks,
     cancelCreateFolder,
     categories,
     categoryColorOptions,
     categoryColorStyle,
     categoryCreateColor,
     categoryCreateDraft,
+    changeCalendarMonth,
     chatMessages,
     chatPanelRef,
     chatText,
@@ -732,6 +826,7 @@ export function useOutlookDashboard() {
     requestMails,
     resetMailPropertiesDraft,
     selectedFolderName,
+    selectedCalendarEvent,
     selectedFolderPath,
     selectedMail,
     selectedMailCategories,
@@ -740,8 +835,10 @@ export function useOutlookDashboard() {
     selectedMailIndex,
     selectedMailIsOpen,
     selectFolder,
+    selectCalendarEvent,
     selectMail,
     sendChat,
+    goToCurrentCalendarMonth,
     setDragOverFolder,
     signalRState,
     startMailDrag,
