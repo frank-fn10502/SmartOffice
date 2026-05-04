@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { normalizeCategoryColor, normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
+import { categoryColorValue, normalizeCategoryColor, normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
 import type {
   AddinLogEntry,
   AddinStatusDto,
@@ -188,10 +188,10 @@ export function useOutlookDashboard() {
   const mailRange = ref('1d')
   const mailCount = ref(10)
   const chatText = ref('')
-  const loadingFolders = ref(false)
-  const loadingMails = ref(false)
+  const loadingFolders = ref(true)
+  const loadingMails = ref(true)
   const loadingRules = ref(false)
-  const loadingCategories = ref(false)
+  const loadingCategories = ref(true)
   const loadingCalendar = ref(false)
   const loadingSignalRPing = ref(false)
   const operationLoading = ref(false)
@@ -220,6 +220,9 @@ export function useOutlookDashboard() {
   const mailHtmlSandbox = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox'
   let connection: signalR.HubConnection | null = null
   let unmounted = false
+  let initialFoldersFetchCompleted = false
+  let initialMailsFetchCompleted = false
+  let initialCategoriesFetchCompleted = false
 
   const visibleFolders = computed(() => visibleRootFolders(folders.value))
 
@@ -375,30 +378,59 @@ function categoryTagStyle(name: string) {
     selectDefaultFolder()
   }
 
-  async function requestFolders() {
-    if (outlookBusy.value) return
+  async function requestFolders(force = false) {
+    if (outlookBusy.value && !force) return
     loadingFolders.value = true
     try {
       const result = await outlookApi.requestFolders()
       if (result.status === 'mocked') {
         await loadCachedFolders()
+        initialFoldersFetchCompleted = true
         loadingFolders.value = false
         operationLoading.value = false
       }
     } catch {
+      initialFoldersFetchCompleted = true
       loadingFolders.value = false
     }
   }
 
+  function folderStore(folder: FolderTreeNode) {
+    return folderStores.value.find((store) => store.storeId === folder.storeId)
+  }
+
+  function findPreferredInboxFolder() {
+    const inboxes = folderOptions.value.filter((folder) => folderType(folder.name) === 'inbox')
+    return (
+      inboxes.find((folder) => folderStore(folder)?.storeKind?.toLowerCase() === 'ost')
+      ?? inboxes.find((folder) => ['exchange', 'ost'].includes(folderStore(folder)?.storeKind?.toLowerCase() ?? ''))
+      ?? inboxes[0]
+      ?? folderOptions.value[0]
+      ?? null
+    )
+  }
+
+  function expandFolderAncestors(folderPath: string) {
+    const next = new Set(expandedFolders.value)
+    let current = folderOptions.value.find((folder) => folder.folderPath === folderPath)
+    while (current?.parentFolderPath) {
+      next.add(current.parentFolderPath)
+      current = folderOptions.value.find((folder) => folder.folderPath === current?.parentFolderPath)
+    }
+    expandedFolders.value = next
+  }
+
   function selectDefaultFolder() {
-    if (selectedFolderPath.value || visibleFolders.value.length === 0) return
-    const inbox = visibleFolders.value.find((folder) => folderType(folder.name) === 'inbox')
-    selectedFolderPath.value = inbox?.folderPath ?? visibleFolders.value[0]?.folderPath ?? ''
+    if (selectedFolderPath.value || folderOptions.value.length === 0) return
+    const folder = findPreferredInboxFolder()
+    selectedFolderPath.value = folder?.folderPath ?? ''
+    if (selectedFolderPath.value) expandFolderAncestors(selectedFolderPath.value)
   }
 
   function selectInboxFolder() {
-    const inbox = folderOptions.value.find((folder) => folderType(folder.name) === 'inbox')
-    selectedFolderPath.value = inbox?.folderPath ?? folderOptions.value[0]?.folderPath ?? ''
+    const folder = findPreferredInboxFolder()
+    selectedFolderPath.value = folder?.folderPath ?? ''
+    if (selectedFolderPath.value) expandFolderAncestors(selectedFolderPath.value)
     selectedMailIndex.value = null
     selectedMailHtml.value = false
   }
@@ -466,8 +498,14 @@ function categoryTagStyle(name: string) {
     calendarEvents.value = await outlookApi.getCalendar()
   }
 
-  async function requestMails() {
-    if (outlookBusy.value) return
+  async function requestMails(force = false) {
+    if ((outlookBusy.value && !force) || !selectedFolderPath.value) {
+      if (!selectedFolderPath.value && !initialMailsFetchCompleted) {
+        initialMailsFetchCompleted = true
+        loadingMails.value = false
+      }
+      return
+    }
     loadingMails.value = true
     openMailIndexes.value = new Set()
     htmlMailIndexes.value = new Set()
@@ -480,6 +518,7 @@ function categoryTagStyle(name: string) {
         maxCount: mailCount.value,
       })
     } catch {
+      initialMailsFetchCompleted = true
       loadingMails.value = false
     }
   }
@@ -494,12 +533,19 @@ function categoryTagStyle(name: string) {
     }
   }
 
-  async function requestCategories() {
-    if (outlookBusy.value) return
+  async function requestCategories(force = false) {
+    if (outlookBusy.value && !force) return
     loadingCategories.value = true
     try {
-      await outlookApi.requestCategories()
+      const result = await outlookApi.requestCategories()
+      if (result.status === 'mocked') {
+        await loadCachedCategories()
+        initialCategoriesFetchCompleted = true
+        loadingCategories.value = false
+        operationLoading.value = false
+      }
     } catch {
+      initialCategoriesFetchCompleted = true
       loadingCategories.value = false
     }
   }
@@ -514,9 +560,16 @@ function categoryTagStyle(name: string) {
     }
   }
 
-  async function waitForOutlookIdle(timeoutMs = 12000) {
+  async function waitForFoldersReady(timeoutMs = 12000) {
     const started = Date.now()
-    while (!unmounted && outlookBusy.value && Date.now() - started < timeoutMs) {
+    while (!unmounted && (loadingFolders.value || folderOptions.value.length === 0) && Date.now() - started < timeoutMs) {
+      await sleep(100)
+    }
+  }
+
+  async function waitForInitialFetch(done: () => boolean, timeoutMs = 12000) {
+    const started = Date.now()
+    while (!unmounted && !done() && Date.now() - started < timeoutMs) {
       await sleep(100)
     }
   }
@@ -524,21 +577,27 @@ function categoryTagStyle(name: string) {
   async function runStartupOutlookSync() {
     await sleep(1500)
     if (unmounted) return
-    await waitForOutlookIdle()
-    await requestFolders()
-
-    await waitForOutlookIdle()
-    await sleep(500)
-    if (unmounted) return
-    await requestCategories()
-
-    await waitForOutlookIdle()
-    await sleep(500)
+    await requestFolders(true)
+    await waitForFoldersReady()
+    if (!initialFoldersFetchCompleted) {
+      initialFoldersFetchCompleted = true
+      loadingFolders.value = false
+    }
     if (unmounted) return
     selectInboxFolder()
+
+    await sleep(500)
+    if (unmounted) return
+    await requestCategories(true)
+    await waitForInitialFetch(() => initialCategoriesFetchCompleted || !loadingCategories.value)
+
+    await sleep(500)
+    if (unmounted) return
+    if (!selectedFolderPath.value) selectInboxFolder()
     mailRange.value = '1d'
     mailCount.value = 10
-    await requestMails()
+    await requestMails(true)
+    await waitForInitialFetch(() => initialMailsFetchCompleted || !loadingMails.value)
   }
 
   async function requestCalendar() {
@@ -591,7 +650,7 @@ function categoryTagStyle(name: string) {
     const existingCategoryNames = new Set(categories.value.map((category) => category.name.toLowerCase()))
     const newCategories = selectedCategories
       .filter((category) => !existingCategoryNames.has(category.toLowerCase()))
-      .map((name) => ({ name, color: 'olCategoryColorNone', shortcutKey: '' }))
+      .map((name) => ({ name, color: 'olCategoryColorNone', colorValue: 0, shortcutKey: '' }))
     const isCustomFlag = mailPropertiesDraft.value.flagInterval === 'custom'
     const body: MailPropertiesCommandRequest = {
       mailId: mail.id,
@@ -616,6 +675,7 @@ function categoryTagStyle(name: string) {
       await outlookApi.requestUpsertCategory({
         name: categoryName,
         color: color || 'olCategoryColorNone',
+        colorValue: categoryColorValue(color || 'olCategoryColorNone'),
         shortcutKey,
       })
     } catch {
@@ -815,11 +875,13 @@ function categoryTagStyle(name: string) {
       if (batch.isFinal) operationLoading.value = false
     })
     connection.on('FolderSyncCompleted', (_info: FolderSyncCompleteDto) => {
+      initialFoldersFetchCompleted = true
       loadingFolders.value = false
       operationLoading.value = false
     })
     connection.on('MailsUpdated', (items: unknown) => {
       setMails(normalizeMailItems(items))
+      initialMailsFetchCompleted = true
       loadingMails.value = false
       operationLoading.value = false
     })
@@ -830,6 +892,7 @@ function categoryTagStyle(name: string) {
     })
     connection.on('CategoriesUpdated', (items: unknown) => {
       categories.value = normalizeOutlookCategories(items)
+      initialCategoriesFetchCompleted = true
       loadingCategories.value = false
       operationLoading.value = false
     })

@@ -120,6 +120,7 @@ namespace SmartOffice.Hub.Models
     {
         public string Name { get; set; } = string.Empty;
         public string Color { get; set; } = string.Empty;
+        public int ColorValue { get; set; }
         public string ShortcutKey { get; set; } = string.Empty;
     }
 
@@ -156,6 +157,7 @@ namespace SmartOffice.Hub.Models
     {
         public string Name { get; set; } = string.Empty;
         public string Color { get; set; } = string.Empty;
+        public int ColorValue { get; set; }
         public string ShortcutKey { get; set; } = string.Empty;
     }
 

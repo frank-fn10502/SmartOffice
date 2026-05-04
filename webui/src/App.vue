@@ -138,7 +138,7 @@ const {
           </div>
 
           <div class="folder-list outlook-folder-list">
-            <p v-if="visibleFolders.length === 0" class="hint">Waiting for folders...</p>
+            <p v-if="visibleFolders.length === 0 && !loadingFolders" class="hint">Waiting for folders...</p>
             <FolderNode
               v-for="folder in visibleFolders"
               :key="folder.folderPath"
@@ -161,8 +161,8 @@ const {
               @drag-mail-over="setDragOverFolder"
               @drop-mail="moveDraggedMail"
             />
-            <div v-if="outlookBusy" class="pane-loading">
-              <span>{{ outlookBusyText }}</span>
+            <div v-if="loadingFolders" class="pane-loading">
+              <span>Outlook folder 同步中...</span>
             </div>
           </div>
         </section>
@@ -200,7 +200,7 @@ const {
           </div>
 
           <div class="mail-table">
-            <p v-if="mails.length === 0" class="hint">選取左邊 folder 後抓取郵件。</p>
+            <p v-if="mails.length === 0 && !loadingMails" class="hint">選取左邊 folder 後抓取郵件。</p>
             <article
               v-for="(mail, index) in mails"
               :key="mail.id || `${mail.receivedTime}-${index}`"
@@ -252,6 +252,9 @@ const {
             </article>
             <div v-if="mails.length > 0 && !selectedMail" class="hint">
               選取一封郵件後，內容會展開在 subject 下方。
+            </div>
+            <div v-if="loadingMails" class="pane-loading">
+              <span>Outlook 郵件抓取中...</span>
             </div>
           </div>
         </section>
@@ -305,7 +308,7 @@ const {
               </div>
 
               <div class="category-list">
-                <div v-if="categories.length === 0" class="hint">尚未取得 Outlook master category list。</div>
+                <div v-if="categories.length === 0 && !loadingCategories" class="hint">尚未取得 Outlook master category list。</div>
                 <div v-for="category in categories" :key="category.name" class="category-row">
                   <span class="category-name">
                     <span class="category-swatch" :style="categoryColorStyle(category.color)" />
@@ -329,6 +332,9 @@ const {
                       </span>
                     </el-option>
                   </el-select>
+                </div>
+                <div v-if="loadingCategories" class="pane-loading">
+                  <span>Outlook category 同步中...</span>
                 </div>
               </div>
 

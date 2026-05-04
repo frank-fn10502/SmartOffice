@@ -272,10 +272,10 @@ namespace SmartOffice.Hub.Services
 
             _mockCategories = new List<OutlookCategoryDto>
             {
-                new() { Name = "客戶", Color = "olCategoryColorBlue", ShortcutKey = "" },
-                new() { Name = "待辦", Color = "olCategoryColorRed", ShortcutKey = "" },
-                new() { Name = "測試", Color = "olCategoryColorGreen", ShortcutKey = "" },
-                new() { Name = "追蹤", Color = "olCategoryColorYellow", ShortcutKey = "" },
+                new() { Name = "客戶", Color = "olCategoryColorBlue", ColorValue = 8, ShortcutKey = "" },
+                new() { Name = "待辦", Color = "olCategoryColorRed", ColorValue = 1, ShortcutKey = "" },
+                new() { Name = "測試", Color = "olCategoryColorGreen", ColorValue = 5, ShortcutKey = "" },
+                new() { Name = "追蹤", Color = "olCategoryColorYellow", ColorValue = 4, ShortcutKey = "" },
             };
 
             _mockRules = new List<OutlookRuleDto>
@@ -419,12 +419,14 @@ namespace SmartOffice.Hub.Services
                 {
                     Name = request.Name.Trim(),
                     Color = string.IsNullOrWhiteSpace(request.Color) ? "olCategoryColorNone" : request.Color,
+                    ColorValue = request.ColorValue,
                     ShortcutKey = request.ShortcutKey,
                 });
                 return;
             }
 
             existing.Color = string.IsNullOrWhiteSpace(request.Color) ? existing.Color : request.Color;
+            existing.ColorValue = request.ColorValue;
             existing.ShortcutKey = request.ShortcutKey;
         }
 
@@ -447,7 +449,7 @@ namespace SmartOffice.Hub.Services
             mail.Categories = string.Join(",", request.Categories.Where(category => !string.IsNullOrWhiteSpace(category)).Select(category => category.Trim()));
 
             foreach (var category in request.NewCategories)
-                UpsertCategory(new CategoryCommandRequest { Name = category.Name, Color = category.Color, ShortcutKey = category.ShortcutKey });
+                UpsertCategory(new CategoryCommandRequest { Name = category.Name, Color = category.Color, ColorValue = category.ColorValue, ShortcutKey = category.ShortcutKey });
         }
 
         private void CreateFolder(CreateFolderRequest? request)

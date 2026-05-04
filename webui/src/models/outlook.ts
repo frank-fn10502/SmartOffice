@@ -76,6 +76,7 @@ export interface MailItemDto {
 export interface OutlookCategoryDto {
   name: string
   color: string
+  colorValue: number
   shortcutKey: string
 }
 
@@ -95,6 +96,7 @@ export interface MailPropertiesCommandRequest {
 export interface CategoryCommandRequest {
   name: string
   color: string
+  colorValue: number
   shortcutKey: string
 }
 

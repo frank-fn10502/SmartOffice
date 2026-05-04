@@ -52,13 +52,13 @@ export function findFolderByPath(items: FolderTreeNode[], path: string): FolderT
 
 export function folderType(name: string) {
   const lowerName = name.toLowerCase()
-  if (lowerName === 'inbox') return 'inbox'
-  if (lowerName === 'sent items' || lowerName.includes('sent')) return 'sent'
-  if (lowerName === 'drafts') return 'drafts'
-  if (lowerName === 'deleted items' || lowerName.includes('deleted')) return 'deleted'
-  if (lowerName === 'junk email' || lowerName === 'junk e-mail') return 'junk'
-  if (lowerName === 'archive') return 'archive'
-  if (lowerName === 'outbox') return 'outbox'
+  if (lowerName === 'inbox' || name === '收件匣' || name === '收件箱') return 'inbox'
+  if (lowerName === 'sent items' || lowerName.includes('sent') || name === '寄件備份' || name === '已傳送郵件') return 'sent'
+  if (lowerName === 'drafts' || name === '草稿') return 'drafts'
+  if (lowerName === 'deleted items' || lowerName.includes('deleted') || name === '刪除的郵件' || name === '垃圾桶') return 'deleted'
+  if (lowerName === 'junk email' || lowerName === 'junk e-mail' || name === '垃圾郵件') return 'junk'
+  if (lowerName === 'archive' || name === '封存') return 'archive'
+  if (lowerName === 'outbox' || name === '寄件匣') return 'outbox'
   return 'normal'
 }
 

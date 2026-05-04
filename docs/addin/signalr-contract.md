@@ -194,6 +194,7 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
     {
       "name": "Customer",
       "color": "olCategoryColorGreen",
+      "colorValue": 5,
       "shortcutKey": ""
     }
   ]
@@ -219,6 +220,7 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
 {
   "name": "Project",
   "color": "olCategoryColorGreen",
+  "colorValue": 5,
   "shortcutKey": ""
 }
 ```
@@ -344,6 +346,7 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
   {
     "name": "Customer",
     "color": "olCategoryColorGreen",
+    "colorValue": 5,
     "shortcutKey": ""
   }
 ]
@@ -474,7 +477,8 @@ AI / MCP client 可用下列 endpoint 查詢 command 執行狀態：
 ### OutlookCategoryDto
 
 - `name`: string
-- `color`: string
+- `color`: string，Outlook `OlCategoryColor` enum name，例如 `olCategoryColorGreen`。
+- `colorValue`: number，Outlook `OlCategoryColor` enum numeric value，例如 `5`。Add-in 寫入 Outlook 時應優先使用此欄位。
 - `shortcutKey`: string
 
 ### CalendarEventDto

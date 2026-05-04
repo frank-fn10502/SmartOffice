@@ -97,6 +97,39 @@ export function normalizeCategoryColor(value: string) {
   return outlookColorMap[key.toLowerCase()] ?? key
 }
 
+export function categoryColorValue(value: string) {
+  const color = normalizeCategoryColor(value)
+  const outlookColorValues: Record<string, number> = {
+    olCategoryColorNone: 0,
+    olCategoryColorRed: 1,
+    olCategoryColorOrange: 2,
+    olCategoryColorPeach: 3,
+    olCategoryColorYellow: 4,
+    olCategoryColorGreen: 5,
+    olCategoryColorTeal: 6,
+    olCategoryColorOlive: 7,
+    olCategoryColorBlue: 8,
+    olCategoryColorPurple: 9,
+    olCategoryColorMaroon: 10,
+    olCategoryColorSteel: 11,
+    olCategoryColorDarkSteel: 12,
+    olCategoryColorGray: 13,
+    olCategoryColorDarkGray: 14,
+    olCategoryColorBlack: 15,
+    olCategoryColorDarkRed: 16,
+    olCategoryColorDarkOrange: 17,
+    olCategoryColorDarkPeach: 18,
+    olCategoryColorDarkYellow: 19,
+    olCategoryColorDarkGreen: 20,
+    olCategoryColorDarkTeal: 21,
+    olCategoryColorDarkOlive: 22,
+    olCategoryColorDarkBlue: 23,
+    olCategoryColorDarkPurple: 24,
+    olCategoryColorDarkMaroon: 25,
+  }
+  return outlookColorValues[color] ?? 0
+}
+
 export function normalizeMailItem(item: unknown): MailItemDto {
   const source = (item ?? {}) as LooseRecord
   const flagInterval = readString(source, 'flagInterval', 'FlagInterval', 'none') || 'none'
@@ -133,9 +166,17 @@ export function normalizeMailItems(items: unknown): MailItemDto[] {
 
 export function normalizeOutlookCategory(item: unknown): OutlookCategoryDto {
   const source = (item ?? {}) as LooseRecord
+  const color = normalizeCategoryColor(readString(source, 'color', 'Color'))
+  const rawColorValue = source.colorValue ?? source.ColorValue
+  const colorValue = typeof rawColorValue === 'number'
+    ? rawColorValue
+    : typeof rawColorValue === 'string' && rawColorValue.trim()
+      ? Number(rawColorValue)
+      : categoryColorValue(color)
   return {
     name: readString(source, 'name', 'Name'),
-    color: normalizeCategoryColor(readString(source, 'color', 'Color')),
+    color,
+    colorValue: Number.isFinite(colorValue) ? colorValue : categoryColorValue(color),
     shortcutKey: readString(source, 'shortcutKey', 'ShortcutKey'),
   }
 }
@@ -176,7 +217,7 @@ export const outlookApi = {
   requestMails: (body: { folderPath: string; range: string; maxCount: number }) =>
     postJson('/api/outlook/request-mails', body),
   requestRules: () => postJson('/api/outlook/request-rules'),
-  requestCategories: () => postJson('/api/outlook/request-categories'),
+  requestCategories: () => postJson<CommandDispatchResponse>('/api/outlook/request-categories'),
   requestSignalRPing: () => postJson('/api/outlook/request-signalr-ping'),
   requestCalendar: (body: { daysForward: number; startDate?: string; endDate?: string }) =>
     postJson('/api/outlook/request-calendar', body),

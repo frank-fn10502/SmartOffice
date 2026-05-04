@@ -802,6 +802,8 @@ select {
   display: grid;
   gap: 8px;
   margin-top: 12px;
+  position: relative;
+  min-height: 64px;
 }
 
 .category-row {
