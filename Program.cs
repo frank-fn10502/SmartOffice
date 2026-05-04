@@ -12,7 +12,12 @@ namespace SmartOffice.Hub
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
-            builder.Services.AddSignalR();
+            // SignalR 預設 incoming message 上限較小；folder tree 必須使用
+            // BeginFolderSync / PushFolderBatch 小批次回推。
+            builder.Services.AddSignalR(options =>
+            {
+                options.MaximumReceiveMessageSize = 256 * 1024;
+            });
 
             // Hub 目前是 process-local：AddIn 將 Office data 透過 SignalR push 到這裡，
             // Web UI 與未來 MCP client 讀取最新 cached snapshot。

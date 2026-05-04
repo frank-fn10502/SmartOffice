@@ -1,4 +1,4 @@
-import type { FolderDto } from '../models/outlook'
+import type { FolderDto, FolderSnapshotDto, FolderSyncBatchDto, FolderTreeNode, OutlookStoreDto } from '../models/outlook'
 
 const hiddenFolderNames = [
   'common views',
@@ -23,15 +23,15 @@ export function isHiddenFolder(name: string) {
   return hiddenFolderNames.some((hidden) => lowerName.includes(hidden))
 }
 
-export function visibleChildren(folder: FolderDto) {
+export function visibleChildren(folder: FolderTreeNode) {
   return (folder.subFolders ?? []).filter((child) => !isHiddenFolder(child.name))
 }
 
-export function visibleRootFolders(folders: FolderDto[]) {
+export function visibleRootFolders(folders: FolderTreeNode[]) {
   return folders.filter((root) => !isHiddenFolder(root.name))
 }
 
-export function collectFolderOptions(items: FolderDto[], level = 0): Array<FolderDto & { label: string }> {
+export function collectFolderOptions(items: FolderTreeNode[], level = 0): Array<FolderTreeNode & { label: string }> {
   return items.flatMap((folder) => {
     const indent = level === 0 ? '' : `${'　'.repeat(level)}`
     return [
@@ -41,7 +41,7 @@ export function collectFolderOptions(items: FolderDto[], level = 0): Array<Folde
   })
 }
 
-export function findFolderByPath(items: FolderDto[], path: string): FolderDto | null {
+export function findFolderByPath(items: FolderTreeNode[], path: string): FolderTreeNode | null {
   for (const folder of items) {
     if (folder.folderPath === path) return folder
     const child = findFolderByPath(visibleChildren(folder), path)
@@ -60,4 +60,59 @@ export function folderType(name: string) {
   if (lowerName === 'archive') return 'archive'
   if (lowerName === 'outbox') return 'outbox'
   return 'normal'
+}
+
+export function buildFolderTree(snapshot: FolderSnapshotDto): FolderTreeNode[] {
+  return applyFolderBatch([], snapshot.stores, {
+    syncId: '',
+    sequence: 1,
+    reset: true,
+    isFinal: true,
+    stores: snapshot.stores,
+    folders: snapshot.folders,
+  })
+}
+
+export function applyFolderBatch(current: FolderTreeNode[], stores: OutlookStoreDto[], batch: FolderSyncBatchDto) {
+  const roots = batch.reset ? [] : cloneTree(current)
+  const byPath = new Map<string, FolderTreeNode>()
+
+  function index(nodes: FolderTreeNode[]) {
+    for (const node of nodes) {
+      byPath.set(node.folderPath, node)
+      index(node.subFolders)
+    }
+  }
+
+  index(roots)
+
+  for (const folder of batch.folders) {
+    const next: FolderTreeNode = {
+      ...folder,
+      subFolders: byPath.get(folder.folderPath)?.subFolders ?? [],
+    }
+    byPath.set(next.folderPath, next)
+
+    const siblings = folder.isStoreRoot || !folder.parentFolderPath
+      ? roots
+      : byPath.get(folder.parentFolderPath)?.subFolders ?? roots
+    upsertNode(siblings, next)
+  }
+
+  const storeOrder = new Map(stores.map((store, index) => [store.rootFolderPath, index]))
+  roots.sort((a, b) => (storeOrder.get(a.folderPath) ?? Number.MAX_SAFE_INTEGER) - (storeOrder.get(b.folderPath) ?? Number.MAX_SAFE_INTEGER))
+  return roots
+}
+
+function upsertNode(nodes: FolderTreeNode[], next: FolderTreeNode) {
+  const index = nodes.findIndex((node) => node.folderPath === next.folderPath)
+  if (index < 0) nodes.push(next)
+  else nodes[index] = next
+}
+
+function cloneTree(nodes: FolderTreeNode[]): FolderTreeNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    subFolders: cloneTree(node.subFolders),
+  }))
 }

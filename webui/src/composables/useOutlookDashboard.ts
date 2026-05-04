@@ -7,14 +7,18 @@ import type {
   AppView,
   CalendarEventDto,
   ChatMessageDto,
-  FolderDto,
+  FolderSyncBatchDto,
+  FolderSyncBeginDto,
+  FolderSyncCompleteDto,
+  FolderTreeNode,
   MailItemDto,
   MailPropertiesCommandRequest,
+  OutlookStoreDto,
   OutlookCategoryDto,
   OutlookRuleDto,
   SignalRState,
 } from '../models/outlook'
-import { collectFolderOptions, folderType, visibleRootFolders } from '../utils/folders'
+import { applyFolderBatch, buildFolderTree, collectFolderOptions, folderType, visibleRootFolders } from '../utils/folders'
 
 const flagIntervalOptions = [
   { label: '不設定旗標', value: 'none' },
@@ -109,10 +113,21 @@ function categoryColorStyle(value?: string) {
   return { backgroundColor: color }
 }
 
+function mergeStores(current: OutlookStoreDto[], incoming: OutlookStoreDto[]) {
+  const stores = [...current]
+  for (const next of incoming) {
+    const index = stores.findIndex((store) => store.storeId === next.storeId)
+    if (index < 0) stores.push(next)
+    else stores[index] = next
+  }
+  return stores
+}
+
 export function useOutlookDashboard() {
   const activeView = ref<AppView>('outlook')
   const signalRState = ref<SignalRState>('disconnected')
-  const folders = ref<FolderDto[]>([])
+  const folders = ref<FolderTreeNode[]>([])
+  const folderStores = ref<OutlookStoreDto[]>([])
   const mails = ref<MailItemDto[]>([])
   const rules = ref<OutlookRuleDto[]>([])
   const categories = ref<OutlookCategoryDto[]>([])
@@ -299,7 +314,9 @@ export function useOutlookDashboard() {
   }
 
   async function loadCachedFolders() {
-    folders.value = await outlookApi.getFolders()
+    const snapshot = await outlookApi.getFolders()
+    folderStores.value = snapshot.stores
+    folders.value = buildFolderTree(snapshot)
     selectDefaultFolder()
   }
 
@@ -307,7 +324,12 @@ export function useOutlookDashboard() {
     if (outlookBusy.value) return
     loadingFolders.value = true
     try {
-      await outlookApi.requestFolders()
+      const result = await outlookApi.requestFolders()
+      if (result.status === 'mocked') {
+        await loadCachedFolders()
+        loadingFolders.value = false
+        operationLoading.value = false
+      }
     } catch {
       loadingFolders.value = false
     }
@@ -681,9 +703,21 @@ export function useOutlookDashboard() {
     connection.onclose(() => {
       signalRState.value = 'disconnected'
     })
-    connection.on('FoldersUpdated', (items: FolderDto[]) => {
-      folders.value = items
+    connection.on('FolderSyncStarted', (info: FolderSyncBeginDto) => {
+      if (info.reset) {
+        folders.value = []
+        folderStores.value = []
+      }
+      loadingFolders.value = true
+    })
+    connection.on('FoldersPatched', (batch: FolderSyncBatchDto) => {
+      folderStores.value = mergeStores(batch.reset ? [] : folderStores.value, batch.stores)
+      folders.value = applyFolderBatch(folders.value, folderStores.value, batch)
       selectDefaultFolder()
+      loadingFolders.value = !batch.isFinal
+      if (batch.isFinal) operationLoading.value = false
+    })
+    connection.on('FolderSyncCompleted', (_info: FolderSyncCompleteDto) => {
       loadingFolders.value = false
       operationLoading.value = false
     })
@@ -802,6 +836,7 @@ export function useOutlookDashboard() {
     flagIntervalLabel,
     flagIntervalOptions,
     folderContextMenu,
+    folderStores,
     htmlMailIndexes,
     loadingCalendar,
     loadingFolders,

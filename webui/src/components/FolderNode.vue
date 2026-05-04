@@ -9,11 +9,12 @@ import {
   Tickets,
   Warning,
 } from '@element-plus/icons-vue'
-import type { FolderDto } from '../models/outlook'
+import type { FolderTreeNode, OutlookStoreDto } from '../models/outlook'
 import { folderType, visibleChildren } from '../utils/folders'
 
 const props = defineProps<{
-  folder: FolderDto
+  folder: FolderTreeNode
+  store?: OutlookStoreDto
   level: number
   expandedFolders: Set<string>
   selectedFolderPath: string
@@ -49,18 +50,18 @@ function folderIcon(name: string) {
   return icons[folderType(name)]
 }
 
-function storeLabel(folder: FolderDto) {
+function storeLabel(folder: FolderTreeNode) {
   if (!folder.isStoreRoot) return ''
-  const kind = folder.storeKind?.toUpperCase() || 'STORE'
+  const kind = props.store?.storeKind?.toUpperCase() || 'STORE'
   return kind === 'OST' ? '主要 OST' : kind
 }
 
-function folderTitle(folder: FolderDto) {
+function folderTitle(folder: FolderTreeNode) {
   const parts = [
     folder.folderPath,
-    folder.storeDisplayName ? `Store: ${folder.storeDisplayName}` : '',
-    folder.storeKind ? `Type: ${folder.storeKind.toUpperCase()}` : '',
-    folder.storeFilePath ? `File: ${folder.storeFilePath}` : '',
+    props.store?.displayName ? `Store: ${props.store.displayName}` : '',
+    props.store?.storeKind ? `Type: ${props.store.storeKind.toUpperCase()}` : '',
+    props.store?.storeFilePath ? `File: ${props.store.storeFilePath}` : '',
   ].filter(Boolean)
   return parts.join('\n')
 }
@@ -100,7 +101,7 @@ function folderTitle(folder: FolderDto) {
         <component :is="folderIcon(folder.name)" />
       </el-icon>
       <span class="folder-name">{{ folder.name }}</span>
-      <span v-if="storeLabel(folder)" class="store-kind" :class="folder.storeKind">{{ storeLabel(folder) }}</span>
+      <span v-if="storeLabel(folder)" class="store-kind" :class="store?.storeKind">{{ storeLabel(folder) }}</span>
       <span class="folder-count">{{ folder.itemCount }}</span>
     </div>
 
@@ -128,6 +129,7 @@ function folderTitle(folder: FolderDto) {
         v-for="child in visibleChildren(folder)"
         :key="child.folderPath"
         :folder="child"
+        :store="store"
         :level="level + 1"
         :expanded-folders="expandedFolders"
         :selected-folder-path="selectedFolderPath"

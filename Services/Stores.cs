@@ -8,6 +8,7 @@ namespace SmartOffice.Hub.Services
         private readonly object _lock = new();
         private List<MailItemDto> _mails = new();
         private List<FolderDto> _folders = new();
+        private List<OutlookStoreDto> _stores = new();
         private List<OutlookRuleDto> _rules = new();
         private List<OutlookCategoryDto> _categories = new();
         private List<CalendarEventDto> _calendarEvents = new();
@@ -22,14 +23,58 @@ namespace SmartOffice.Hub.Services
             lock (_lock) { return new List<MailItemDto>(_mails); }
         }
 
-        public void SetFolders(List<FolderDto> folders)
+        public FolderSnapshotDto GetFolderSnapshot()
         {
-            lock (_lock) { _folders = new List<FolderDto>(folders); }
+            lock (_lock)
+            {
+                return new FolderSnapshotDto
+                {
+                    Stores = CloneStores(_stores),
+                    Folders = CloneFolders(_folders),
+                };
+            }
         }
 
-        public List<FolderDto> GetFolders()
+        public void BeginFolderSync(bool reset = true)
         {
-            lock (_lock) { return new List<FolderDto>(_folders); }
+            if (!reset) return;
+            lock (_lock)
+            {
+                _stores = new List<OutlookStoreDto>();
+                _folders = new List<FolderDto>();
+            }
+        }
+
+        public FolderSnapshotDto ApplyFolderBatch(FolderSyncBatchDto batch)
+        {
+            lock (_lock)
+            {
+                if (batch.Reset)
+                {
+                    _stores = new List<OutlookStoreDto>();
+                    _folders = new List<FolderDto>();
+                }
+
+                foreach (var store in batch.Stores)
+                    UpsertStore(_stores, CloneStore(store));
+
+                foreach (var item in batch.Folders)
+                {
+                    var folder = CloneFolder(item);
+                    UpsertFolder(_folders, folder);
+                }
+
+                return new FolderSnapshotDto
+                {
+                    Stores = CloneStores(_stores),
+                    Folders = CloneFolders(_folders),
+                };
+            }
+        }
+
+        public int CountFolders()
+        {
+            lock (_lock) { return CountFolders(_folders); }
         }
 
         public void SetRules(List<OutlookRuleDto> rules)
@@ -60,6 +105,60 @@ namespace SmartOffice.Hub.Services
         public List<CalendarEventDto> GetCalendarEvents()
         {
             lock (_lock) { return new List<CalendarEventDto>(_calendarEvents); }
+        }
+
+        private static void UpsertStore(List<OutlookStoreDto> stores, OutlookStoreDto next)
+        {
+            var index = stores.FindIndex(store => store.StoreId == next.StoreId);
+            if (index < 0) stores.Add(next);
+            else stores[index] = next;
+        }
+
+        private static void UpsertFolder(List<FolderDto> folders, FolderDto next)
+        {
+            var index = folders.FindIndex(folder => folder.FolderPath == next.FolderPath);
+            if (index < 0) folders.Add(next);
+            else folders[index] = next;
+        }
+
+        private static int CountFolders(List<FolderDto> folders)
+        {
+            return folders.Count;
+        }
+
+        private static List<OutlookStoreDto> CloneStores(List<OutlookStoreDto> stores)
+        {
+            return stores.Select(CloneStore).ToList();
+        }
+
+        private static OutlookStoreDto CloneStore(OutlookStoreDto store)
+        {
+            return new OutlookStoreDto
+            {
+                StoreId = store.StoreId,
+                DisplayName = store.DisplayName,
+                StoreKind = store.StoreKind,
+                StoreFilePath = store.StoreFilePath,
+                RootFolderPath = store.RootFolderPath,
+            };
+        }
+
+        private static List<FolderDto> CloneFolders(List<FolderDto> folders)
+        {
+            return folders.Select(CloneFolder).ToList();
+        }
+
+        private static FolderDto CloneFolder(FolderDto folder)
+        {
+            return new FolderDto
+            {
+                Name = folder.Name,
+                FolderPath = folder.FolderPath,
+                ParentFolderPath = folder.ParentFolderPath,
+                ItemCount = folder.ItemCount,
+                StoreId = folder.StoreId,
+                IsStoreRoot = folder.IsStoreRoot,
+            };
         }
     }
 

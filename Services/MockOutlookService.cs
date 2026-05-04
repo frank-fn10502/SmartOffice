@@ -14,6 +14,7 @@ namespace SmartOffice.Hub.Services
         private readonly IHubContext<NotificationHub> _notifications;
         private readonly List<MailItemDto> _mockMails = new();
         private List<FolderDto> _mockFolders = new();
+        private List<OutlookStoreDto> _mockStores = new();
         private List<OutlookCategoryDto> _mockCategories = new();
         private List<OutlookRuleDto> _mockRules = new();
         private List<CalendarEventDto> _mockCalendar = new();
@@ -41,7 +42,7 @@ namespace SmartOffice.Hub.Services
             lock (_lock)
             {
                 EnsureSeeded();
-                _mailStore.SetFolders(CloneFolders(_mockFolders));
+                _mailStore.ApplyFolderBatch(BuildFolderBatch(reset: true, isFinal: true));
                 _mailStore.SetMails(FilterMails(MockPaths.Inbox, "1w", 10));
                 _mailStore.SetCategories(new List<OutlookCategoryDto>(_mockCategories));
                 _mailStore.SetRules(new List<OutlookRuleDto>(_mockRules));
@@ -55,7 +56,7 @@ namespace SmartOffice.Hub.Services
         {
             if (!IsEnabled) return false;
 
-            List<FolderDto>? folders = null;
+            FolderSyncBatchDto? folderBatch = null;
             List<MailItemDto>? mails = null;
             List<OutlookCategoryDto>? categories = null;
             List<OutlookRuleDto>? rules = null;
@@ -68,8 +69,8 @@ namespace SmartOffice.Hub.Services
                 switch (command.Type)
                 {
                     case "fetch_folders":
-                        folders = CloneFolders(_mockFolders);
-                        _mailStore.SetFolders(folders);
+                        folderBatch = BuildFolderSyncBatch();
+                        _mailStore.ApplyFolderBatch(folderBatch);
                         break;
                     case "fetch_mails":
                         mails = FilterMails(
@@ -147,20 +148,20 @@ namespace SmartOffice.Hub.Services
                         break;
                     case "create_folder":
                         CreateFolder(command.CreateFolderRequest);
-                        folders = CloneFolders(_mockFolders);
-                        _mailStore.SetFolders(folders);
+                        folderBatch = BuildFolderSyncBatch();
+                        _mailStore.ApplyFolderBatch(folderBatch);
                         break;
                     case "delete_folder":
                         DeleteFolder(command.DeleteFolderRequest);
-                        folders = CloneFolders(_mockFolders);
-                        _mailStore.SetFolders(folders);
+                        folderBatch = BuildFolderSyncBatch();
+                        _mailStore.ApplyFolderBatch(folderBatch);
                         break;
                     case "move_mail":
                         MoveMail(command.MoveMailRequest);
                         mails = SyncVisibleMails(command.MoveMailRequest?.MailId);
-                        folders = CloneFolders(_mockFolders);
                         _mailStore.SetMails(mails);
-                        _mailStore.SetFolders(folders);
+                        folderBatch = BuildFolderSyncBatch();
+                        _mailStore.ApplyFolderBatch(folderBatch);
                         break;
                     case "ping":
                         break;
@@ -175,7 +176,23 @@ namespace SmartOffice.Hub.Services
                     : resultMessage;
             }
 
-            if (folders is not null) await _notifications.Clients.All.SendAsync("FoldersUpdated", folders, ct);
+            if (folderBatch is not null)
+            {
+                await _notifications.Clients.All.SendAsync("FolderSyncStarted", new FolderSyncBeginDto
+                {
+                    SyncId = folderBatch.SyncId,
+                    Reset = true,
+                    Timestamp = DateTime.Now,
+                }, ct);
+                await _notifications.Clients.All.SendAsync("FoldersPatched", folderBatch, ct);
+                await _notifications.Clients.All.SendAsync("FolderSyncCompleted", new FolderSyncCompleteDto
+                {
+                    SyncId = folderBatch.SyncId,
+                    TotalCount = folderBatch.Folders.Count,
+                    Message = "Mock folder sync completed",
+                    Timestamp = DateTime.Now,
+                }, ct);
+            }
             if (mails is not null) await _notifications.Clients.All.SendAsync("MailsUpdated", mails, ct);
             if (categories is not null) await _notifications.Clients.All.SendAsync("CategoriesUpdated", categories, ct);
             if (rules is not null) await _notifications.Clients.All.SendAsync("RulesUpdated", rules, ct);
@@ -220,34 +237,23 @@ namespace SmartOffice.Hub.Services
         {
             if (_mockFolders.Count > 0) return;
 
-            _mockFolders = new List<FolderDto>
-            {
-                StoreRoot(
-                    "主要信箱 - Mock User",
-                    MockPaths.PrimaryRoot,
-                    "mock-store-primary",
-                    "ost",
-                    @"C:\Users\mock\AppData\Local\Microsoft\Outlook\mock.user@example.test.ost",
-                    Folder("Inbox", MockPaths.Inbox, 4, Folder("客戶專案", MockPaths.ClientProjects, 1)),
-                    Folder("Sent Items", MockPaths.Sent, 1),
-                    Folder("Drafts", MockPaths.Drafts, 1),
-                    Folder("Deleted Items", MockPaths.Deleted, 0)),
-                StoreRoot(
-                    "客戶專案封存.pst",
-                    MockPaths.ClientArchiveRoot,
-                    "mock-store-client-archive",
-                    "pst",
-                    @"D:\Outlook Archives\客戶專案封存.pst",
-                    Folder("Archive", MockPaths.Archive, 2, Folder("2026 專案封存", MockPaths.Archive2026, 1))),
-                StoreRoot(
-                    "歷史郵件.pst",
-                    MockPaths.LegacyArchiveRoot,
-                    "mock-store-legacy-archive",
-                    "pst",
-                    @"E:\MailBackup\歷史郵件.pst",
-                    Folder("Legacy Inbox", MockPaths.LegacyInbox, 0),
-                    Folder("Vendors", MockPaths.LegacyVendors, 0)),
-            };
+            AddMockStore("mock-store-primary", "主要信箱 - Mock User", "ost", @"C:\Users\mock\AppData\Local\Microsoft\Outlook\mock.user@example.test.ost", MockPaths.PrimaryRoot);
+            AddMockFolder("主要信箱 - Mock User", MockPaths.PrimaryRoot, "", "mock-store-primary", true);
+            AddMockFolder("Inbox", MockPaths.Inbox, MockPaths.PrimaryRoot, "mock-store-primary");
+            AddMockFolder("客戶專案", MockPaths.ClientProjects, MockPaths.Inbox, "mock-store-primary");
+            AddMockFolder("Sent Items", MockPaths.Sent, MockPaths.PrimaryRoot, "mock-store-primary");
+            AddMockFolder("Drafts", MockPaths.Drafts, MockPaths.PrimaryRoot, "mock-store-primary");
+            AddMockFolder("Deleted Items", MockPaths.Deleted, MockPaths.PrimaryRoot, "mock-store-primary");
+
+            AddMockStore("mock-store-client-archive", "客戶專案封存.pst", "pst", @"D:\Outlook Archives\客戶專案封存.pst", MockPaths.ClientArchiveRoot);
+            AddMockFolder("客戶專案封存.pst", MockPaths.ClientArchiveRoot, "", "mock-store-client-archive", true);
+            AddMockFolder("Archive", MockPaths.Archive, MockPaths.ClientArchiveRoot, "mock-store-client-archive");
+            AddMockFolder("2026 專案封存", MockPaths.Archive2026, MockPaths.Archive, "mock-store-client-archive");
+
+            AddMockStore("mock-store-legacy-archive", "歷史郵件.pst", "pst", @"E:\MailBackup\歷史郵件.pst", MockPaths.LegacyArchiveRoot);
+            AddMockFolder("歷史郵件.pst", MockPaths.LegacyArchiveRoot, "", "mock-store-legacy-archive", true);
+            AddMockFolder("Legacy Inbox", MockPaths.LegacyInbox, MockPaths.LegacyArchiveRoot, "mock-store-legacy-archive");
+            AddMockFolder("Vendors", MockPaths.LegacyVendors, MockPaths.LegacyArchiveRoot, "mock-store-legacy-archive");
 
             var now = DateTime.Now;
             _mockMails.AddRange(new[]
@@ -262,6 +268,7 @@ namespace SmartOffice.Hub.Services
                 Mail("mock-008", "草稿：內部追蹤事項", "Mock User", "mock.user@example.test", now.AddDays(-10), MockPaths.Drafts, false, "待辦", true, "no_date", "Follow up"),
                 Mail("mock-009", "上月客戶回覆", "Eve Huang", "eve.huang@example.test", now.AddDays(-25), MockPaths.Archive2026, true, "客戶", false, "none", ""),
             });
+            RefreshFolderCounts();
 
             _mockCategories = new List<OutlookCategoryDto>
             {
@@ -446,18 +453,18 @@ namespace SmartOffice.Hub.Services
         private void CreateFolder(CreateFolderRequest? request)
         {
             if (request is null || string.IsNullOrWhiteSpace(request.ParentFolderPath) || string.IsNullOrWhiteSpace(request.Name)) return;
-            var parent = FindFolder(_mockFolders, request.ParentFolderPath);
+            var parent = FindFolder(request.ParentFolderPath);
             if (parent is null) return;
             var name = request.Name.Trim();
-            if (parent.SubFolders.Any(folder => folder.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) return;
+            if (_mockFolders.Any(folder => folder.ParentFolderPath == parent.FolderPath && folder.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) return;
             var path = $"{request.ParentFolderPath}\\{name}";
-            parent.SubFolders.Add(Folder(name, path, 0));
+            AddMockFolder(name, path, parent.FolderPath, parent.StoreId);
         }
 
         private void DeleteFolder(DeleteFolderRequest? request)
         {
             if (request is null || string.IsNullOrWhiteSpace(request.FolderPath)) return;
-            DeleteFolderFrom(_mockFolders, request.FolderPath);
+            DeleteFolderFrom(request.FolderPath);
             _mockMails.RemoveAll(mail => mail.FolderPath.StartsWith(request.FolderPath, StringComparison.OrdinalIgnoreCase));
             RefreshFolderCounts();
         }
@@ -533,50 +540,32 @@ namespace SmartOffice.Hub.Services
 
         private void RefreshFolderCounts()
         {
-            foreach (var folder in FlattenFolders(_mockFolders))
+            foreach (var folder in _mockFolders)
                 folder.ItemCount = _mockMails.Count(mail => mail.FolderPath == folder.FolderPath);
         }
 
-        private static FolderDto StoreRoot(
-            string name,
-            string folderPath,
-            string storeId,
-            string storeKind,
-            string storeFilePath,
-            params FolderDto[] children)
+        private void AddMockStore(string storeId, string displayName, string storeKind, string storeFilePath, string rootFolderPath)
         {
-            var root = Folder(name, folderPath, 0, children);
-            ApplyStore(root, storeId, name, storeKind, storeFilePath, true);
-            return root;
+            _mockStores.Add(new OutlookStoreDto
+            {
+                StoreId = storeId,
+                DisplayName = displayName,
+                StoreKind = storeKind,
+                StoreFilePath = storeFilePath,
+                RootFolderPath = rootFolderPath,
+            });
         }
 
-        private static FolderDto Folder(string name, string folderPath, int itemCount, params FolderDto[] children)
+        private void AddMockFolder(string name, string folderPath, string parentFolderPath, string storeId, bool isStoreRoot = false)
         {
-            return new FolderDto
+            _mockFolders.Add(new FolderDto
             {
                 Name = name,
                 FolderPath = folderPath,
-                ItemCount = itemCount,
-                SubFolders = children.ToList(),
-            };
-        }
-
-        private static void ApplyStore(
-            FolderDto folder,
-            string storeId,
-            string storeDisplayName,
-            string storeKind,
-            string storeFilePath,
-            bool isStoreRoot)
-        {
-            folder.StoreId = storeId;
-            folder.StoreDisplayName = storeDisplayName;
-            folder.StoreKind = storeKind;
-            folder.StoreFilePath = storeFilePath;
-            folder.IsStoreRoot = isStoreRoot;
-
-            foreach (var child in folder.SubFolders)
-                ApplyStore(child, storeId, storeDisplayName, storeKind, storeFilePath, false);
+                ParentFolderPath = parentFolderPath,
+                StoreId = storeId,
+                IsStoreRoot = isStoreRoot,
+            });
         }
 
         private static MailItemDto Mail(
@@ -615,33 +604,17 @@ namespace SmartOffice.Hub.Services
             };
         }
 
-        private static FolderDto? FindFolder(List<FolderDto> folders, string path)
+        private FolderDto? FindFolder(string path)
         {
-            foreach (var folder in folders)
-            {
-                if (folder.FolderPath == path) return folder;
-                var child = FindFolder(folder.SubFolders, path);
-                if (child is not null) return child;
-            }
-
-            return null;
+            return _mockFolders.FirstOrDefault(folder => folder.FolderPath == path);
         }
 
-        private static bool DeleteFolderFrom(List<FolderDto> folders, string path)
+        private void DeleteFolderFrom(string path)
         {
-            var removed = folders.RemoveAll(folder => folder.FolderPath == path) > 0;
-            if (removed) return true;
-            return folders.Any(folder => DeleteFolderFrom(folder.SubFolders, path));
-        }
-
-        private static IEnumerable<FolderDto> FlattenFolders(List<FolderDto> folders)
-        {
-            foreach (var folder in folders)
-            {
-                yield return folder;
-                foreach (var child in FlattenFolders(folder.SubFolders))
-                    yield return child;
-            }
+            _mockFolders.RemoveAll(folder =>
+                folder.FolderPath == path
+                || folder.ParentFolderPath.StartsWith(path, StringComparison.OrdinalIgnoreCase)
+                || folder.FolderPath.StartsWith($"{path}\\", StringComparison.OrdinalIgnoreCase));
         }
 
         private static List<FolderDto> CloneFolders(List<FolderDto> folders)
@@ -650,14 +623,37 @@ namespace SmartOffice.Hub.Services
             {
                 Name = folder.Name,
                 FolderPath = folder.FolderPath,
+                ParentFolderPath = folder.ParentFolderPath,
                 ItemCount = folder.ItemCount,
                 StoreId = folder.StoreId,
-                StoreDisplayName = folder.StoreDisplayName,
-                StoreKind = folder.StoreKind,
-                StoreFilePath = folder.StoreFilePath,
                 IsStoreRoot = folder.IsStoreRoot,
-                SubFolders = CloneFolders(folder.SubFolders),
             }).ToList();
+        }
+
+        private FolderSyncBatchDto BuildFolderBatch(bool reset, bool isFinal)
+        {
+            return new FolderSyncBatchDto
+            {
+                SyncId = Guid.NewGuid().ToString(),
+                Sequence = 1,
+                Reset = reset,
+                IsFinal = isFinal,
+                Stores = _mockStores.Select(store => new OutlookStoreDto
+                {
+                    StoreId = store.StoreId,
+                    DisplayName = store.DisplayName,
+                    StoreKind = store.StoreKind,
+                    StoreFilePath = store.StoreFilePath,
+                    RootFolderPath = store.RootFolderPath,
+                }).ToList(),
+                Folders = CloneFolders(_mockFolders),
+            };
+        }
+
+        private FolderSyncBatchDto BuildFolderSyncBatch()
+        {
+            _mailStore.BeginFolderSync(reset: true);
+            return BuildFolderBatch(reset: false, isFinal: true);
         }
 
         private static MailItemDto CloneMail(MailItemDto mail)

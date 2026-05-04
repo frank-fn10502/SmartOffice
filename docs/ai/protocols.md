@@ -11,7 +11,7 @@ Outlook AddIn 正式 protocol 已改為 SignalR-only：
 3. Web UI、AI 或 MCP client 透過 Hub HTTP request endpoint 發出要求。
 4. Hub 透過 SignalR client event `OutlookCommand` 即時 dispatch command 給 AddIn。
 5. AddIn 在本機執行 Outlook automation。
-6. AddIn 透過 SignalR server method `PushFolders`、`PushMails`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果。
+6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果。
 7. Hub 更新 cache，並透過 `/hub/notifications` broadcast 給 Web UI。
 
 目前不保留舊 AddIn HTTP long-poll / push channel；工作機 AddIn 不應再呼叫 `/api/outlook/poll` 或 `/api/outlook/push-*`。
@@ -50,7 +50,7 @@ Web UI notification channel：
 - `POST /api/outlook/request-create-folder`：dispatch 建立 folder command。
 - `POST /api/outlook/request-delete-folder`：dispatch 刪除 folder command。
 - `POST /api/outlook/request-move-mail`：dispatch 移動單封郵件 command。
-- `GET /api/outlook/folders`：讀取 cached folders。
+- `GET /api/outlook/folders`：讀取 cached folder snapshot，格式是 `FolderSnapshotDto`。
 - `GET /api/outlook/mails`：讀取 cached mails。
 - `GET /api/outlook/rules`：讀取 cached Outlook rules。
 - `GET /api/outlook/categories`：讀取 cached Outlook master category list。
@@ -78,7 +78,9 @@ AI / MCP client 的完整建議流程請參考 `docs/ai/mcp-skill-integration.md
 AddIn 連到 `/hub/outlook-addin` 後可以 invoke：
 
 - `RegisterOutlookAddin(info)`：註冊 AddIn connection。
-- `PushFolders(folders)`：取代 cached folders 並 broadcast update。
+- `BeginFolderSync(info)`：開始 folder 增量同步並 broadcast `FolderSyncStarted`。
+- `PushFolderBatch(batch)`：merge stores / folders 小批次並 broadcast `FoldersPatched`。
+- `CompleteFolderSync(info)`：結束 folder 增量同步並 broadcast `FolderSyncCompleted`。
 - `PushMails(mails)`：取代 cached mails 並 broadcast update。
 - `PushRules(rules)`：取代 cached Outlook rules 並 broadcast update。
 - `PushCategories(categories)`：取代 cached Outlook master category list 並 broadcast update。
@@ -107,7 +109,9 @@ Web UI notification endpoint 是 `/hub/notifications`。
 
 目前事件：
 
-- `FoldersUpdated`
+- `FolderSyncStarted`
+- `FoldersPatched`
+- `FolderSyncCompleted`
 - `MailsUpdated`
 - `RulesUpdated`
 - `CategoriesUpdated`

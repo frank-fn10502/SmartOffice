@@ -233,7 +233,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpGet("folders")]
         public IActionResult GetFolders()
         {
-            return Ok(_mailStore.GetFolders());
+            return Ok(_mailStore.GetFolderSnapshot());
         }
 
         /// <summary>

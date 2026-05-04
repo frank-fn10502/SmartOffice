@@ -108,7 +108,9 @@ AddIn 可 invoke 下列 server method：
 
 | Method | Payload | 用途 |
 | --- | --- | --- |
-| `PushFolders` | `FolderDto[]` | 取代 cached folders 並 broadcast `FoldersUpdated` |
+| `BeginFolderSync` | `FolderSyncBeginDto` | 開始 folder 增量同步；通常會清空 Hub folder cache 並 broadcast `FolderSyncStarted` |
+| `PushFolderBatch` | `FolderSyncBatchDto` | 推送一批 stores / folders，Hub merge 到 cache 並 broadcast `FoldersPatched` |
+| `CompleteFolderSync` | `FolderSyncCompleteDto` | 結束 folder 增量同步並 broadcast `FolderSyncCompleted` |
 | `PushMails` | `MailItemDto[]` | 取代 cached mails 並 broadcast `MailsUpdated` |
 | `PushRules` | `OutlookRuleDto[]` | 取代 cached rules 並 broadcast `RulesUpdated` |
 | `PushCategories` | `OutlookCategoryDto[]` | 取代 cached categories 並 broadcast `CategoriesUpdated` |
@@ -117,7 +119,7 @@ AddIn 可 invoke 下列 server method：
 | `ReportAddinLog` | `AddinLogEntry` | 回報診斷 log |
 | `ReportCommandResult` | `OutlookCommandResult` | 回報 command 成敗 |
 
-每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變畫面資料，請同時 invoke 對應 `Push*` method。
+每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變畫面資料，請同時 invoke 對應 `Push*` method。Folder tree 只使用 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。
 
 AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-addin` 上的 `SendChatMessage(message)`。
 
@@ -248,51 +250,48 @@ Web UI 的月曆介面會帶目前月份的 `startDate` / `endDate`。`startDate
 }
 ```
 
-`move_mail` 只有在目前 mail 有非空 `id` 時才會由 Web UI 送出。AddIn 應用 `mailId` 找到 Outlook item，將 `destinationFolderPath` 解析成 Outlook `Folder` object，呼叫 Outlook `MailItem.Move(destinationFolder)`，完成後回推最新 `PushMails` 與 `PushFolders`。
+`move_mail` 只有在目前 mail 有非空 `id` 時才會由 Web UI 送出。AddIn 應用 `mailId` 找到 Outlook item，將 `destinationFolderPath` 解析成 Outlook `Folder` object，呼叫 Outlook `MailItem.Move(destinationFolder)`，完成後回推最新 `PushMails`，並用 folder 增量同步更新 folder count。
 
 注意：Microsoft 文件說 Outlook `MailItem.EntryID` 在 item save 或 send 後才會存在，跨 store 移動時可能改變。因此 AddIn 若使用 EntryID 當 `MailItemDto.id`，移動後應重新讀取並回推最新 mail snapshot。相關官方依據與 Web UI 操作對照請看 `docs/addin/features-checklist.md`。
 
 ## Push Payload Sample
 
-### FolderDto
+### FolderSyncBatchDto
 
 ```json
-[
-  {
-    "name": "主要信箱 - User",
-    "folderPath": "\\\\主要信箱 - User",
-    "itemCount": 0,
-    "storeId": "[redacted primary store id]",
-    "storeDisplayName": "主要信箱 - User",
-    "storeKind": "ost",
-    "storeFilePath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\Outlook\\user@example.com.ost",
-    "isStoreRoot": true,
-    "subFolders": [
-      {
-        "name": "Inbox",
-        "folderPath": "\\\\主要信箱 - User\\Inbox",
-        "itemCount": 18,
-        "storeId": "[redacted primary store id]",
-        "storeDisplayName": "主要信箱 - User",
-        "storeKind": "ost",
-        "storeFilePath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\Outlook\\user@example.com.ost",
-        "isStoreRoot": false,
-        "subFolders": []
-      }
-    ]
-  },
-  {
-    "name": "Archive.pst",
-    "folderPath": "\\\\Archive.pst",
-    "itemCount": 0,
-    "storeId": "[redacted pst store id]",
-    "storeDisplayName": "Archive.pst",
-    "storeKind": "pst",
-    "storeFilePath": "D:\\Outlook Archives\\Archive.pst",
-    "isStoreRoot": true,
-    "subFolders": []
-  }
-]
+{
+  "syncId": "folder-sync-001",
+  "sequence": 1,
+  "reset": true,
+  "isFinal": false,
+  "stores": [
+    {
+      "storeId": "[redacted primary store id]",
+      "displayName": "主要信箱 - User",
+      "storeKind": "ost",
+      "storeFilePath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\Outlook\\user@example.com.ost",
+      "rootFolderPath": "\\\\主要信箱 - User"
+    }
+  ],
+  "folders": [
+    {
+      "name": "主要信箱 - User",
+      "folderPath": "\\\\主要信箱 - User",
+      "parentFolderPath": "",
+      "itemCount": 0,
+      "storeId": "[redacted primary store id]",
+      "isStoreRoot": true
+    },
+    {
+      "name": "Inbox",
+      "folderPath": "\\\\主要信箱 - User\\Inbox",
+      "parentFolderPath": "\\\\主要信箱 - User",
+      "itemCount": 18,
+      "storeId": "[redacted primary store id]",
+      "isStoreRoot": false
+    }
+  ]
+}
 ```
 
 ### MailItemDto
@@ -447,13 +446,20 @@ AI / MCP client 可用下列 endpoint 查詢 command 執行狀態：
 
 - `name`: string
 - `folderPath`: string
+- `parentFolderPath`: string，store root 可為空字串。
 - `itemCount`: number
 - `storeId`: string，Outlook Store ID 或 AddIn 內可追蹤的 store identifier。
-- `storeDisplayName`: string，Outlook store 顯示名稱。
+- `isStoreRoot`: boolean，folder 是否是該 store 的 root folder。
+
+`FolderDto` 不再包含 `subFolders`，也不再重複保存 store display name / type / file path。tree 由 `parentFolderPath` 與 `storeId` 組回。
+
+### OutlookStoreDto
+
+- `storeId`: string，Outlook Store ID 或 AddIn 內可追蹤的 store identifier。
+- `displayName`: string，Outlook store 顯示名稱。
 - `storeKind`: string，目前預期 `ost`、`pst`、`exchange` 或 `other`。
 - `storeFilePath`: string，`.pst` 或 `.ost` 的完整檔案路徑；沒有檔案路徑時可空字串。
-- `isStoreRoot`: boolean，第一層 store root 必須是 `true`，底下 folder 為 `false`。
-- `subFolders`: `FolderDto[]`
+- `rootFolderPath`: string，該 store root folder 的 `folderPath`。
 
 ### OutlookRuleDto
 

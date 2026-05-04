@@ -34,13 +34,51 @@ namespace SmartOffice.Hub.Models
     {
         public string Name { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
+        public string ParentFolderPath { get; set; } = string.Empty;
         public int ItemCount { get; set; }
         public string StoreId { get; set; } = string.Empty;
-        public string StoreDisplayName { get; set; } = string.Empty;
+        public bool IsStoreRoot { get; set; }
+    }
+
+    public class OutlookStoreDto
+    {
+        public string StoreId { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
         public string StoreKind { get; set; } = string.Empty; // ost、pst、exchange、other。
         public string StoreFilePath { get; set; } = string.Empty;
-        public bool IsStoreRoot { get; set; }
-        public List<FolderDto> SubFolders { get; set; } = new();
+        public string RootFolderPath { get; set; } = string.Empty;
+    }
+
+    public class FolderSnapshotDto
+    {
+        public List<OutlookStoreDto> Stores { get; set; } = new();
+        public List<FolderDto> Folders { get; set; } = new();
+    }
+
+    public class FolderSyncBeginDto
+    {
+        public string SyncId { get; set; } = Guid.NewGuid().ToString();
+        public bool Reset { get; set; } = true;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    public class FolderSyncBatchDto
+    {
+        public string SyncId { get; set; } = string.Empty;
+        public int Sequence { get; set; }
+        public bool Reset { get; set; }
+        public bool IsFinal { get; set; }
+        public List<OutlookStoreDto> Stores { get; set; } = new();
+        public List<FolderDto> Folders { get; set; } = new();
+    }
+
+    public class FolderSyncCompleteDto
+    {
+        public string SyncId { get; set; } = string.Empty;
+        public int TotalCount { get; set; }
+        public bool Success { get; set; } = true;
+        public string Message { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 
     public class FetchMailsRequest

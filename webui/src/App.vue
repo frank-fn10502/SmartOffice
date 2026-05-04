@@ -50,6 +50,7 @@ const {
   flagIntervalLabel,
   flagIntervalOptions,
   folderContextMenu,
+  folderStores,
   loadingCalendar,
   loadingFolders,
   loadingMails,
@@ -138,6 +139,7 @@ const {
               v-for="folder in visibleFolders"
               :key="folder.folderPath"
               :folder="folder"
+              :store="folderStores.find((store) => store.storeId === folder.storeId)"
               :level="0"
               :expanded-folders="expandedFolders"
               :selected-folder-path="selectedFolderPath"

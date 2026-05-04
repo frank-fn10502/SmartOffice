@@ -1,13 +1,55 @@
 export interface FolderDto {
   name: string
   folderPath: string
+  parentFolderPath: string
   itemCount: number
   storeId: string
-  storeDisplayName: string
+  isStoreRoot: boolean
+}
+
+export interface OutlookStoreDto {
+  storeId: string
+  displayName: string
   storeKind: string
   storeFilePath: string
-  isStoreRoot: boolean
-  subFolders: FolderDto[]
+  rootFolderPath: string
+}
+
+export interface FolderTreeNode extends FolderDto {
+  subFolders: FolderTreeNode[]
+}
+
+export interface FolderSnapshotDto {
+  stores: OutlookStoreDto[]
+  folders: FolderDto[]
+}
+
+export interface FolderSyncBeginDto {
+  syncId: string
+  reset: boolean
+  timestamp: string
+}
+
+export interface FolderSyncBatchDto {
+  syncId: string
+  sequence: number
+  reset: boolean
+  isFinal: boolean
+  stores: OutlookStoreDto[]
+  folders: FolderDto[]
+}
+
+export interface FolderSyncCompleteDto {
+  syncId: string
+  totalCount: number
+  success: boolean
+  message: string
+  timestamp: string
+}
+
+export interface CommandDispatchResponse {
+  commandId: string
+  status: 'mocked' | 'dispatched' | 'addin_unavailable' | string
 }
 
 export interface MailItemDto {

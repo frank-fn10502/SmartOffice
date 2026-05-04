@@ -35,7 +35,7 @@
 
 ## 資料讀取功能
 
-1. 讀取 folder tree，透過 SignalR invoke `PushFolders(folders)`。
+1. 讀取 folder tree，透過 SignalR invoke `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。
 2. 讀取指定 folder 的 mails，支援 `folderPath`、`range` 與 `maxCount`，透過 SignalR invoke `PushMails(mails)`。
 3. 郵件資料需盡量取得 `EntryID` 或其他可重新定位的 stable id。
 4. 郵件 metadata 需實測 `categories`、`isRead`、`flagRequest`、`flagInterval`、`taskStartDate`、`taskDueDate`、`taskCompletedDate`、`importance`、`sensitivity`。
@@ -53,7 +53,7 @@
 6. 設定或覆蓋單封郵件 categories。
 7. 使用較新的 `mailPropertiesRequest` 時，可一次更新 read state、flag、task dates、categories 與需要新增的 master categories。
 8. 移動單封郵件到指定 destination folder。
-9. 每個 mutation 完成後，至少重新 invoke `PushMails` 回報受影響 folder 的 mails；若 folder count 或 categories 受影響，也要 invoke `PushFolders` 或 `PushCategories`。
+9. 每個 mutation 完成後，至少重新 invoke `PushMails` 回報受影響 folder 的 mails；若 folder count 或 categories 受影響，也要使用 folder 增量同步或 `PushCategories`。
 
 ## Folder 與 Category 操作功能
 
@@ -61,7 +61,7 @@
 2. 刪除指定 folder。
 3. 新增或更新 Outlook master category。
 4. category color 與 shortcut key 必須記錄 Office 2016 實測支援狀態。
-5. 每個操作完成後重新 invoke `PushFolders` 或 `PushCategories`。
+5. 每個操作完成後使用 folder 增量同步或 invoke `PushCategories`。
 
 ## 工作機實測重點
 

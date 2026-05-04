@@ -41,11 +41,41 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
-        public async Task PushFolders(List<FolderDto> folders)
+        public async Task BeginFolderSync(FolderSyncBeginDto info)
         {
-            _mailStore.SetFolders(folders);
-            _addinStatus.RecordPush("folders", folders.Count);
-            await _notifications.Clients.All.SendAsync("FoldersUpdated", folders);
+            _mailStore.BeginFolderSync(info.Reset);
+            _addinStatus.AddLog("info", $"Folder sync started: {info.SyncId}");
+            await _notifications.Clients.All.SendAsync("FolderSyncStarted", info);
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        public async Task PushFolderBatch(FolderSyncBatchDto batch)
+        {
+            _mailStore.ApplyFolderBatch(batch);
+            _addinStatus.RecordPush("folder batch", batch.Stores.Count + batch.Folders.Count);
+            await _notifications.Clients.All.SendAsync("FoldersPatched", batch);
+
+            if (batch.IsFinal)
+            {
+                var complete = new FolderSyncCompleteDto
+                {
+                    SyncId = batch.SyncId,
+                    TotalCount = _mailStore.CountFolders(),
+                    Message = "Folder sync completed by final batch",
+                };
+                await _notifications.Clients.All.SendAsync("FolderSyncCompleted", complete);
+            }
+
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        public async Task CompleteFolderSync(FolderSyncCompleteDto info)
+        {
+            if (info.TotalCount <= 0)
+                info.TotalCount = _mailStore.CountFolders();
+
+            _addinStatus.AddLog(info.Success ? "info" : "warn", $"Folder sync completed: {info.TotalCount} folders. {info.Message}");
+            await _notifications.Clients.All.SendAsync("FolderSyncCompleted", info);
             await BroadcastStatusAndLogsAsync();
         }
 

@@ -4,7 +4,8 @@ import type {
   CalendarEventDto,
   CategoryCommandRequest,
   ChatMessageDto,
-  FolderDto,
+  CommandDispatchResponse,
+  FolderSnapshotDto,
   MailPropertiesCommandRequest,
   MailItemDto,
   OutlookCategoryDto,
@@ -28,7 +29,7 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 }
 
 export const outlookApi = {
-  getFolders: () => getJson<FolderDto[]>('/api/outlook/folders'),
+  getFolders: () => getJson<FolderSnapshotDto>('/api/outlook/folders'),
   getMails: () => getJson<MailItemDto[]>('/api/outlook/mails'),
   getRules: () => getJson<OutlookRuleDto[]>('/api/outlook/rules'),
   getCategories: () => getJson<OutlookCategoryDto[]>('/api/outlook/categories'),
@@ -37,7 +38,7 @@ export const outlookApi = {
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
   getAdminLogs: () => getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),
 
-  requestFolders: () => postJson('/api/outlook/request-folders'),
+  requestFolders: () => postJson<CommandDispatchResponse>('/api/outlook/request-folders'),
   requestMails: (body: { folderPath: string; range: string; maxCount: number }) =>
     postJson('/api/outlook/request-mails', body),
   requestRules: () => postJson('/api/outlook/request-rules'),
