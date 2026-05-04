@@ -12,16 +12,16 @@ namespace SmartOffice.Hub.Controllers
     {
         private readonly MailStore _mailStore;
         private readonly ChatStore _chatStore;
-        private readonly CommandQueue _commandQueue;
+        private readonly OutlookSignalRCommandDispatcher _commandDispatcher;
         private readonly IHubContext<NotificationHub> _hub;
         private readonly AddinStatusStore _addinStatus;
 
         public OutlookController(MailStore mailStore, ChatStore chatStore,
-            CommandQueue commandQueue, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus)
+            OutlookSignalRCommandDispatcher commandDispatcher, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus)
         {
             _mailStore = mailStore;
             _chatStore = chatStore;
-            _commandQueue = commandQueue;
+            _commandDispatcher = commandDispatcher;
             _hub = hub;
             _addinStatus = addinStatus;
         }
@@ -29,164 +29,172 @@ namespace SmartOffice.Hub.Controllers
         // ===================== Web UI 呼叫這些 endpoint =====================
 
         /// <summary>
-        /// Web UI、AI 或 MCP client 要求 mails；Hub 會替 Outlook Add-in queue command。
+        /// Web UI、AI 或 MCP client 要求 mails；Hub 會透過 SignalR dispatch 給 Outlook AddIn。
         /// </summary>
         [HttpPost("request-mails")]
-        public IActionResult RequestMails([FromBody] FetchMailsRequest req)
+        public async Task<IActionResult> RequestMails([FromBody] FetchMailsRequest req, CancellationToken ct)
         {
             var cmd = new PendingCommand
             {
                 Type = "fetch_mails",
                 MailsRequest = req
             };
-            _commandQueue.Enqueue(cmd);
-            return Ok(new { commandId = cmd.Id, status = "queued" });
+            return await DispatchCommandAsync(cmd, ct);
         }
 
         /// <summary>
         /// Web UI、AI 或 MCP client 要求 folder list。
         /// </summary>
         [HttpPost("request-folders")]
-        public IActionResult RequestFolders()
+        public async Task<IActionResult> RequestFolders(CancellationToken ct)
         {
-            _commandQueue.Enqueue(new PendingCommand { Type = "fetch_folders" });
-            return Ok(new { status = "queued" });
+            return await DispatchCommandAsync(new PendingCommand { Type = "fetch_folders" }, ct);
         }
 
         /// <summary>
         /// Web UI、AI 或 MCP client 要求 Outlook rule list。
         /// </summary>
         [HttpPost("request-rules")]
-        public IActionResult RequestRules()
+        public async Task<IActionResult> RequestRules(CancellationToken ct)
         {
-            _commandQueue.Enqueue(new PendingCommand { Type = "fetch_rules" });
-            return Ok(new { status = "queued" });
+            return await DispatchCommandAsync(new PendingCommand { Type = "fetch_rules" }, ct);
         }
 
         /// <summary>
         /// Web UI、AI 或 MCP client 要求 Outlook master category list。
         /// </summary>
         [HttpPost("request-categories")]
-        public IActionResult RequestCategories()
+        public async Task<IActionResult> RequestCategories(CancellationToken ct)
         {
-            _commandQueue.Enqueue(new PendingCommand { Type = "fetch_categories" });
-            return Ok(new { status = "queued" });
+            return await DispatchCommandAsync(new PendingCommand { Type = "fetch_categories" }, ct);
+        }
+
+        /// <summary>
+        /// Web UI 或工作機測試用：透過正式 SignalR channel 發送 ping command。
+        /// </summary>
+        [HttpPost("request-signalr-ping")]
+        public async Task<IActionResult> RequestSignalRPing(CancellationToken ct)
+        {
+            return await DispatchCommandAsync(new PendingCommand { Type = "ping" }, ct);
         }
 
         /// <summary>
         /// Web UI、AI 或 MCP client 要求 Outlook calendar events。
         /// </summary>
         [HttpPost("request-calendar")]
-        public IActionResult RequestCalendar([FromBody] FetchCalendarRequest? req)
+        public async Task<IActionResult> RequestCalendar([FromBody] FetchCalendarRequest? req, CancellationToken ct)
         {
             var cmd = new PendingCommand
             {
                 Type = "fetch_calendar",
                 CalendarRequest = req ?? new FetchCalendarRequest()
             };
-            _commandQueue.Enqueue(cmd);
-            return Ok(new { commandId = cmd.Id, status = "queued" });
+            return await DispatchCommandAsync(cmd, ct);
         }
 
         [HttpPost("request-mark-mail-read")]
-        public IActionResult RequestMarkMailRead([FromBody] MailMarkerCommandRequest req)
+        public Task<IActionResult> RequestMarkMailRead([FromBody] MailMarkerCommandRequest req, CancellationToken ct)
         {
-            return QueueMailMarkerCommand("mark_mail_read", req);
+            return DispatchMailMarkerCommandAsync("mark_mail_read", req, ct);
         }
 
         [HttpPost("request-mark-mail-unread")]
-        public IActionResult RequestMarkMailUnread([FromBody] MailMarkerCommandRequest req)
+        public Task<IActionResult> RequestMarkMailUnread([FromBody] MailMarkerCommandRequest req, CancellationToken ct)
         {
-            return QueueMailMarkerCommand("mark_mail_unread", req);
+            return DispatchMailMarkerCommandAsync("mark_mail_unread", req, ct);
         }
 
         [HttpPost("request-mark-mail-task")]
-        public IActionResult RequestMarkMailTask([FromBody] MailMarkerCommandRequest req)
+        public Task<IActionResult> RequestMarkMailTask([FromBody] MailMarkerCommandRequest req, CancellationToken ct)
         {
-            return QueueMailMarkerCommand("mark_mail_task", req);
+            return DispatchMailMarkerCommandAsync("mark_mail_task", req, ct);
         }
 
         [HttpPost("request-clear-mail-task")]
-        public IActionResult RequestClearMailTask([FromBody] MailMarkerCommandRequest req)
+        public Task<IActionResult> RequestClearMailTask([FromBody] MailMarkerCommandRequest req, CancellationToken ct)
         {
-            return QueueMailMarkerCommand("clear_mail_task", req);
+            return DispatchMailMarkerCommandAsync("clear_mail_task", req, ct);
         }
 
         [HttpPost("request-set-mail-categories")]
-        public IActionResult RequestSetMailCategories([FromBody] MailMarkerCommandRequest req)
+        public Task<IActionResult> RequestSetMailCategories([FromBody] MailMarkerCommandRequest req, CancellationToken ct)
         {
-            return QueueMailMarkerCommand("set_mail_categories", req);
+            return DispatchMailMarkerCommandAsync("set_mail_categories", req, ct);
         }
 
         [HttpPost("request-update-mail-properties")]
-        public IActionResult RequestUpdateMailProperties([FromBody] MailPropertiesCommandRequest req)
+        public async Task<IActionResult> RequestUpdateMailProperties([FromBody] MailPropertiesCommandRequest req, CancellationToken ct)
         {
             var cmd = new PendingCommand
             {
                 Type = "update_mail_properties",
                 MailPropertiesRequest = req
             };
-            _commandQueue.Enqueue(cmd);
-            return Ok(new { commandId = cmd.Id, status = "queued" });
+            return await DispatchCommandAsync(cmd, ct);
         }
 
         [HttpPost("request-upsert-category")]
-        public IActionResult RequestUpsertCategory([FromBody] CategoryCommandRequest req)
+        public async Task<IActionResult> RequestUpsertCategory([FromBody] CategoryCommandRequest req, CancellationToken ct)
         {
             var cmd = new PendingCommand
             {
                 Type = "upsert_category",
                 CategoryRequest = req
             };
-            _commandQueue.Enqueue(cmd);
-            return Ok(new { commandId = cmd.Id, status = "queued" });
+            return await DispatchCommandAsync(cmd, ct);
         }
 
         [HttpPost("request-create-folder")]
-        public IActionResult RequestCreateFolder([FromBody] CreateFolderRequest req)
+        public async Task<IActionResult> RequestCreateFolder([FromBody] CreateFolderRequest req, CancellationToken ct)
         {
             var cmd = new PendingCommand
             {
                 Type = "create_folder",
                 CreateFolderRequest = req
             };
-            _commandQueue.Enqueue(cmd);
-            return Ok(new { commandId = cmd.Id, status = "queued" });
+            return await DispatchCommandAsync(cmd, ct);
         }
 
         [HttpPost("request-delete-folder")]
-        public IActionResult RequestDeleteFolder([FromBody] DeleteFolderRequest req)
+        public async Task<IActionResult> RequestDeleteFolder([FromBody] DeleteFolderRequest req, CancellationToken ct)
         {
             var cmd = new PendingCommand
             {
                 Type = "delete_folder",
                 DeleteFolderRequest = req
             };
-            _commandQueue.Enqueue(cmd);
-            return Ok(new { commandId = cmd.Id, status = "queued" });
+            return await DispatchCommandAsync(cmd, ct);
         }
 
         [HttpPost("request-move-mail")]
-        public IActionResult RequestMoveMail([FromBody] MoveMailRequest req)
+        public async Task<IActionResult> RequestMoveMail([FromBody] MoveMailRequest req, CancellationToken ct)
         {
             var cmd = new PendingCommand
             {
                 Type = "move_mail",
                 MoveMailRequest = req
             };
-            _commandQueue.Enqueue(cmd);
-            return Ok(new { commandId = cmd.Id, status = "queued" });
+            return await DispatchCommandAsync(cmd, ct);
         }
 
-        private IActionResult QueueMailMarkerCommand(string type, MailMarkerCommandRequest req)
+        private Task<IActionResult> DispatchMailMarkerCommandAsync(string type, MailMarkerCommandRequest req, CancellationToken ct)
         {
             var cmd = new PendingCommand
             {
                 Type = type,
                 MailMarkerRequest = req
             };
-            _commandQueue.Enqueue(cmd);
-            return Ok(new { commandId = cmd.Id, status = "queued" });
+            return DispatchCommandAsync(cmd, ct);
+        }
+
+        private async Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)
+        {
+            var dispatched = await _commandDispatcher.DispatchAsync(cmd, ct);
+            if (!dispatched)
+                return Conflict(new { commandId = cmd.Id, status = "addin_unavailable" });
+
+            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), ct);
+            return Ok(new { commandId = cmd.Id, status = "dispatched" });
         }
 
         /// <summary>
@@ -250,94 +258,6 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetChat()
         {
             return Ok(_chatStore.GetAll());
-        }
-
-        // ===================== Outlook Add-in 呼叫這些 endpoint =====================
-
-        /// <summary>
-        /// Outlook Add-in 透過 long-poll 取得 pending command，timeout 為 30 秒。
-        /// </summary>
-        [HttpGet("poll")]
-        public async Task<IActionResult> Poll(CancellationToken ct)
-        {
-            // 在受限網路內，Office 2016 Add-in 由 desktop process 主動發出
-            // outbound HTTP，比要求 Hub 連入 desktop process 更容易部署。
-            var cmd = await _commandQueue.DequeueAsync(TimeSpan.FromSeconds(30), ct);
-            _addinStatus.RecordPoll(cmd?.Type);
-            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
-            if (cmd == null)
-                return Ok(new { type = "none" });
-            return Ok(cmd);
-        }
-
-        /// <summary>
-        /// Outlook Add-in push mail results。
-        /// </summary>
-        [HttpPost("push-mails")]
-        public async Task<IActionResult> PushMails([FromBody] List<MailItemDto> mails)
-        {
-            _mailStore.SetMails(mails);
-            _addinStatus.RecordPush("mails", mails.Count);
-            await _hub.Clients.All.SendAsync("MailsUpdated", mails);
-            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
-            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
-            return Ok(new { count = mails.Count });
-        }
-
-        /// <summary>
-        /// Outlook Add-in push folder list。
-        /// </summary>
-        [HttpPost("push-folders")]
-        public async Task<IActionResult> PushFolders([FromBody] List<FolderDto> folders)
-        {
-            _mailStore.SetFolders(folders);
-            _addinStatus.RecordPush("folders", folders.Count);
-            await _hub.Clients.All.SendAsync("FoldersUpdated", folders);
-            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
-            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
-            return Ok(new { count = folders.Count });
-        }
-
-        /// <summary>
-        /// Outlook Add-in push rule list。
-        /// </summary>
-        [HttpPost("push-rules")]
-        public async Task<IActionResult> PushRules([FromBody] List<OutlookRuleDto> rules)
-        {
-            _mailStore.SetRules(rules);
-            _addinStatus.RecordPush("rules", rules.Count);
-            await _hub.Clients.All.SendAsync("RulesUpdated", rules);
-            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
-            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
-            return Ok(new { count = rules.Count });
-        }
-
-        /// <summary>
-        /// Outlook Add-in push master category list。
-        /// </summary>
-        [HttpPost("push-categories")]
-        public async Task<IActionResult> PushCategories([FromBody] List<OutlookCategoryDto> categories)
-        {
-            _mailStore.SetCategories(categories);
-            _addinStatus.RecordPush("categories", categories.Count);
-            await _hub.Clients.All.SendAsync("CategoriesUpdated", categories);
-            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
-            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
-            return Ok(new { count = categories.Count });
-        }
-
-        /// <summary>
-        /// Outlook Add-in push calendar events。
-        /// </summary>
-        [HttpPost("push-calendar")]
-        public async Task<IActionResult> PushCalendar([FromBody] List<CalendarEventDto> events)
-        {
-            _mailStore.SetCalendarEvents(events);
-            _addinStatus.RecordPush("calendar", events.Count);
-            await _hub.Clients.All.SendAsync("CalendarUpdated", events);
-            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus());
-            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
-            return Ok(new { count = events.Count });
         }
 
         // ===================== Admin endpoints =====================

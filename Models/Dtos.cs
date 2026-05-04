@@ -144,6 +144,22 @@ namespace SmartOffice.Hub.Models
         public MoveMailRequest? MoveMailRequest { get; set; }
     }
 
+    public class OutlookAddinClientInfo
+    {
+        public string ClientName { get; set; } = string.Empty;
+        public string Workstation { get; set; } = string.Empty;
+        public string Version { get; set; } = string.Empty;
+    }
+
+    public class OutlookCommandResult
+    {
+        public string CommandId { get; set; } = string.Empty;
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string Payload { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
     public class AddinLogEntry
     {
         public string Level { get; set; } = "info"; // "info", "warn", "error"

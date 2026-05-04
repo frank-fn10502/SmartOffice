@@ -4,29 +4,9 @@
 POST {{SmartOffice.Hub_HostAddress}}/api/outlook/request-folders
 Accept: application/json
 
-### 以 Outlook Add-in 身分 poll 下一筆 command
-GET {{SmartOffice.Hub_HostAddress}}/api/outlook/poll
+### 透過正式 SignalR AddIn channel 測試 ping
+POST {{SmartOffice.Hub_HostAddress}}/api/outlook/request-signalr-ping
 Accept: application/json
-
-### 從 Outlook Add-in push folders
-POST {{SmartOffice.Hub_HostAddress}}/api/outlook/push-folders
-Content-Type: application/json
-
-[
-  {
-    "name": "Mailbox",
-    "folderPath": "\\\\Mailbox",
-    "itemCount": 0,
-    "subFolders": [
-      {
-        "name": "Inbox",
-        "folderPath": "\\\\Mailbox\\\\Inbox",
-        "itemCount": 3,
-        "subFolders": []
-      }
-    ]
-  }
-]
 
 ### 要求 Outlook mails，Request Outlook mails
 POST {{SmartOffice.Hub_HostAddress}}/api/outlook/request-mails
@@ -54,3 +34,7 @@ Content-Type: application/json
 ### 取得 Add-in status
 GET {{SmartOffice.Hub_HostAddress}}/api/outlook/admin/status
 Accept: application/json
+
+### SignalR endpoint reference
+# Outlook AddIn 正式 channel：{{SmartOffice.Hub_HostAddress}}/hub/outlook-addin
+# Web UI notification channel：{{SmartOffice.Hub_HostAddress}}/hub/notifications

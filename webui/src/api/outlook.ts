@@ -27,26 +27,6 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function pollUntil(check: () => Promise<boolean>, timeoutMs: number) {
-  return new Promise<boolean>((resolve) => {
-    const start = Date.now()
-    const timer = window.setInterval(async () => {
-      try {
-        const done = await check()
-        if (done || Date.now() - start >= timeoutMs) {
-          window.clearInterval(timer)
-          resolve(done)
-        }
-      } catch {
-        if (Date.now() - start >= timeoutMs) {
-          window.clearInterval(timer)
-          resolve(false)
-        }
-      }
-    }, 1200)
-  })
-}
-
 export const outlookApi = {
   getFolders: () => getJson<FolderDto[]>('/api/outlook/folders'),
   getMails: () => getJson<MailItemDto[]>('/api/outlook/mails'),
@@ -62,6 +42,7 @@ export const outlookApi = {
     postJson('/api/outlook/request-mails', body),
   requestRules: () => postJson('/api/outlook/request-rules'),
   requestCategories: () => postJson('/api/outlook/request-categories'),
+  requestSignalRPing: () => postJson('/api/outlook/request-signalr-ping'),
   requestCalendar: (body: { daysForward: number }) => postJson('/api/outlook/request-calendar', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
 

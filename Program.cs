@@ -1,6 +1,5 @@
 using SmartOffice.Hub.Hubs;
 using SmartOffice.Hub.Services;
-using SmartOffice.Hub.Services.MockAddins;
 
 namespace SmartOffice.Hub
 {
@@ -15,17 +14,12 @@ namespace SmartOffice.Hub
             builder.Services.AddSwaggerGen();
             builder.Services.AddSignalR();
 
-            // Hub 目前是 process-local：Add-in 將 Office data push 到這裡，
+            // Hub 目前是 process-local：AddIn 將 Office data 透過 SignalR push 到這裡，
             // Web UI 與未來 MCP client 讀取最新 cached snapshot。
             builder.Services.AddSingleton<MailStore>();
             builder.Services.AddSingleton<ChatStore>();
-            builder.Services.AddSingleton<CommandQueue>();
             builder.Services.AddSingleton<AddinStatusStore>();
-            builder.Services.Configure<AddinMockOptions>(
-                builder.Configuration.GetSection("AddinMocks"));
-            if (builder.Configuration.GetValue<bool>("AddinMocks:Enabled")
-                && builder.Configuration.GetValue<bool>("AddinMocks:Outlook:Enabled"))
-                builder.Services.AddHostedService<OutlookMockAddinWorker>();
+            builder.Services.AddSingleton<OutlookSignalRCommandDispatcher>();
 
             builder.Services.AddCors(options =>
             {
@@ -46,7 +40,7 @@ namespace SmartOffice.Hub
             app.UseAuthorization();
             app.MapControllers();
             app.MapHub<NotificationHub>("/hub/notifications");
-            app.MapHub<OutlookSignalRTestHub>("/hub/outlook-test");
+            app.MapHub<OutlookAddinHub>("/hub/outlook-addin");
 
             app.Run();
         }

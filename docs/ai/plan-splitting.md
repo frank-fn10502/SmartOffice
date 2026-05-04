@@ -72,7 +72,8 @@
 
 - `..\SmartOffice.Hub\Models\Dtos.cs`
 - `..\SmartOffice.Hub\Controllers\OutlookController.cs`
-- `..\SmartOffice.Hub\Services\OutlookCommandQueue.cs`
+- `..\SmartOffice.Hub\Hubs\OutlookAddinHub.cs`
+- `..\SmartOffice.Hub\Services\Stores.cs`
 
 若任務涉及 Web UI，額外加入：
 

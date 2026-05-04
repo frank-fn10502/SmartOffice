@@ -11,7 +11,6 @@ import {
 } from '@element-plus/icons-vue'
 import FolderNode from './components/FolderNode.vue'
 import { useOutlookDashboard } from './composables/useOutlookDashboard'
-import { useOutlookSignalRTest } from './composables/useOutlookSignalRTest'
 import type { AppView } from './models/outlook'
 import { formatDateTime, formatTime } from './utils/formatters'
 
@@ -49,6 +48,7 @@ const {
   loadingCalendar,
   loadingFolders,
   loadingMails,
+  loadingSignalRPing,
   mailCount,
   mailHtmlSandbox,
   mailPropertiesDraft,
@@ -64,6 +64,7 @@ const {
   refreshAdminData,
   requestCalendar,
   requestFolders,
+  requestSignalRPing,
   requestMails,
   resetMailPropertiesDraft,
   selectedFolderName,
@@ -86,20 +87,6 @@ const {
   updateCategoryColor,
   visibleFolders,
 } = useOutlookDashboard()
-
-const {
-  addinConnections: signalRTestAddins,
-  commandPayload: signalRTestPayload,
-  commandType: signalRTestCommandType,
-  connect: connectSignalRTest,
-  connectedAddinCount: signalRTestAddinCount,
-  disconnect: disconnectSignalRTest,
-  events: signalRTestEvents,
-  sendCommand: sendSignalRTestCommand,
-  sending: signalRTestSending,
-  state: signalRTestState,
-  webConnectionId: signalRTestWebConnectionId,
-} = useOutlookSignalRTest()
 </script>
 
 <template>
@@ -122,7 +109,6 @@ const {
               { label: 'Outlook', value: 'outlook' },
               { label: 'Calendar', value: 'calendar' },
               { label: 'Admin', value: 'admin' },
-              { label: 'SignalR Test', value: 'signalr-test' },
               { label: 'Swagger', value: 'swagger' },
             ]"
             @update:model-value="(value: string | number | boolean) => switchView(value as AppView)"
@@ -615,7 +601,12 @@ const {
               <el-icon><Connection /></el-icon>
               <span>Outlook Add-in Status</span>
             </div>
-            <el-button :icon="Refresh" @click="refreshAdminData">Refresh</el-button>
+            <div class="admin-actions">
+              <el-button :loading="loadingSignalRPing" :disabled="!addinStatus.connected" @click="requestSignalRPing">
+                SignalR Ping
+              </el-button>
+              <el-button :icon="Refresh" @click="refreshAdminData">Refresh</el-button>
+            </div>
           </div>
 
           <div class="status-grid">
@@ -626,7 +617,7 @@ const {
               </strong>
             </div>
             <div class="status-item">
-              <span class="status-label">Last Poll</span>
+              <span class="status-label">Last Connect</span>
               <strong>{{ formatTime(addinStatus.lastPollTime) }}</strong>
             </div>
             <div class="status-item">
@@ -652,89 +643,6 @@ const {
               <span>[{{ log.level.toUpperCase() }}]</span>
               <span>{{ log.message }}</span>
             </div>
-          </div>
-        </section>
-      </main>
-
-      <main v-else-if="activeView === 'signalr-test'" class="signalr-test-layout">
-        <section class="panel">
-          <div class="panel-header">
-            <div class="panel-title">
-              <el-icon><Connection /></el-icon>
-              <span>Outlook SignalR Test</span>
-              <el-tag :type="signalRTestState === 'connected' ? 'success' : 'danger'" effect="plain">
-                {{ signalRTestState }}
-              </el-tag>
-            </div>
-            <div class="signalr-test-actions">
-              <el-button :disabled="signalRTestState === 'connected'" @click="connectSignalRTest">
-                Connect
-              </el-button>
-              <el-button :disabled="signalRTestState === 'disconnected'" @click="disconnectSignalRTest">
-                Disconnect
-              </el-button>
-            </div>
-          </div>
-
-          <div class="signalr-test-body">
-            <div class="status-grid signalr-status-grid">
-              <div class="status-item">
-                <span class="status-label">Web Connection</span>
-                <strong>{{ signalRTestWebConnectionId || '-' }}</strong>
-              </div>
-              <div class="status-item">
-                <span class="status-label">Connected AddIns</span>
-                <strong>{{ signalRTestAddinCount }}</strong>
-              </div>
-            </div>
-
-            <div class="signalr-test-sections">
-              <section class="signalr-test-section">
-                <div class="library-heading">Send Test Command</div>
-                <div class="signalr-command-form">
-                  <el-input v-model="signalRTestCommandType" class="signalr-command-type" placeholder="Command type" />
-                  <el-input
-                    v-model="signalRTestPayload"
-                    type="textarea"
-                    :rows="6"
-                    resize="none"
-                    placeholder="Payload"
-                  />
-                  <el-button
-                    type="primary"
-                    :loading="signalRTestSending"
-                    :disabled="signalRTestState !== 'connected'"
-                    @click="sendSignalRTestCommand"
-                  >
-                    Send to AddIn Test Group
-                  </el-button>
-                </div>
-              </section>
-
-              <section class="signalr-test-section">
-                <div class="library-heading">Connected AddIns</div>
-                <div class="signalr-addin-list">
-                  <p v-if="signalRTestAddins.length === 0" class="hint">No AddIn has registered on this test hub yet.</p>
-                  <article v-for="addin in signalRTestAddins" :key="addin.connectionId" class="signalr-addin-row">
-                    <strong>{{ addin.clientName || 'Outlook AddIn' }}</strong>
-                    <span>{{ addin.workstation || '-' }} · {{ addin.version || '-' }}</span>
-                    <code>{{ addin.connectionId }}</code>
-                  </article>
-                </div>
-              </section>
-            </div>
-
-            <section class="signalr-test-section signalr-events-section">
-              <div class="library-heading">Test Events</div>
-              <div class="signalr-event-list">
-                <p v-if="signalRTestEvents.length === 0" class="hint">Connect and send a command to start recording events.</p>
-                <article v-for="event in signalRTestEvents" :key="event.id" class="signalr-event-row" :class="event.kind">
-                  <span>{{ formatTime(event.timestamp) }}</span>
-                  <el-tag effect="plain">{{ event.kind }}</el-tag>
-                  <strong>{{ event.text }}</strong>
-                </article>
-              </div>
-            </section>
           </div>
         </section>
       </main>

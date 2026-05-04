@@ -1,5 +1,5 @@
+using Microsoft.AspNetCore.SignalR;
 using SmartOffice.Hub.Models;
-using System.Collections.Concurrent;
 
 namespace SmartOffice.Hub.Services
 {
@@ -79,54 +79,15 @@ namespace SmartOffice.Hub.Services
         }
     }
 
-    /// <summary>
-    /// 儲存 Web UI、AI 或 MCP client 發出的 command，等待 Outlook Add-in 取走。
-    /// </summary>
-    public class CommandQueue
-    {
-        private readonly ConcurrentQueue<PendingCommand> _queue = new();
-        private readonly SemaphoreSlim _signal = new(0);
-
-        public void Enqueue(PendingCommand cmd)
-        {
-            _queue.Enqueue(cmd);
-            _signal.Release();
-        }
-
-        /// <summary>
-        /// Outlook Add-in 會 long-poll 這裡；timeout 時回傳 null。
-        /// </summary>
-        public async Task<PendingCommand?> DequeueAsync(TimeSpan timeout, CancellationToken ct = default)
-        {
-            if (await _signal.WaitAsync(timeout, ct))
-            {
-                _queue.TryDequeue(out var cmd);
-                return cmd;
-            }
-            return null;
-        }
-    }
-
     public class AddinStatusStore
     {
         private readonly object _lock = new();
         private readonly List<AddinLogEntry> _logs = new();
+        private readonly HashSet<string> _signalRConnectionIds = new();
         private bool _connected;
         private DateTime? _lastPollTime;
         private DateTime? _lastPushTime;
         private string _lastCommand = string.Empty;
-
-        public void RecordPoll(string? commandType = null)
-        {
-            lock (_lock)
-            {
-                _connected = true;
-                _lastPollTime = DateTime.Now;
-                if (!string.IsNullOrEmpty(commandType))
-                    _lastCommand = commandType;
-                AddLogInternal("info", $"Add-in polled. Command dispatched: {commandType ?? "none"}");
-            }
-        }
 
         public void RecordPush(string pushType, int count)
         {
@@ -135,6 +96,37 @@ namespace SmartOffice.Hub.Services
                 _connected = true;
                 _lastPushTime = DateTime.Now;
                 AddLogInternal("info", $"Add-in pushed {pushType}: {count} items");
+            }
+        }
+
+        public void RecordSignalRConnected(string connectionId, string clientName)
+        {
+            lock (_lock)
+            {
+                _signalRConnectionIds.Add(connectionId);
+                _connected = true;
+                _lastPollTime = DateTime.Now;
+                AddLogInternal("info", $"Add-in SignalR connected: {clientName}");
+            }
+        }
+
+        public void RecordSignalRDisconnected(string connectionId)
+        {
+            lock (_lock)
+            {
+                _signalRConnectionIds.Remove(connectionId);
+                _connected = _signalRConnectionIds.Count > 0;
+                AddLogInternal("warn", $"Add-in SignalR disconnected: {connectionId}");
+            }
+        }
+
+        public void RecordSignalRDispatch(string commandType)
+        {
+            lock (_lock)
+            {
+                _connected = true;
+                _lastCommand = commandType;
+                AddLogInternal("info", $"Add-in SignalR command dispatched: {commandType}");
             }
         }
 
@@ -153,9 +145,10 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
-                // Add-in 每個 request cycle 都會 poll；目前 protocol 中，
-                // 安靜但持續的 poll stream 就是最輕量的 heartbeat。
-                if (_lastPollTime.HasValue && (DateTime.Now - _lastPollTime.Value).TotalSeconds > 90)
+                // SignalR 連線存在時，connection 本身就是 AddIn online 狀態。
+                if (_signalRConnectionIds.Count > 0)
+                    _connected = true;
+                else if (_lastPollTime.HasValue && (DateTime.Now - _lastPollTime.Value).TotalSeconds > 90)
                     _connected = false;
 
                 return new AddinStatusDto
@@ -168,9 +161,40 @@ namespace SmartOffice.Hub.Services
             }
         }
 
+        public bool HasSignalRConnection()
+        {
+            lock (_lock) { return _signalRConnectionIds.Count > 0; }
+        }
+
         public List<AddinLogEntry> GetLogs()
         {
             lock (_lock) { return new List<AddinLogEntry>(_logs); }
+        }
+    }
+
+    public class OutlookSignalRCommandDispatcher
+    {
+        private readonly AddinStatusStore _addinStatus;
+        private readonly Microsoft.AspNetCore.SignalR.IHubContext<Hubs.OutlookAddinHub> _hub;
+
+        public OutlookSignalRCommandDispatcher(
+            AddinStatusStore addinStatus,
+            Microsoft.AspNetCore.SignalR.IHubContext<Hubs.OutlookAddinHub> hub)
+        {
+            _addinStatus = addinStatus;
+            _hub = hub;
+        }
+
+        public async Task<bool> DispatchAsync(PendingCommand command, CancellationToken cancellationToken = default)
+        {
+            if (!_addinStatus.HasSignalRConnection())
+                return false;
+
+            await _hub.Clients
+                .Group(Hubs.OutlookAddinHub.AddinGroupName)
+                .SendAsync("OutlookCommand", command, cancellationToken);
+            _addinStatus.RecordSignalRDispatch(command.Type);
+            return true;
         }
     }
 }

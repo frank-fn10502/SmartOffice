@@ -7,7 +7,7 @@
 ## 工作原則
 
 - 實作位置是工作機完整 SmartOffice solution，不是本 repository。
-- Hub repository 只提供 HTTP API、SignalR、command routing、temporary state、contract 與 mock。
+- Hub repository 只提供 HTTP API、SignalR、command routing、temporary state 與 contract。
 - AddIn 程式碼必須以 Microsoft 官方文件與工作機 Outlook 2016 實測結果為準。
 - 每個功能完成時都要輸出真實結果：Office API call、成功或失敗、匿名化 JSON sample、錯誤訊息與是否符合 Hub DTO。
 - 測試回報不得包含真實 mail body、folder name、rule name、calendar subject、attendee、客戶名稱或公司內部資訊。
@@ -18,6 +18,7 @@
 - `..\SmartOffice.Hub\docs\ai\workstation-solution.md`
 - `..\SmartOffice.Hub\docs\ai\protocols.md`
 - `..\SmartOffice.Hub\docs\ai\office2016-workstation-contract.md`
+- `..\SmartOffice.Hub\docs\ai\outlook-signalr-migration.md`
 - `..\SmartOffice.Hub\docs\ai\office2016-addin-references.md`
 - `..\SmartOffice.Hub\docs\ai\office2016-test-report.md`
 - `..\SmartOffice.Hub\Models\Dtos.cs`
@@ -25,21 +26,22 @@
 ## 連線與診斷
 
 1. AddIn 可設定 Hub URL，預設連到 `http://localhost:2805`。
-2. AddIn 定期呼叫 `GET /api/outlook/poll` 取得 pending command。
-3. 無 command 時正確處理 `{ "type": "none" }`，不可造成 Outlook 卡頓。
-4. 每次收到 command 都記錄 `commandId`、`type`、開始時間、結束時間、成功或失敗。
-5. 發生錯誤時呼叫 `POST /api/outlook/admin/log`，message 必須匿名化。
-6. 工作機維護 `Plan\WORKSTATION-STATUS.md`，記錄 Hub URL、AddIn 專案名稱、command handler 位置、主要 automation class、blocker 與驗證紀錄。
+2. AddIn 連線到 `/hub/outlook-addin`。
+3. AddIn 連線成功後 invoke `RegisterOutlookAddin(info)`。
+4. AddIn listen `OutlookCommand`，不可造成 Outlook 卡頓。
+5. 每次收到 command 都記錄 `commandId`、`type`、開始時間、結束時間、成功或失敗。
+6. 發生錯誤時 invoke `ReportAddinLog(entry)` 與 `ReportCommandResult(result)`，message 必須匿名化。
+7. 工作機維護 `Plan\WORKSTATION-STATUS.md`，記錄 Hub URL、AddIn 專案名稱、SignalR connection handler、command handler 位置、主要 automation class、blocker 與驗證紀錄。
 
 ## 資料讀取功能
 
-1. 讀取 folder tree，回傳 `POST /api/outlook/push-folders`。
-2. 讀取指定 folder 的 mails，支援 `folderPath`、`range` 與 `maxCount`，回傳 `POST /api/outlook/push-mails`。
+1. 讀取 folder tree，透過 SignalR invoke `PushFolders(folders)`。
+2. 讀取指定 folder 的 mails，支援 `folderPath`、`range` 與 `maxCount`，透過 SignalR invoke `PushMails(mails)`。
 3. 郵件資料需盡量取得 `EntryID` 或其他可重新定位的 stable id。
 4. 郵件 metadata 需實測 `categories`、`isRead`、`flagRequest`、`flagInterval`、`taskStartDate`、`taskDueDate`、`taskCompletedDate`、`importance`、`sensitivity`。
-5. 讀取 Outlook rules，回傳 `POST /api/outlook/push-rules`。
-6. 讀取 master category list，回傳 `POST /api/outlook/push-categories`。
-7. 讀取 calendar events，支援 `daysForward`，回傳 `POST /api/outlook/push-calendar`。
+5. 讀取 Outlook rules，透過 SignalR invoke `PushRules(rules)`。
+6. 讀取 master category list，透過 SignalR invoke `PushCategories(categories)`。
+7. 讀取 calendar events，支援 `daysForward`，透過 SignalR invoke `PushCalendar(events)`。
 
 ## 郵件操作功能
 
@@ -51,7 +53,7 @@
 6. 設定或覆蓋單封郵件 categories。
 7. 使用較新的 `mailPropertiesRequest` 時，可一次更新 read state、flag、task dates、categories 與需要新增的 master categories。
 8. 移動單封郵件到指定 destination folder。
-9. 每個 mutation 完成後，至少重新 push 受影響 folder 的 mails；若 folder count 或 categories 受影響，也要重新 push folders 或 categories。
+9. 每個 mutation 完成後，至少重新 invoke `PushMails` 回報受影響 folder 的 mails；若 folder count 或 categories 受影響，也要 invoke `PushFolders` 或 `PushCategories`。
 
 ## Folder 與 Category 操作功能
 
@@ -59,7 +61,7 @@
 2. 刪除指定 folder。
 3. 新增或更新 Outlook master category。
 4. category color 與 shortcut key 必須記錄 Office 2016 實測支援狀態。
-5. 每個操作完成後重新 push folder tree 或 master category list。
+5. 每個操作完成後重新 invoke `PushFolders` 或 `PushCategories`。
 
 ## 工作機實測重點
 
@@ -73,7 +75,7 @@
 
 ## 暫定優先順序
 
-1. Polling、Hub URL 設定、command dispatch、admin log。
+1. SignalR 連線、Hub URL 設定、`OutlookCommand` dispatch、log/result 回報。
 2. Folder tree 讀取與 folderPath round-trip 驗證。
 3. Mail 讀取與 stable mail id 驗證。
 4. Mail metadata 讀取。

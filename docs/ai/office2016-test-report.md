@@ -152,7 +152,7 @@ Use this sample to update the Web UI mail detail fallback and add one mock mail 
 - `docs/ai/protocols.md`：協定行為或 route 語意改變時更新。
 - `docs/ai/office2016-workstation-contract.md`：工作機傳送或接收格式改變時更新。
 - `Models/Dtos.cs`：新增 backward-compatible field 或補註解。
-- `Services/MockAddins/OutlookMockAddinWorker.cs`：讓 mock 覆蓋真實 Office 2016 常見邊界，例如空 `bodyHtml`、特殊 folder path、非 mail item、無 sender email。
+- `Hubs/OutlookAddinHub.cs` 或 `Services/Stores.cs`：SignalR command/result 或 cache 行為需要調整時更新。
 - Web UI：需要呈現真實資料邊界、空值、排序、fallback 或 diagnostics 時更新；不要把 Office-specific mapping 塞進前端。
 
 不建議做法：

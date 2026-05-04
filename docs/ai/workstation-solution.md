@@ -15,7 +15,6 @@ SmartOffice.Hub
 - command routing。
 - temporary in-memory state。
 - Web UI。
-- Hub 端 mock Add-in。
 - 工作機 contract 文件。
 
 工作機上才有完整的 SmartOffice / Outlook AddIn solution。該 solution 會參考：
@@ -30,19 +29,21 @@ SmartOffice.Hub
 
 Hub：
 
-- 提供 `/api/outlook/request-*` endpoint，讓 Web UI、AI 或 MCP client enqueue command。
-- 提供 `/api/outlook/poll`，讓工作機 AddIn long-poll command。
-- 提供 `/api/outlook/push-*`，讓工作機 AddIn 回傳 folders、mails、rules、calendar。
+- 提供 `/api/outlook/request-*` endpoint，讓 Web UI、AI 或 MCP client 發出 request。
+- 提供 `/hub/outlook-addin`，讓工作機 AddIn 透過 SignalR 接收 command 並回報結果。
+- 提供 `/hub/notifications`，讓 Web UI 接收 cached data、status 與 log update。
 - 提供 Web UI 與 admin diagnostics。
 
 工作機 SmartOffice / Outlook AddIn：
 
-- 呼叫 `/api/outlook/poll`。
+- 連線到 `/hub/outlook-addin`。
+- invoke `RegisterOutlookAddin(info)`。
+- listen `OutlookCommand`。
 - 執行 Outlook COM/VSTO automation。
 - 讀取 folders、mails、rules、calendar。
 - 修改 mail read state、flag、categories。
 - 建立 folder、移動單封 mail。
-- 將結果 POST 回 Hub。
+- 透過 `PushFolders`、`PushMails`、`PushRules`、`PushCategories`、`PushCalendar`、`ReportAddinLog` 與 `ReportCommandResult` 將結果回報 Hub。
 
 ## Plan 使用方式
 
@@ -62,7 +63,8 @@ Hub：
 3. `..\SmartOffice.Hub\docs\ai\workstation-solution.md`
 4. `..\SmartOffice.Hub\docs\ai\protocols.md`
 5. `..\SmartOffice.Hub\docs\ai\office2016-workstation-contract.md`
-6. 當次 `..\SmartOffice.Hub\Plan\NNN-*.md`
+6. `..\SmartOffice.Hub\docs\ai\outlook-signalr-migration.md`
+7. 當次 `..\SmartOffice.Hub\Plan\NNN-*.md`
 
 ## 敏感資料
 

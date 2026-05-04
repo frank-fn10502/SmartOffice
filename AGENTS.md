@@ -20,7 +20,7 @@
 - `docs/ai/project.md`：專案使命、架構邊界、repository layout 與技術選擇。
 - `docs/ai/coding.md`：coding rules、Web UI 規範、security notes 與文件期待。
 - `docs/ai/frontend.md`：前端框架選擇、限制與導入原則。
-- `docs/ai/protocols.md`：Office Add-in polling protocol、route 與 SignalR event。
+- `docs/ai/protocols.md`：Office AddIn SignalR protocol、route 與 SignalR event。
 - `docs/ai/workstation-solution.md`：Hub 與工作機 SmartOffice solution 的關係，以及 AddIn 任務應在哪裡實作。
 - `docs/ai/plan-splitting.md`：切分 `Plan/` 任務給工作機 AI 或 VS Code Copilot custom agent 的粒度、必要文件與狀態追蹤規範。
 - `docs/ai/office2016-addin-references.md`：Office 2016 Add-in 線上文件入口。

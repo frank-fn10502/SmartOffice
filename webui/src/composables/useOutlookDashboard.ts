@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { outlookApi, pollUntil } from '../api/outlook'
+import { outlookApi } from '../api/outlook'
 import type {
   AddinLogEntry,
   AddinStatusDto,
@@ -14,7 +14,7 @@ import type {
   OutlookRuleDto,
   SignalRState,
 } from '../models/outlook'
-import { collectFolderOptions, findFolderByPath, folderType, isHiddenFolder, visibleRootFolders } from '../utils/folders'
+import { collectFolderOptions, folderType, visibleRootFolders } from '../utils/folders'
 
 const flagIntervalOptions = [
   { label: '不設定旗標', value: 'none' },
@@ -120,6 +120,7 @@ export function useOutlookDashboard() {
   const loadingRules = ref(false)
   const loadingCategories = ref(false)
   const loadingCalendar = ref(false)
+  const loadingSignalRPing = ref(false)
   const operationLoading = ref(false)
   const mailPropertiesDraft = ref({
     isRead: false,
@@ -196,15 +197,6 @@ export function useOutlookDashboard() {
       .filter(Boolean)
   })
 
-  function folderExists(path: string) {
-    return Boolean(findFolderByPath(visibleFolders.value, path))
-  }
-
-  function folderHasChildNamed(parentPath: string, name: string) {
-    const parent = findFolderByPath(visibleFolders.value, parentPath)
-    return Boolean(parent?.subFolders?.some((folder) => !isHiddenFolder(folder.name) && folder.name === name))
-  }
-
   function resetMailPropertiesDraft(mail: MailItemDto | null) {
     if (!mail) return
     const flagInterval = mail.flagInterval || (mail.isMarkedAsTask ? 'today' : 'none')
@@ -248,11 +240,7 @@ export function useOutlookDashboard() {
     loadingFolders.value = true
     try {
       await outlookApi.requestFolders()
-      await pollUntil(async () => {
-        await loadCachedFolders()
-        return folders.value.length > 0
-      }, 30000)
-    } finally {
+    } catch {
       loadingFolders.value = false
     }
   }
@@ -339,11 +327,7 @@ export function useOutlookDashboard() {
         range: mailRange.value,
         maxCount: mailCount.value,
       })
-      await pollUntil(async () => {
-        await loadCachedMails()
-        return mails.value.length > 0
-      }, 30000)
-    } finally {
+    } catch {
       loadingMails.value = false
     }
   }
@@ -353,11 +337,7 @@ export function useOutlookDashboard() {
     loadingRules.value = true
     try {
       await outlookApi.requestRules()
-      await pollUntil(async () => {
-        await loadCachedRules()
-        return rules.value.length > 0
-      }, 30000)
-    } finally {
+    } catch {
       loadingRules.value = false
     }
   }
@@ -367,12 +347,18 @@ export function useOutlookDashboard() {
     loadingCategories.value = true
     try {
       await outlookApi.requestCategories()
-      await pollUntil(async () => {
-        await loadCachedCategories()
-        return categories.value.length > 0
-      }, 30000)
-    } finally {
+    } catch {
       loadingCategories.value = false
+    }
+  }
+
+  async function requestSignalRPing() {
+    if (loadingSignalRPing.value) return
+    loadingSignalRPing.value = true
+    try {
+      await outlookApi.requestSignalRPing()
+    } finally {
+      loadingSignalRPing.value = false
     }
   }
 
@@ -381,27 +367,17 @@ export function useOutlookDashboard() {
     loadingCalendar.value = true
     try {
       await outlookApi.requestCalendar({ daysForward: 14 })
-      await pollUntil(async () => {
-        await loadCachedCalendar()
-        return calendarEvents.value.length > 0
-      }, 30000)
-    } finally {
+    } catch {
       loadingCalendar.value = false
     }
   }
 
-  async function runMailOperation(action: () => Promise<unknown>, isDone?: () => boolean) {
+  async function runMailOperation(action: () => Promise<unknown>) {
     if (outlookBusy.value) return
-    const mailId = selectedMail.value?.id ?? ''
     operationLoading.value = true
     try {
       await action()
-      await pollUntil(async () => {
-        await Promise.allSettled([loadCachedMails(), loadCachedFolders()])
-        if (isDone) return isDone()
-        return !mailId || mails.value.some((mail) => mail.id === mailId)
-      }, 30000)
-    } finally {
+    } catch {
       operationLoading.value = false
     }
   }
@@ -425,20 +401,7 @@ export function useOutlookDashboard() {
       categories: selectedCategories,
       newCategories,
     }
-    await runMailOperation(
-      () => outlookApi.requestUpdateMailProperties(body),
-      () => {
-        const updated = mails.value.find((item) => item.id === mail.id)
-        if (!updated) return false
-        const updatedCategories = splitCategories(updated.categories).sort().join('|')
-        const expectedCategories = [...selectedCategories].sort().join('|')
-        return (
-          updated.isRead === body.isRead
-          && (updated.flagInterval || 'none') === body.flagInterval
-          && updatedCategories === expectedCategories
-        )
-      },
-    )
+    await runMailOperation(() => outlookApi.requestUpdateMailProperties(body))
   }
 
   async function upsertCategory(name: string, color: string, shortcutKey = '') {
@@ -451,13 +414,7 @@ export function useOutlookDashboard() {
         color: color || 'preset0',
         shortcutKey,
       })
-      await pollUntil(async () => {
-        await loadCachedCategories()
-        return categories.value.some((category) =>
-          category.name.toLowerCase() === categoryName.toLowerCase()
-          && category.color === (color || 'preset0'))
-      }, 30000)
-    } finally {
+    } catch {
       operationLoading.value = false
     }
   }
@@ -497,12 +454,8 @@ export function useOutlookDashboard() {
         parentFolderPath: parentPath,
         name: folderName,
       })
-      await pollUntil(async () => {
-        await loadCachedFolders()
-        return folderHasChildNamed(parentPath, folderName)
-      }, 30000)
       cancelCreateFolder()
-    } finally {
+    } catch {
       operationLoading.value = false
     }
   }
@@ -517,14 +470,10 @@ export function useOutlookDashboard() {
       await outlookApi.requestDeleteFolder({
         folderPath: targetPath,
       })
-      await pollUntil(async () => {
-        await Promise.allSettled([loadCachedFolders(), loadCachedMails()])
-        return !folderExists(targetPath)
-      }, 30000)
       if (selectedFolderPath.value === targetPath) {
         selectedFolderPath.value = folderOptions.value[0]?.folderPath ?? ''
       }
-    } finally {
+    } catch {
       operationLoading.value = false
     }
   }
@@ -639,22 +588,27 @@ export function useOutlookDashboard() {
       folders.value = items
       selectDefaultFolder()
       loadingFolders.value = false
+      operationLoading.value = false
     })
     connection.on('MailsUpdated', (items: MailItemDto[]) => {
       setMails(items)
       loadingMails.value = false
+      operationLoading.value = false
     })
     connection.on('RulesUpdated', (items: OutlookRuleDto[]) => {
       rules.value = items
       loadingRules.value = false
+      operationLoading.value = false
     })
     connection.on('CategoriesUpdated', (items: OutlookCategoryDto[]) => {
       categories.value = items
       loadingCategories.value = false
+      operationLoading.value = false
     })
     connection.on('CalendarUpdated', (items: CalendarEventDto[]) => {
       calendarEvents.value = items
       loadingCalendar.value = false
+      operationLoading.value = false
     })
     connection.on('NewChatMessage', async (message: ChatMessageDto) => {
       chatMessages.value = [...chatMessages.value, message]
@@ -751,6 +705,7 @@ export function useOutlookDashboard() {
     loadingCalendar,
     loadingFolders,
     loadingMails,
+    loadingSignalRPing,
     mailCount,
     mailHtmlSandbox,
     mailPropertiesDraft,
@@ -766,6 +721,7 @@ export function useOutlookDashboard() {
     refreshAdminData,
     requestCalendar,
     requestFolders,
+    requestSignalRPing,
     requestMails,
     resetMailPropertiesDraft,
     selectedFolderName,
