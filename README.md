@@ -166,6 +166,8 @@ Outlook route prefix：
 - `GET /mails`：讀取 cached mails。
 - `POST /chat`：新增並 broadcast chat message。
 - `GET /chat`：讀取 cached chat messages。
+- `GET /command-results/{commandId}`：讓 AI / MCP client 等待 AddIn command result。
+- `GET /command-results`：讀取最近 command result。
 
 主要 AddIn SignalR endpoint：
 
@@ -187,3 +189,9 @@ Admin endpoint：
 - 目前尚未加入 authentication / authorization。
 
 如果要放到受控 workstation 或 lab network 以外的環境，請先加入 authentication、限制 CORS、決定 Swagger 是否只在 development 啟用，並檢查 mail content 是否能暴露給外部整合工具或其他連接端。
+
+## AI / MCP / SKILL 整合
+
+AI client 建議不要直接連 Outlook AddIn SignalR channel，而是透過 MCP tool 或 SKILL helper 呼叫 Hub HTTP API。標準流程是 dispatch `/api/outlook/request-*`、取得 `commandId`、輪詢 `/api/outlook/command-results/{commandId}`，完成後再讀取 `/api/outlook/mails`、`/folders`、`/calendar` 等 cached snapshot。
+
+詳細 tool 設計與 SKILL 寫法請看 `docs/ai/mcp-skill-integration.md`。

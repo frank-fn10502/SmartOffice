@@ -15,17 +15,20 @@ namespace SmartOffice.Hub.Hubs
 
         private readonly MailStore _mailStore;
         private readonly ChatStore _chatStore;
+        private readonly CommandResultStore _commandResults;
         private readonly AddinStatusStore _addinStatus;
         private readonly IHubContext<NotificationHub> _notifications;
 
         public OutlookAddinHub(
             MailStore mailStore,
             ChatStore chatStore,
+            CommandResultStore commandResults,
             AddinStatusStore addinStatus,
             IHubContext<NotificationHub> notifications)
         {
             _mailStore = mailStore;
             _chatStore = chatStore;
+            _commandResults = commandResults;
             _addinStatus = addinStatus;
             _notifications = notifications;
         }
@@ -96,8 +99,10 @@ namespace SmartOffice.Hub.Hubs
 
         public async Task ReportCommandResult(OutlookCommandResult result)
         {
+            _commandResults.RecordResult(result);
             var level = result.Success ? "info" : "warn";
             _addinStatus.AddLog(level, $"Command result {result.CommandId}: {result.Message}");
+            await _notifications.Clients.All.SendAsync("CommandResult", result);
             await BroadcastStatusAndLogsAsync();
         }
 

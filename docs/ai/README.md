@@ -8,4 +8,8 @@
 - `docs/addin/features-checklist.md`
 - `docs/addin/signalr-contract.md`
 
+如果你要讓 AI client 透過 MCP 或 SKILL 操作 Hub，請看：
+
+- `docs/ai/mcp-skill-integration.md`
+
 `docs/ai/` 不再放 AddIn 實作者的正式 contract；避免工作機 AI 在內部協作文件與 AddIn 規格之間來回跳轉。

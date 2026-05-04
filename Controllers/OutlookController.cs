@@ -12,16 +12,18 @@ namespace SmartOffice.Hub.Controllers
     {
         private readonly MailStore _mailStore;
         private readonly ChatStore _chatStore;
+        private readonly CommandResultStore _commandResults;
         private readonly OutlookSignalRCommandDispatcher _commandDispatcher;
         private readonly MockOutlookService _mockOutlook;
         private readonly IHubContext<NotificationHub> _hub;
         private readonly AddinStatusStore _addinStatus;
 
         public OutlookController(MailStore mailStore, ChatStore chatStore,
-            OutlookSignalRCommandDispatcher commandDispatcher, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus)
+            CommandResultStore commandResults, OutlookSignalRCommandDispatcher commandDispatcher, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus)
         {
             _mailStore = mailStore;
             _chatStore = chatStore;
+            _commandResults = commandResults;
             _commandDispatcher = commandDispatcher;
             _mockOutlook = mockOutlook;
             _hub = hub;
@@ -191,12 +193,26 @@ namespace SmartOffice.Hub.Controllers
 
         private async Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)
         {
+            _commandResults.RecordDispatched(cmd);
+
             if (await _mockOutlook.TryDispatchAsync(cmd, ct))
+            {
+                _commandResults.RecordResult(new OutlookCommandResult
+                {
+                    CommandId = cmd.Id,
+                    Success = true,
+                    Message = $"{cmd.Type} completed by mock backend",
+                    Timestamp = DateTime.Now,
+                });
                 return Ok(new { commandId = cmd.Id, status = "mocked" });
+            }
 
             var dispatched = await _commandDispatcher.DispatchAsync(cmd, ct);
             if (!dispatched)
+            {
+                _commandResults.RecordUnavailable(cmd);
                 return Conflict(new { commandId = cmd.Id, status = "addin_unavailable" });
+            }
 
             await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), ct);
             return Ok(new { commandId = cmd.Id, status = "dispatched" });
@@ -264,6 +280,28 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetChat()
         {
             return Ok(_chatStore.GetAll());
+        }
+
+        /// <summary>
+        /// AI / MCP client 查詢 command 執行狀態。
+        /// </summary>
+        [HttpGet("command-results/{commandId}")]
+        public IActionResult GetCommandResult(string commandId)
+        {
+            var result = _commandResults.Get(commandId);
+            if (result is null)
+                return NotFound();
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// AI / MCP client 查詢最近 command 執行狀態。
+        /// </summary>
+        [HttpGet("command-results")]
+        public IActionResult GetCommandResults()
+        {
+            return Ok(_commandResults.GetRecent());
         }
 
         // ===================== Admin endpoints =====================

@@ -18,6 +18,7 @@ namespace SmartOffice.Hub
             // Web UI 與未來 MCP client 讀取最新 cached snapshot。
             builder.Services.AddSingleton<MailStore>();
             builder.Services.AddSingleton<ChatStore>();
+            builder.Services.AddSingleton<CommandResultStore>();
             builder.Services.AddSingleton<AddinStatusStore>();
             builder.Services.AddSingleton<OutlookSignalRCommandDispatcher>();
             builder.Services.AddSingleton<MockOutlookService>();

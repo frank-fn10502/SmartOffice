@@ -167,6 +167,18 @@ namespace SmartOffice.Hub.Models
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 
+    public class OutlookCommandStatusDto
+    {
+        public string CommandId { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Status { get; set; } = "pending"; // pending、completed、failed、addin_unavailable。
+        public bool? Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string Payload { get; set; } = string.Empty;
+        public DateTime DispatchTimestamp { get; set; } = DateTime.Now;
+        public DateTime? ResultTimestamp { get; set; }
+    }
+
     public class AddinLogEntry
     {
         public string Level { get; set; } = "info"; // "info", "warn", "error"

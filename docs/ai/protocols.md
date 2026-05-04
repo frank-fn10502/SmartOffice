@@ -57,6 +57,8 @@ Web UI notification channel：
 - `GET /api/outlook/calendar`：讀取 cached Outlook calendar events。
 - `POST /api/outlook/chat`：新增並 broadcast chat message。
 - `GET /api/outlook/chat`：讀取 cached chat messages。
+- `GET /api/outlook/command-results/{commandId}`：查詢指定 command 的執行狀態，供 AI / MCP client 等待 AddIn 回報。
+- `GET /api/outlook/command-results`：查詢最近 command 執行狀態。
 
 如果沒有 Outlook AddIn SignalR connection，request endpoint 回傳：
 
@@ -68,6 +70,8 @@ Web UI notification channel：
 ```
 
 HTTP status 是 `409 Conflict`。
+
+AI / MCP client 的完整建議流程請參考 `docs/ai/mcp-skill-integration.md`。
 
 ## AddIn SignalR Server Method
 
