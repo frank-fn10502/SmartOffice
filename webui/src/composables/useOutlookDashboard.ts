@@ -1,9 +1,18 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { normalizeMailBody, normalizeMailItem, normalizeMailItems, normalizeOutlookCategories, outlookApi } from '../api/outlook'
+import {
+  normalizeExportedMailAttachment,
+  normalizeMailAttachments,
+  normalizeMailBody,
+  normalizeMailItem,
+  normalizeMailItems,
+  normalizeOutlookCategories,
+  outlookApi,
+} from '../api/outlook'
 import type {
   AddinLogEntry,
   AddinStatusDto,
+  AttachmentExportSettingsDto,
   AppView,
   CalendarEventDto,
   ChatMessageDto,
@@ -11,6 +20,9 @@ import type {
   FolderSyncBeginDto,
   FolderSyncCompleteDto,
   FolderTreeNode,
+  ExportedMailAttachmentDto,
+  MailAttachmentDto,
+  MailAttachmentsDto,
   MailBodyDto,
   MailItemDto,
   MailPropertiesCommandRequest,
@@ -45,6 +57,12 @@ import {
   todayInputValue,
 } from '../utils/outlookDashboardHelpers'
 
+function estimatedAttachmentExportRoot() {
+  const platform = window.navigator.platform.toLowerCase()
+  if (platform.includes('win')) return 'D:\\SmartOffice\\Attachments 或 C:\\SmartOffice\\Attachments'
+  return '$HOME/SmartOffice/Attachments'
+}
+
 export function useOutlookDashboard() {
   const activeView = ref<AppView>('outlook')
   const signalRState = ref<SignalRState>('disconnected')
@@ -62,6 +80,13 @@ export function useOutlookDashboard() {
     lastCommand: '',
   })
   const addinLogs = ref<AddinLogEntry[]>([])
+  const estimatedExportRoot = estimatedAttachmentExportRoot()
+  const attachmentExportSettings = ref<AttachmentExportSettingsDto>({
+    rootPath: estimatedExportRoot,
+    defaultRootPath: estimatedExportRoot,
+  })
+  const attachmentExportRootDraft = ref(estimatedExportRoot)
+  const savingAttachmentExportSettings = ref(false)
   const selectedFolderPath = ref('')
   const fetchedMailFolderPath = ref('')
   const pendingMailFolderPath = ref('')
@@ -73,6 +98,9 @@ export function useOutlookDashboard() {
   const openMailIndexes = ref<Set<number>>(new Set())
   const htmlMailIndexes = ref<Set<number>>(new Set())
   const loadingMailBodyIds = ref<Set<string>>(new Set())
+  const mailAttachmentsByMailId = ref<Record<string, MailAttachmentDto[]>>({})
+  const loadingAttachmentMailIds = ref<Set<string>>(new Set())
+  const exportingAttachmentIds = ref<Set<string>>(new Set())
   const mailRange = ref('1d')
   const mailCount = ref(10)
   const chatText = ref('')
@@ -116,6 +144,8 @@ export function useOutlookDashboard() {
   let operationTimeoutId = 0
   const mailBodyCommandIds = new Map<string, string>()
   const mailBodyTimeoutIds = new Map<string, number>()
+  const attachmentCommandIds = new Map<string, { type: 'fetch' | 'export'; mailId: string; attachmentId?: string }>()
+  const attachmentTimeoutIds = new Map<string, number>()
 
   const visibleFolders = computed(() => visibleRootFolders(folders.value))
 
@@ -226,6 +256,10 @@ export function useOutlookDashboard() {
 
   const selectedMailHasIdentity = computed(() => Boolean(selectedMail.value?.id?.trim()))
 
+  const selectedMailAttachments = computed(() => {
+    return selectedMail.value?.id ? mailAttachmentsByMailId.value[selectedMail.value.id] ?? [] : []
+  })
+
   function folderNameForPath(path: string) {
     if (!path) return '未選擇'
     return folderOptions.value.find((folder) => folder.folderPath === path)?.label.trim() ?? path
@@ -270,6 +304,8 @@ function categoryTagStyle(name: string) {
   function setMails(items: MailItemDto[], preferredMailId = selectedMail.value?.id ?? '') {
     const wasOpen = selectedMailIndex.value !== null && openMailIndexes.value.has(selectedMailIndex.value)
     clearMailBodyLoads()
+    clearAttachmentLoads()
+    mailAttachmentsByMailId.value = {}
     mails.value = items
 
     if (items.length === 0) {
@@ -313,6 +349,35 @@ function categoryTagStyle(name: string) {
     }
     mails.value = items
     completeMailBodyLoad(body.mailId)
+  }
+
+  function patchMailAttachments(payload: MailAttachmentsDto) {
+    if (!payload.mailId) return
+    mailAttachmentsByMailId.value = {
+      ...mailAttachmentsByMailId.value,
+      [payload.mailId]: payload.attachments,
+    }
+    completeAttachmentLoad(payload.mailId)
+  }
+
+  function patchExportedAttachment(payload: ExportedMailAttachmentDto) {
+    if (!payload.mailId || !payload.attachmentId) return
+    const attachments = mailAttachmentsByMailId.value[payload.mailId] ?? []
+    mailAttachmentsByMailId.value = {
+      ...mailAttachmentsByMailId.value,
+      [payload.mailId]: attachments.map((attachment) =>
+        attachment.attachmentId === payload.attachmentId
+          ? {
+              ...attachment,
+              isExported: true,
+              exportedAttachmentId: payload.exportedAttachmentId,
+              exportedPath: payload.exportedPath,
+              size: payload.size || attachment.size,
+            }
+          : attachment,
+      ),
+    }
+    completeAttachmentExport(payload.mailId, payload.attachmentId)
   }
 
   async function loadCachedFolders() {
@@ -652,12 +717,59 @@ function categoryTagStyle(name: string) {
     mailBodyCommandIds.clear()
   }
 
+  function attachmentKey(mailId: string, attachmentId: string) {
+    return `${mailId}\n${attachmentId}`
+  }
+
+  function completeAttachmentLoad(mailId: string) {
+    const next = new Set(loadingAttachmentMailIds.value)
+    next.delete(mailId)
+    loadingAttachmentMailIds.value = next
+    const timeoutId = attachmentTimeoutIds.get(mailId)
+    if (timeoutId) window.clearTimeout(timeoutId)
+    attachmentTimeoutIds.delete(mailId)
+    for (const [commandId, tracked] of attachmentCommandIds) {
+      if (tracked.type === 'fetch' && tracked.mailId === mailId) attachmentCommandIds.delete(commandId)
+    }
+  }
+
+  function completeAttachmentExport(mailId: string, attachmentId: string) {
+    const key = attachmentKey(mailId, attachmentId)
+    const next = new Set(exportingAttachmentIds.value)
+    next.delete(key)
+    exportingAttachmentIds.value = next
+    const timeoutId = attachmentTimeoutIds.get(key)
+    if (timeoutId) window.clearTimeout(timeoutId)
+    attachmentTimeoutIds.delete(key)
+    for (const [commandId, tracked] of attachmentCommandIds) {
+      if (tracked.type === 'export' && tracked.mailId === mailId && tracked.attachmentId === attachmentId) {
+        attachmentCommandIds.delete(commandId)
+      }
+    }
+  }
+
+  function clearAttachmentLoads() {
+    loadingAttachmentMailIds.value = new Set()
+    exportingAttachmentIds.value = new Set()
+    for (const timeoutId of attachmentTimeoutIds.values()) window.clearTimeout(timeoutId)
+    attachmentTimeoutIds.clear()
+    attachmentCommandIds.clear()
+  }
+
   function isMailBodyLoading(mail: MailItemDto) {
     return Boolean(mail.id && loadingMailBodyIds.value.has(mail.id))
   }
 
   function mailHasBody(mail: MailItemDto) {
     return Boolean(mail.body || mail.bodyHtml)
+  }
+
+  function isAttachmentListLoading(mail: MailItemDto) {
+    return Boolean(mail.id && loadingAttachmentMailIds.value.has(mail.id))
+  }
+
+  function isAttachmentExporting(mail: MailItemDto, attachment: MailAttachmentDto) {
+    return Boolean(mail.id && exportingAttachmentIds.value.has(attachmentKey(mail.id, attachment.attachmentId)))
   }
 
   async function requestMailBody(mail: MailItemDto) {
@@ -674,6 +786,54 @@ function categoryTagStyle(name: string) {
     } catch {
       completeMailBodyLoad(mail.id)
     }
+  }
+
+  async function requestMailAttachments(mail: MailItemDto) {
+    if (!mail.id?.trim() || isAttachmentListLoading(mail) || mailAttachmentsByMailId.value[mail.id]) return
+    loadingAttachmentMailIds.value = new Set(loadingAttachmentMailIds.value).add(mail.id)
+    try {
+      const response = await outlookApi.requestMailAttachments({
+        mailId: mail.id,
+        folderPath: mail.folderPath,
+      })
+      if (mailAttachmentsByMailId.value[mail.id]) {
+        completeAttachmentLoad(mail.id)
+        return
+      }
+      attachmentCommandIds.set(response.commandId, { type: 'fetch', mailId: mail.id })
+      const timeoutId = window.setTimeout(() => completeAttachmentLoad(mail.id), 30000)
+      attachmentTimeoutIds.set(mail.id, timeoutId)
+    } catch {
+      completeAttachmentLoad(mail.id)
+    }
+  }
+
+  async function exportMailAttachment(mail: MailItemDto, attachment: MailAttachmentDto) {
+    if (!mail.id?.trim() || !attachment.attachmentId || isAttachmentExporting(mail, attachment)) return
+    const key = attachmentKey(mail.id, attachment.attachmentId)
+    exportingAttachmentIds.value = new Set(exportingAttachmentIds.value).add(key)
+    try {
+      const response = await outlookApi.requestExportMailAttachment({
+        mailId: mail.id,
+        folderPath: mail.folderPath,
+        attachmentId: attachment.attachmentId,
+      })
+      const current = mailAttachmentsByMailId.value[mail.id]?.find((item) => item.attachmentId === attachment.attachmentId)
+      if (current?.isExported) {
+        completeAttachmentExport(mail.id, attachment.attachmentId)
+        return
+      }
+      attachmentCommandIds.set(response.commandId, { type: 'export', mailId: mail.id, attachmentId: attachment.attachmentId })
+      const timeoutId = window.setTimeout(() => completeAttachmentExport(mail.id, attachment.attachmentId), 30000)
+      attachmentTimeoutIds.set(key, timeoutId)
+    } catch {
+      completeAttachmentExport(mail.id, attachment.attachmentId)
+    }
+  }
+
+  async function openExportedAttachment(attachment: MailAttachmentDto) {
+    if (!attachment.exportedAttachmentId) return
+    await outlookApi.openExportedAttachment({ exportedAttachmentId: attachment.exportedAttachmentId })
   }
 
   async function applyMailProperties(mail: MailItemDto) {
@@ -781,6 +941,7 @@ function categoryTagStyle(name: string) {
       else {
         next.add(index)
         void requestMailBody(mails.value[index])
+        void requestMailAttachments(mails.value[index])
       }
       openMailIndexes.value = next
       return
@@ -792,6 +953,7 @@ function categoryTagStyle(name: string) {
     next.add(index)
     openMailIndexes.value = next
     void requestMailBody(mails.value[index])
+    void requestMailAttachments(mails.value[index])
   }
 
   async function moveMailToFolder(mail: MailItemDto, destinationFolderPath: string) {
@@ -871,9 +1033,37 @@ function categoryTagStyle(name: string) {
     addinLogs.value = logs
   }
 
+  async function loadAttachmentExportSettings() {
+    const settings = await outlookApi.getAttachmentExportSettings()
+    attachmentExportSettings.value = settings
+    attachmentExportRootDraft.value = settings.rootPath
+  }
+
+  async function saveAttachmentExportSettings() {
+    if (savingAttachmentExportSettings.value) return
+    savingAttachmentExportSettings.value = true
+    try {
+      const settings = await outlookApi.updateAttachmentExportSettings({
+        rootPath: attachmentExportRootDraft.value,
+      })
+      attachmentExportSettings.value = settings
+      attachmentExportRootDraft.value = settings.rootPath
+    } finally {
+      savingAttachmentExportSettings.value = false
+    }
+  }
+
+  async function resetAttachmentExportRoot() {
+    attachmentExportRootDraft.value = attachmentExportSettings.value.defaultRootPath
+    await saveAttachmentExportSettings()
+  }
+
   async function switchView(view: AppView) {
     activeView.value = view
-    if (view === 'admin') await refreshAdminData()
+    if (view === 'admin') {
+      await refreshAdminData()
+      await loadAttachmentExportSettings()
+    }
   }
 
   async function scrollChatToBottom() {
@@ -934,6 +1124,12 @@ function categoryTagStyle(name: string) {
     connection.on('MailBodyUpdated', (item: unknown) => {
       patchMailBody(normalizeMailBody(item))
     })
+    connection.on('MailAttachmentsUpdated', (item: unknown) => {
+      patchMailAttachments(normalizeMailAttachments(item))
+    })
+    connection.on('MailAttachmentExported', (item: unknown) => {
+      patchExportedAttachment(normalizeExportedMailAttachment(item))
+    })
     connection.on('RulesUpdated', (items: OutlookRuleDto[]) => {
       rules.value = items
       loadingRules.value = false
@@ -953,6 +1149,11 @@ function categoryTagStyle(name: string) {
     connection.on('CommandResult', (result: OutlookCommandResult) => {
       const mailId = mailBodyCommandIds.get(result.commandId)
       if (mailId) completeMailBodyLoad(mailId)
+      const attachmentCommand = attachmentCommandIds.get(result.commandId)
+      if (attachmentCommand?.type === 'fetch') completeAttachmentLoad(attachmentCommand.mailId)
+      if (attachmentCommand?.type === 'export' && attachmentCommand.attachmentId) {
+        completeAttachmentExport(attachmentCommand.mailId, attachmentCommand.attachmentId)
+      }
       completeOperation(result.commandId)
     })
     connection.on('NewChatMessage', async (message: ChatMessageDto) => {
@@ -1006,6 +1207,7 @@ function categoryTagStyle(name: string) {
       loadCachedCalendar(),
       loadChat(),
       refreshAdminData(),
+      loadAttachmentExportSettings(),
     ])
   })
 
@@ -1014,6 +1216,7 @@ function categoryTagStyle(name: string) {
     window.removeEventListener('click', closeFolderContextMenu)
     window.clearTimeout(operationTimeoutId)
     clearMailBodyLoads()
+    clearAttachmentLoads()
     void connection?.stop()
   })
 
@@ -1024,6 +1227,8 @@ function categoryTagStyle(name: string) {
     addCategoryToMasterList,
     addinLogs,
     addinStatus,
+    attachmentExportRootDraft,
+    attachmentExportSettings,
     applyMailProperties,
     calendarEvents,
     calendarMonthLabel,
@@ -1050,6 +1255,7 @@ function categoryTagStyle(name: string) {
     dragOverFolderPath,
     draggedMailId,
     expandedFolders,
+    exportMailAttachment,
     fetchMailsFromContext,
     flagIntervalLabel,
     flagIntervalOptions,
@@ -1063,6 +1269,8 @@ function categoryTagStyle(name: string) {
     loadingSignalRPing,
     mailCount,
     mailHtmlSandbox,
+    isAttachmentExporting,
+    isAttachmentListLoading,
     isMailBodyLoading,
     mailHasBody,
     mailPropertiesDraft,
@@ -1071,6 +1279,7 @@ function categoryTagStyle(name: string) {
     mails,
     moveDraggedMail,
     openFolderContextMenu,
+    openExportedAttachment,
     openMailIndexes,
     operationLoading,
     outlookBusy,
@@ -1082,6 +1291,9 @@ function categoryTagStyle(name: string) {
     requestSignalRPing,
     requestMails,
     resetMailPropertiesDraft,
+    resetAttachmentExportRoot,
+    saveAttachmentExportSettings,
+    savingAttachmentExportSettings,
     fetchedMailFolderName,
     mailListNeedsFetch,
     selectedFolderName,
@@ -1089,6 +1301,7 @@ function categoryTagStyle(name: string) {
     selectedFolderPath,
     selectedMail,
     selectedMailCategories,
+    selectedMailAttachments,
     selectedMailFolderName,
     selectedMailHasIdentity,
     selectedMailHtml,

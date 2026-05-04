@@ -11,7 +11,7 @@ Outlook AddIn 正式 protocol 已改為 SignalR-only：
 3. Web UI、AI 或 MCP client 透過 Hub HTTP request endpoint 發出要求。
 4. Hub 透過 SignalR client event `OutlookCommand` 即時 dispatch command 給 AddIn。
 5. AddIn 在本機執行 Outlook automation。
-6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushMail`、`PushMailBody`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果。
+6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushMail`、`PushMailBody`、`PushMailAttachments`、`PushExportedMailAttachment`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果。
 7. Hub 更新 cache，並透過 `/hub/notifications` broadcast 給 Web UI。
 
 目前不保留舊 AddIn HTTP long-poll / push channel；工作機 AddIn 不應再呼叫 `/api/outlook/poll` 或 `/api/outlook/push-*`。
@@ -84,6 +84,8 @@ AddIn 連到 `/hub/outlook-addin` 後可以 invoke：
 - `PushMails(mails)`：取代 cached mails 並 broadcast update；`fetch_mails` 只應回 metadata。
 - `PushMail(mail)`：只更新 cached mails 中同 id 的單封 mail 並 broadcast update；`update_mail_properties` 應使用這個方法。
 - `PushMailBody(body)`：只更新 cached mails 中同 id 的 body 並 broadcast update；`fetch_mail_body` 應使用這個方法。
+- `PushMailAttachments(attachments)`：回推單封 mail 的附件 metadata；`fetch_mail_attachments` 應使用這個方法。
+- `PushExportedMailAttachment(exported)`：回推已匯出附件的本機路徑與識別；`export_mail_attachment` 應使用這個方法。
 - `PushRules(rules)`：取代 cached Outlook rules 並 broadcast update。
 - `PushCategories(categories)`：取代 cached Outlook master category list 並 broadcast update。
 - `PushCalendar(events)`：取代 cached Outlook calendar events 並 broadcast update。

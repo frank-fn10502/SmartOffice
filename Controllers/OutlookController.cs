@@ -17,9 +17,10 @@ namespace SmartOffice.Hub.Controllers
         private readonly MockOutlookService _mockOutlook;
         private readonly IHubContext<NotificationHub> _hub;
         private readonly AddinStatusStore _addinStatus;
+        private readonly AttachmentExportService _attachmentExports;
 
         public OutlookController(MailStore mailStore, ChatStore chatStore,
-            CommandResultStore commandResults, OutlookSignalRCommandDispatcher commandDispatcher, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus)
+            CommandResultStore commandResults, OutlookSignalRCommandDispatcher commandDispatcher, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus, AttachmentExportService attachmentExports)
         {
             _mailStore = mailStore;
             _chatStore = chatStore;
@@ -28,6 +29,7 @@ namespace SmartOffice.Hub.Controllers
             _mockOutlook = mockOutlook;
             _hub = hub;
             _addinStatus = addinStatus;
+            _attachmentExports = attachmentExports;
         }
 
         // ===================== Web UI 呼叫這些 endpoint =====================
@@ -58,6 +60,73 @@ namespace SmartOffice.Hub.Controllers
                 MailBodyRequest = req
             };
             return await DispatchCommandAsync(cmd, ct);
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 要求單封 mail attachment metadata。
+        /// </summary>
+        [HttpPost("request-mail-attachments")]
+        public async Task<IActionResult> RequestMailAttachments([FromBody] FetchMailAttachmentsRequest req, CancellationToken ct)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "fetch_mail_attachments",
+                MailAttachmentsRequest = req
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 要求 AddIn 將指定 attachment 匯出到本機約定目錄。
+        /// </summary>
+        [HttpPost("request-export-mail-attachment")]
+        public async Task<IActionResult> RequestExportMailAttachment([FromBody] ExportMailAttachmentRequest req, CancellationToken ct)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "export_mail_attachment",
+                ExportMailAttachmentRequest = req
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
+        /// <summary>
+        /// Web UI Host 開啟已匯出的附件；只接受 Hub 已記錄的 exported attachment id。
+        /// </summary>
+        [HttpPost("open-exported-attachment")]
+        public IActionResult OpenExportedAttachment([FromBody] OpenExportedAttachmentRequest req)
+        {
+            if (!_mailStore.TryGetExportedAttachment(req.ExportedAttachmentId, out var attachment))
+                return NotFound(new { status = "not_found" });
+
+            try
+            {
+                _attachmentExports.OpenExportedFile(attachment.ExportedPath);
+                return Ok(new { status = "opened" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "open_failed", message = ex.Message });
+            }
+        }
+
+        [HttpGet("attachment-export-settings")]
+        public IActionResult GetAttachmentExportSettings()
+        {
+            return Ok(_attachmentExports.GetSettings());
+        }
+
+        [HttpPost("attachment-export-settings")]
+        public IActionResult UpdateAttachmentExportSettings([FromBody] UpdateAttachmentExportSettingsRequest req)
+        {
+            try
+            {
+                return Ok(_attachmentExports.UpdateSettings(req.RootPath));
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "update_failed", message = ex.Message });
+            }
         }
 
         /// <summary>

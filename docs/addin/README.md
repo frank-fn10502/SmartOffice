@@ -15,3 +15,4 @@
 - AddIn 不應用 mock data 反推 Outlook object model 行為。
 - 真實 mail body、folder name、PST path、category name 與 chat message 都可能含敏感 business data；回報時必須匿名化。
 - 郵件列表採兩段式載入：`fetch_mails` 只回 metadata，不應載入或回推完整 `body` / `bodyHtml`；使用者點開單封郵件時，Web UI 會送 `fetch_mail_body`，AddIn 再回推該封內容。
+- 附件採兩段式處理：`fetch_mail_attachments` 只回附件 metadata；使用者或 AI/MCP 選定附件後才送 `export_mail_attachment`，AddIn 只匯出到約定路徑，不負責開檔。

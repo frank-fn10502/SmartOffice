@@ -88,6 +88,40 @@ export interface MailBodyDto {
   bodyHtml: string
 }
 
+export interface MailAttachmentDto {
+  mailId: string
+  attachmentId: string
+  name: string
+  contentType: string
+  size: number
+  isExported: boolean
+  exportedAttachmentId: string
+  exportedPath: string
+}
+
+export interface MailAttachmentsDto {
+  mailId: string
+  folderPath: string
+  attachments: MailAttachmentDto[]
+}
+
+export interface ExportedMailAttachmentDto {
+  mailId: string
+  folderPath: string
+  attachmentId: string
+  exportedAttachmentId: string
+  name: string
+  contentType: string
+  size: number
+  exportedPath: string
+  exportedAt: string
+}
+
+export interface AttachmentExportSettingsDto {
+  rootPath: string
+  defaultRootPath: string
+}
+
 export interface OutlookCategoryDto {
   name: string
   color: string

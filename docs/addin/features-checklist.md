@@ -28,6 +28,8 @@
 | Store-first folder tree | Folders refresh | `fetch_folders` | `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync` |
 | 讀取郵件 | 選 folder 後抓取郵件 | `fetch_mails` | `PushMails` metadata |
 | 讀取郵件內容 | 點開 mail row | `fetch_mail_body` | `PushMailBody` |
+| 讀取附件清單 | 點開 mail row / AI 需要附件 | `fetch_mail_attachments` | `PushMailAttachments` |
+| 匯出附件 | Web UI / AI 選定附件 | `export_mail_attachment` | `PushExportedMailAttachment` |
 | 修改郵件屬性 | 右側屬性面板送出 | `update_mail_properties` | `PushMail`，必要時 `PushCategories` |
 | 拖曳移動郵件 | Drag mail row 到 folder | `move_mail` | `PushMails`、folder 增量同步 |
 | Master categories | Category refresh / 新增 / 改色 | `fetch_categories`、`upsert_category` | `PushCategories` |
@@ -99,11 +101,17 @@ Web UI 要求：第一層必須是 Outlook Store，而不是直接顯示 Inbox/S
 - [ ] AddIn 收到 `fetch_mail_body`。
 - [ ] 依 `mailBodyRequest.mailId` 與 `folderPath` 找回單封 mail。
 - [ ] 回推 `PushMailBody(body)`，包含 `mailId`、`folderPath`、`body` 與 `bodyHtml`。
+- [ ] AddIn 收到 `fetch_mail_attachments`。
+- [ ] 回推 `PushMailAttachments(attachments)`，只包含附件 metadata。
+- [ ] AddIn 收到 `export_mail_attachment`。
+- [ ] 將指定附件匯出到 Hub 約定的 attachment root，回推 `PushExportedMailAttachment(exported)`。
+- [ ] AddIn 只負責 export，不負責開啟附件；Web UI Host 會開啟已匯出的檔案。
 
 驗收：
 
 - [ ] Web UI 中每封 mail 都可被選取。
 - [ ] Web UI 點開 mail row 後才載入該封內容。
+- [ ] Web UI 點開 mail row 後可看到附件清單；按 `Export` 後可按「開啟」由 Hub Host 開檔。
 - [ ] 沒有出現「缺少 id」警告。
 - [ ] 已讀、flag、category、drag/drop move 都送出有效 `mailId`。
 

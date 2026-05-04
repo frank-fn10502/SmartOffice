@@ -12,6 +12,8 @@ namespace SmartOffice.Hub.Services
         private List<OutlookRuleDto> _rules = new();
         private List<OutlookCategoryDto> _categories = new();
         private List<CalendarEventDto> _calendarEvents = new();
+        private readonly Dictionary<string, MailAttachmentsDto> _attachments = new();
+        private readonly Dictionary<string, ExportedMailAttachmentDto> _exportedAttachments = new();
 
         public void SetMails(List<MailItemDto> mails)
         {
@@ -41,6 +43,68 @@ namespace SmartOffice.Hub.Services
                 mail.Body = body.Body;
                 mail.BodyHtml = body.BodyHtml;
             }
+        }
+
+        public void SetMailAttachments(MailAttachmentsDto attachments)
+        {
+            lock (_lock)
+            {
+                var exported = attachments.Attachments
+                    .Select(item => _exportedAttachments.Values.FirstOrDefault(exported =>
+                        exported.MailId == item.MailId && exported.AttachmentId == item.AttachmentId))
+                    .Where(item => item is not null)
+                    .ToDictionary(item => item!.AttachmentId, item => item!);
+
+                foreach (var attachment in attachments.Attachments)
+                {
+                    if (!exported.TryGetValue(attachment.AttachmentId, out var exportedAttachment)) continue;
+                    attachment.IsExported = true;
+                    attachment.ExportedAttachmentId = exportedAttachment.ExportedAttachmentId;
+                    attachment.ExportedPath = exportedAttachment.ExportedPath;
+                }
+
+                _attachments[attachments.MailId] = CloneMailAttachments(attachments);
+            }
+        }
+
+        public MailAttachmentsDto? GetMailAttachments(string mailId)
+        {
+            lock (_lock)
+            {
+                return _attachments.TryGetValue(mailId, out var attachments)
+                    ? CloneMailAttachments(attachments)
+                    : null;
+            }
+        }
+
+        public void UpsertExportedAttachment(ExportedMailAttachmentDto attachment)
+        {
+            lock (_lock)
+            {
+                _exportedAttachments[attachment.ExportedAttachmentId] = CloneExportedAttachment(attachment);
+
+                if (!_attachments.TryGetValue(attachment.MailId, out var attachments)) return;
+                var item = attachments.Attachments.FirstOrDefault(next => next.AttachmentId == attachment.AttachmentId);
+                if (item is null) return;
+                item.IsExported = true;
+                item.ExportedAttachmentId = attachment.ExportedAttachmentId;
+                item.ExportedPath = attachment.ExportedPath;
+            }
+        }
+
+        public bool TryGetExportedAttachment(string exportedAttachmentId, out ExportedMailAttachmentDto attachment)
+        {
+            lock (_lock)
+            {
+                if (_exportedAttachments.TryGetValue(exportedAttachmentId, out var found))
+                {
+                    attachment = CloneExportedAttachment(found);
+                    return true;
+                }
+            }
+
+            attachment = new ExportedMailAttachmentDto();
+            return false;
         }
 
         public List<MailItemDto> GetMails()
@@ -183,6 +247,47 @@ namespace SmartOffice.Hub.Services
                 ItemCount = folder.ItemCount,
                 StoreId = folder.StoreId,
                 IsStoreRoot = folder.IsStoreRoot,
+            };
+        }
+
+        private static MailAttachmentsDto CloneMailAttachments(MailAttachmentsDto attachments)
+        {
+            return new MailAttachmentsDto
+            {
+                MailId = attachments.MailId,
+                FolderPath = attachments.FolderPath,
+                Attachments = attachments.Attachments.Select(CloneMailAttachment).ToList(),
+            };
+        }
+
+        private static MailAttachmentDto CloneMailAttachment(MailAttachmentDto attachment)
+        {
+            return new MailAttachmentDto
+            {
+                MailId = attachment.MailId,
+                AttachmentId = attachment.AttachmentId,
+                Name = attachment.Name,
+                ContentType = attachment.ContentType,
+                Size = attachment.Size,
+                IsExported = attachment.IsExported,
+                ExportedAttachmentId = attachment.ExportedAttachmentId,
+                ExportedPath = attachment.ExportedPath,
+            };
+        }
+
+        private static ExportedMailAttachmentDto CloneExportedAttachment(ExportedMailAttachmentDto attachment)
+        {
+            return new ExportedMailAttachmentDto
+            {
+                MailId = attachment.MailId,
+                FolderPath = attachment.FolderPath,
+                AttachmentId = attachment.AttachmentId,
+                ExportedAttachmentId = attachment.ExportedAttachmentId,
+                Name = attachment.Name,
+                ContentType = attachment.ContentType,
+                Size = attachment.Size,
+                ExportedPath = attachment.ExportedPath,
+                ExportedAt = attachment.ExportedAt,
             };
         }
     }

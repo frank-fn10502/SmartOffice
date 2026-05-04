@@ -38,11 +38,13 @@
 1. 讀取 folder tree，透過 SignalR invoke `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。
 2. 讀取指定 folder 的 mails，支援 `folderPath`、`range` 與 `maxCount`，透過 SignalR invoke `PushMails(mails)`；這裡只回 metadata，`body` / `bodyHtml` 應留空。
 3. 使用者點開單封 mail 時，處理 `fetch_mail_body`，依 `mailBodyRequest.mailId` / `folderPath` 載入該封內容，透過 SignalR invoke `PushMailBody(body)`。
-4. 郵件資料需盡量取得 `EntryID` 或其他可重新定位的 stable id。
-5. 郵件 metadata 需實測 `categories`、`isRead`、`flagRequest`、`flagInterval`、`taskStartDate`、`taskDueDate`、`taskCompletedDate`、`importance`、`sensitivity`。
-6. 讀取 Outlook rules，透過 SignalR invoke `PushRules(rules)`。
-7. 讀取 master category list，透過 SignalR invoke `PushCategories(categories)`。
-8. 讀取 calendar events，支援 `daysForward`，透過 SignalR invoke `PushCalendar(events)`。
+4. 使用者或 AI/MCP 需要附件時，處理 `fetch_mail_attachments`，回推 `PushMailAttachments(attachments)`。
+5. 使用者或 AI/MCP 選定附件後，處理 `export_mail_attachment`，將附件匯出到 Hub 約定的 attachment root，回推 `PushExportedMailAttachment(exported)`；AddIn 不負責開啟檔案。
+6. 郵件資料需盡量取得 `EntryID` 或其他可重新定位的 stable id。
+7. 郵件 metadata 需實測 `categories`、`isRead`、`flagRequest`、`flagInterval`、`taskStartDate`、`taskDueDate`、`taskCompletedDate`、`importance`、`sensitivity`。
+8. 讀取 Outlook rules，透過 SignalR invoke `PushRules(rules)`。
+9. 讀取 master category list，透過 SignalR invoke `PushCategories(categories)`。
+10. 讀取 calendar events，支援 `daysForward`，透過 SignalR invoke `PushCalendar(events)`。
 
 ## 郵件操作功能
 

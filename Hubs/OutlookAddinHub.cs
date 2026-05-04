@@ -103,6 +103,22 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
+        public async Task PushMailAttachments(MailAttachmentsDto attachments)
+        {
+            _mailStore.SetMailAttachments(attachments);
+            _addinStatus.RecordPush("mail attachments", attachments.Attachments.Count);
+            await _notifications.Clients.All.SendAsync("MailAttachmentsUpdated", attachments);
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        public async Task PushExportedMailAttachment(ExportedMailAttachmentDto attachment)
+        {
+            _mailStore.UpsertExportedAttachment(attachment);
+            _addinStatus.RecordPush("exported attachment", 1);
+            await _notifications.Clients.All.SendAsync("MailAttachmentExported", attachment);
+            await BroadcastStatusAndLogsAsync();
+        }
+
         public async Task PushRules(List<OutlookRuleDto> rules)
         {
             _mailStore.SetRules(rules);

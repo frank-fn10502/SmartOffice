@@ -1,11 +1,15 @@
 import type {
   AddinLogEntry,
   AddinStatusDto,
+  AttachmentExportSettingsDto,
   CalendarEventDto,
   CategoryCommandRequest,
   ChatMessageDto,
   CommandDispatchResponse,
   FolderSnapshotDto,
+  ExportedMailAttachmentDto,
+  MailAttachmentDto,
+  MailAttachmentsDto,
   MailBodyDto,
   MailPropertiesCommandRequest,
   MailItemDto,
@@ -35,6 +39,11 @@ function readStringList(value: unknown) {
     return value.map((item) => String(item).trim()).filter(Boolean).join(', ')
   }
   return typeof value === 'string' ? value : ''
+}
+
+function readNumber(source: LooseRecord, camelName: string, pascalName: string, fallback = 0) {
+  const value = source[camelName] ?? source[pascalName]
+  return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) || fallback : fallback
 }
 
 export function normalizeMailItem(item: unknown): MailItemDto {
@@ -78,6 +87,45 @@ export function normalizeMailBody(item: unknown): MailBodyDto {
     folderPath: readString(source, 'folderPath', 'FolderPath'),
     body: readString(source, 'body', 'Body'),
     bodyHtml: readString(source, 'bodyHtml', 'BodyHtml'),
+  }
+}
+
+export function normalizeMailAttachment(item: unknown): MailAttachmentDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    mailId: readString(source, 'mailId', 'MailId'),
+    attachmentId: readString(source, 'attachmentId', 'AttachmentId'),
+    name: readString(source, 'name', 'Name'),
+    contentType: readString(source, 'contentType', 'ContentType'),
+    size: readNumber(source, 'size', 'Size'),
+    isExported: readBoolean(source, 'isExported', 'IsExported'),
+    exportedAttachmentId: readString(source, 'exportedAttachmentId', 'ExportedAttachmentId'),
+    exportedPath: readString(source, 'exportedPath', 'ExportedPath'),
+  }
+}
+
+export function normalizeMailAttachments(item: unknown): MailAttachmentsDto {
+  const source = (item ?? {}) as LooseRecord
+  const attachments = source.attachments ?? source.Attachments
+  return {
+    mailId: readString(source, 'mailId', 'MailId'),
+    folderPath: readString(source, 'folderPath', 'FolderPath'),
+    attachments: Array.isArray(attachments) ? attachments.map(normalizeMailAttachment) : [],
+  }
+}
+
+export function normalizeExportedMailAttachment(item: unknown): ExportedMailAttachmentDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    mailId: readString(source, 'mailId', 'MailId'),
+    folderPath: readString(source, 'folderPath', 'FolderPath'),
+    attachmentId: readString(source, 'attachmentId', 'AttachmentId'),
+    exportedAttachmentId: readString(source, 'exportedAttachmentId', 'ExportedAttachmentId'),
+    name: readString(source, 'name', 'Name'),
+    contentType: readString(source, 'contentType', 'ContentType'),
+    size: readNumber(source, 'size', 'Size'),
+    exportedPath: readString(source, 'exportedPath', 'ExportedPath'),
+    exportedAt: readString(source, 'exportedAt', 'ExportedAt'),
   }
 }
 
@@ -129,12 +177,21 @@ export const outlookApi = {
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
   getAdminLogs: () => getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),
+  getAttachmentExportSettings: () => getJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings'),
 
   requestFolders: () => postJson<CommandDispatchResponse>('/api/outlook/request-folders'),
   requestMails: (body: { folderPath: string; range: string; maxCount: number }) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-mails', body),
   requestMailBody: (body: { mailId: string; folderPath: string }) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-mail-body', body),
+  requestMailAttachments: (body: { mailId: string; folderPath: string }) =>
+    postJson<CommandDispatchResponse>('/api/outlook/request-mail-attachments', body),
+  requestExportMailAttachment: (body: { mailId: string; folderPath: string; attachmentId: string }) =>
+    postJson<CommandDispatchResponse>('/api/outlook/request-export-mail-attachment', body),
+  openExportedAttachment: (body: { exportedAttachmentId: string }) =>
+    postJson('/api/outlook/open-exported-attachment', body),
+  updateAttachmentExportSettings: (body: { rootPath: string }) =>
+    postJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings', body),
   requestRules: () => postJson('/api/outlook/request-rules'),
   requestCategories: () => postJson<CommandDispatchResponse>('/api/outlook/request-categories'),
   requestSignalRPing: () => postJson('/api/outlook/request-signalr-ping'),

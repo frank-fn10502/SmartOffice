@@ -109,6 +109,67 @@ namespace SmartOffice.Hub.Models
         public string BodyHtml { get; set; } = string.Empty;
     }
 
+    public class FetchMailAttachmentsRequest
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+    }
+
+    public class ExportMailAttachmentRequest
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public string AttachmentId { get; set; } = string.Empty;
+    }
+
+    public class OpenExportedAttachmentRequest
+    {
+        public string ExportedAttachmentId { get; set; } = string.Empty;
+    }
+
+    public class AttachmentExportSettingsDto
+    {
+        public string RootPath { get; set; } = string.Empty;
+        public string DefaultRootPath { get; set; } = string.Empty;
+    }
+
+    public class UpdateAttachmentExportSettingsRequest
+    {
+        public string RootPath { get; set; } = string.Empty;
+    }
+
+    public class MailAttachmentDto
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string AttachmentId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public long Size { get; set; }
+        public bool IsExported { get; set; }
+        public string ExportedAttachmentId { get; set; } = string.Empty;
+        public string ExportedPath { get; set; } = string.Empty;
+    }
+
+    public class MailAttachmentsDto
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public List<MailAttachmentDto> Attachments { get; set; } = new();
+    }
+
+    public class ExportedMailAttachmentDto
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public string AttachmentId { get; set; } = string.Empty;
+        public string ExportedAttachmentId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public long Size { get; set; }
+        public string ExportedPath { get; set; } = string.Empty;
+        public DateTime ExportedAt { get; set; } = DateTime.Now;
+    }
+
     public class MailMarkerCommandRequest
     {
         public string MailId { get; set; } = string.Empty;
@@ -194,9 +255,11 @@ namespace SmartOffice.Hub.Models
     public class PendingCommand
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_mail_body"、"fetch_folders"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
+        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"export_mail_attachment"、"fetch_folders"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
         public FetchMailsRequest? MailsRequest { get; set; }
         public FetchMailBodyRequest? MailBodyRequest { get; set; }
+        public FetchMailAttachmentsRequest? MailAttachmentsRequest { get; set; }
+        public ExportMailAttachmentRequest? ExportMailAttachmentRequest { get; set; }
         public FetchCalendarRequest? CalendarRequest { get; set; }
         public MailMarkerCommandRequest? MailMarkerRequest { get; set; }
         public MailPropertiesCommandRequest? MailPropertiesRequest { get; set; }

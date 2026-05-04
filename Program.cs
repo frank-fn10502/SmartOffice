@@ -25,6 +25,7 @@ namespace SmartOffice.Hub
             builder.Services.AddSingleton<ChatStore>();
             builder.Services.AddSingleton<CommandResultStore>();
             builder.Services.AddSingleton<AddinStatusStore>();
+            builder.Services.AddSingleton<AttachmentExportService>();
             builder.Services.AddSingleton<OutlookSignalRCommandDispatcher>();
             builder.Services.AddSingleton<MockOutlookService>();
 

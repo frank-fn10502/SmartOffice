@@ -16,12 +16,20 @@ import { useOutlookDashboard } from './composables/useOutlookDashboard'
 import type { AppView } from './models/outlook'
 import { formatDateTime, formatTime } from './utils/formatters'
 
+function formatAttachmentSize(size: number) {
+  if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`
+  if (size >= 1024) return `${Math.round(size / 1024)} KB`
+  return `${size} B`
+}
+
 const {
   activeView,
   addCategoryToMasterList,
   addinLogs,
   addinStatus,
   applyMailProperties,
+  attachmentExportRootDraft,
+  attachmentExportSettings,
   calendarEvents,
   calendarMonthLabel,
   calendarWeekdays,
@@ -47,12 +55,15 @@ const {
   dragOverFolderPath,
   draggedMailId,
   expandedFolders,
+  exportMailAttachment,
   fetchMailsFromContext,
   fetchedMailFolderName,
   flagIntervalLabel,
   flagIntervalOptions,
   folderContextMenu,
   folderStores,
+  isAttachmentExporting,
+  isAttachmentListLoading,
   isMailBodyLoading,
   loadingCalendar,
   loadingCategories,
@@ -68,6 +79,7 @@ const {
   mailStats,
   mails,
   moveDraggedMail,
+  openExportedAttachment,
   openFolderContextMenu,
   operationLoading,
   outlookBusy,
@@ -79,10 +91,14 @@ const {
   requestSignalRPing,
   requestMails,
   resetMailPropertiesDraft,
+  resetAttachmentExportRoot,
+  saveAttachmentExportSettings,
+  savingAttachmentExportSettings,
   selectedFolderName,
   selectedFolderPath,
   selectedCalendarEvent,
   selectedMail,
+  selectedMailAttachments,
   selectedMailCategories,
   selectedMailFolderName,
   selectedMailHasIdentity,
@@ -261,6 +277,41 @@ const {
                 />
                 <pre v-else-if="mailHasBody(mail)" class="mail-text">{{ mail.body }}</pre>
                 <p v-else class="hint">點開郵件後才會載入內容；目前沒有可顯示的 body。</p>
+                <div class="mail-attachments">
+                  <div class="attachment-header">
+                    <span>附件</span>
+                    <el-tag effect="plain">{{ selectedMailAttachments.length }}</el-tag>
+                  </div>
+                  <div v-if="isAttachmentListLoading(mail)" class="pane-loading">
+                    <span>附件清單載入中...</span>
+                  </div>
+                  <p v-else-if="selectedMailAttachments.length === 0" class="hint">這封郵件沒有附件。</p>
+                  <div v-else class="attachment-list">
+                    <div v-for="attachment in selectedMailAttachments" :key="attachment.attachmentId" class="attachment-row">
+                      <span class="attachment-main">
+                        <strong>{{ attachment.name }}</strong>
+                        <span>{{ attachment.contentType || 'unknown' }} · {{ formatAttachmentSize(attachment.size) }}</span>
+                      </span>
+                      <span class="attachment-actions">
+                        <el-button
+                          size="small"
+                          :loading="isAttachmentExporting(mail, attachment)"
+                          :disabled="isAttachmentExporting(mail, attachment)"
+                          @click="exportMailAttachment(mail, attachment)"
+                        >
+                          {{ attachment.isExported ? '重新匯出' : 'Export' }}
+                        </el-button>
+                        <el-button
+                          size="small"
+                          :disabled="!attachment.exportedAttachmentId"
+                          @click="openExportedAttachment(attachment)"
+                        >
+                          開啟
+                        </el-button>
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </article>
             <div v-if="mails.length > 0 && !selectedMail" class="hint">
@@ -624,6 +675,40 @@ const {
             <div class="status-item">
               <span class="status-label">Last Command</span>
               <strong>{{ addinStatus.lastCommand || '-' }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Attachment Export</div>
+          </div>
+
+          <div class="admin-settings">
+            <div class="status-grid">
+              <div class="status-item">
+                <span class="status-label">Current Root</span>
+                <strong>{{ attachmentExportSettings.rootPath || '載入中...' }}</strong>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Default Root</span>
+                <strong>{{ attachmentExportSettings.defaultRootPath || '載入中...' }}</strong>
+              </div>
+            </div>
+            <div class="inspector-field">
+              <span>Export root</span>
+              <el-input v-model="attachmentExportRootDraft" :placeholder="attachmentExportSettings.defaultRootPath || '$HOME/SmartOffice/Attachments'" />
+            </div>
+            <div class="field-hint">
+              macOS / Linux 預設會放在使用者 home 底下的 SmartOffice/Attachments；Windows 會優先使用 D:\SmartOffice\Attachments，沒有 D 槽時使用 C:\SmartOffice\Attachments。
+            </div>
+            <div class="admin-actions">
+              <el-button :loading="savingAttachmentExportSettings" @click="saveAttachmentExportSettings">
+                儲存
+              </el-button>
+              <el-button :disabled="savingAttachmentExportSettings" @click="resetAttachmentExportRoot">
+                使用預設
+              </el-button>
             </div>
           </div>
         </section>

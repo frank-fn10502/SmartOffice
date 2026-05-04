@@ -11,6 +11,7 @@ namespace SmartOffice.Hub.Services
         private readonly MailStore _mailStore;
         private readonly ChatStore _chatStore;
         private readonly AddinStatusStore _addinStatus;
+        private readonly AttachmentExportService _attachmentExports;
         private readonly IHubContext<NotificationHub> _notifications;
         private readonly List<MailItemDto> _mockMails = new();
         private List<FolderDto> _mockFolders = new();
@@ -24,12 +25,14 @@ namespace SmartOffice.Hub.Services
             MailStore mailStore,
             ChatStore chatStore,
             AddinStatusStore addinStatus,
+            AttachmentExportService attachmentExports,
             IHubContext<NotificationHub> notifications)
         {
             _environment = environment;
             _mailStore = mailStore;
             _chatStore = chatStore;
             _addinStatus = addinStatus;
+            _attachmentExports = attachmentExports;
             _notifications = notifications;
         }
 
@@ -60,6 +63,8 @@ namespace SmartOffice.Hub.Services
             List<MailItemDto>? mails = null;
             MailItemDto? mail = null;
             MailBodyDto? mailBody = null;
+            MailAttachmentsDto? mailAttachments = null;
+            ExportedMailAttachmentDto? exportedAttachment = null;
             List<OutlookCategoryDto>? categories = null;
             List<OutlookRuleDto>? rules = null;
             List<CalendarEventDto>? calendar = null;
@@ -84,6 +89,14 @@ namespace SmartOffice.Hub.Services
                     case "fetch_mail_body":
                         mailBody = FetchMailBody(command.MailBodyRequest);
                         if (mailBody is not null) _mailStore.UpdateMailBody(mailBody);
+                        break;
+                    case "fetch_mail_attachments":
+                        mailAttachments = FetchMailAttachments(command.MailAttachmentsRequest);
+                        if (mailAttachments is not null) _mailStore.SetMailAttachments(mailAttachments);
+                        break;
+                    case "export_mail_attachment":
+                        exportedAttachment = ExportMailAttachment(command.ExportMailAttachmentRequest);
+                        if (exportedAttachment is not null) _mailStore.UpsertExportedAttachment(exportedAttachment);
                         break;
                     case "fetch_categories":
                         categories = new List<OutlookCategoryDto>(_mockCategories);
@@ -201,6 +214,8 @@ namespace SmartOffice.Hub.Services
             if (mails is not null) await _notifications.Clients.All.SendAsync("MailsUpdated", mails, ct);
             if (mail is not null) await _notifications.Clients.All.SendAsync("MailUpdated", mail, ct);
             if (mailBody is not null) await _notifications.Clients.All.SendAsync("MailBodyUpdated", mailBody, ct);
+            if (mailAttachments is not null) await _notifications.Clients.All.SendAsync("MailAttachmentsUpdated", mailAttachments, ct);
+            if (exportedAttachment is not null) await _notifications.Clients.All.SendAsync("MailAttachmentExported", exportedAttachment, ct);
             if (categories is not null) await _notifications.Clients.All.SendAsync("CategoriesUpdated", categories, ct);
             if (rules is not null) await _notifications.Clients.All.SendAsync("RulesUpdated", rules, ct);
             if (calendar is not null) await _notifications.Clients.All.SendAsync("CalendarUpdated", calendar, ct);
@@ -405,6 +420,99 @@ namespace SmartOffice.Hub.Services
                 Body = mail.Body,
                 BodyHtml = mail.BodyHtml,
             };
+        }
+
+        private MailAttachmentsDto? FetchMailAttachments(FetchMailAttachmentsRequest? request)
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.MailId)) return null;
+            var mail = _mockMails.FirstOrDefault(item =>
+                item.Id == request.MailId
+                && (string.IsNullOrWhiteSpace(request.FolderPath) || item.FolderPath == request.FolderPath));
+            if (mail is null) return null;
+
+            var attachments = BuildMockAttachments(mail).Select(attachment =>
+            {
+                attachment.IsExported = false;
+                return attachment;
+            }).ToList();
+
+            return new MailAttachmentsDto
+            {
+                MailId = mail.Id,
+                FolderPath = mail.FolderPath,
+                Attachments = attachments,
+            };
+        }
+
+        private ExportedMailAttachmentDto? ExportMailAttachment(ExportMailAttachmentRequest? request)
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.MailId) || string.IsNullOrWhiteSpace(request.AttachmentId)) return null;
+            var mail = _mockMails.FirstOrDefault(item =>
+                item.Id == request.MailId
+                && (string.IsNullOrWhiteSpace(request.FolderPath) || item.FolderPath == request.FolderPath));
+            if (mail is null) return null;
+
+            var attachment = BuildMockAttachments(mail).FirstOrDefault(item => item.AttachmentId == request.AttachmentId);
+            if (attachment is null) return null;
+
+            var exportPath = _attachmentExports.CreateExportPath(mail.Id, mail.Subject, mail.ReceivedTime, attachment.Name);
+            File.WriteAllText(exportPath, $"Mock attachment exported from {mail.Subject}\n\nAttachment: {attachment.Name}\n", System.Text.Encoding.UTF8);
+            var exported = new ExportedMailAttachmentDto
+            {
+                MailId = mail.Id,
+                FolderPath = mail.FolderPath,
+                AttachmentId = attachment.AttachmentId,
+                ExportedAttachmentId = Guid.NewGuid().ToString(),
+                Name = attachment.Name,
+                ContentType = attachment.ContentType,
+                Size = new FileInfo(exportPath).Length,
+                ExportedPath = exportPath,
+                ExportedAt = DateTime.Now,
+            };
+            return exported;
+        }
+
+        private static List<MailAttachmentDto> BuildMockAttachments(MailItemDto mail)
+        {
+            if (mail.Id is "mock-001" or "mock-004")
+            {
+                return new List<MailAttachmentDto>
+                {
+                    new()
+                    {
+                        MailId = mail.Id,
+                        AttachmentId = "1",
+                        Name = "客戶需求摘要.pdf",
+                        ContentType = "application/pdf",
+                        Size = 128_000,
+                    },
+                    new()
+                    {
+                        MailId = mail.Id,
+                        AttachmentId = "2",
+                        Name = "demo-agenda.pptx",
+                        ContentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        Size = 256_000,
+                    },
+                };
+            }
+
+            if (mail.Id == "mock-002")
+            {
+                return new List<MailAttachmentDto>
+                {
+                    new()
+                    {
+                        MailId = mail.Id,
+                        AttachmentId = "1",
+                        Name = "合約附件.docx",
+                        ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        Size = 96_000,
+                    },
+                };
+            }
+
+            return new List<MailAttachmentDto>();
         }
 
         private List<CalendarEventDto> FilterCalendar(FetchCalendarRequest? request)
