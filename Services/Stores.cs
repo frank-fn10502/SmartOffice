@@ -84,6 +84,7 @@ namespace SmartOffice.Hub.Services
         private readonly object _lock = new();
         private readonly List<AddinLogEntry> _logs = new();
         private readonly HashSet<string> _signalRConnectionIds = new();
+        private bool _mockBackendActive;
         private bool _connected;
         private DateTime? _lastPollTime;
         private DateTime? _lastPushTime;
@@ -134,9 +135,22 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
+                _mockBackendActive = true;
+                _connected = true;
                 _lastCommand = commandType;
                 _lastPushTime = DateTime.Now;
                 AddLogInternal("info", $"Mock Outlook command handled: {commandType}");
+            }
+        }
+
+        public void RecordMockBackendReady()
+        {
+            lock (_lock)
+            {
+                _mockBackendActive = true;
+                _connected = true;
+                _lastPollTime = DateTime.Now;
+                AddLogInternal("info", "Mock Outlook backend ready");
             }
         }
 
@@ -155,8 +169,10 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
-                // SignalR 連線存在時，connection 本身就是 AddIn online 狀態。
-                if (_signalRConnectionIds.Count > 0)
+                // Mock backend 或 SignalR 連線存在時，都視為可處理 Outlook command。
+                if (_mockBackendActive)
+                    _connected = true;
+                else if (_signalRConnectionIds.Count > 0)
                     _connected = true;
                 else if (_lastPollTime.HasValue && (DateTime.Now - _lastPollTime.Value).TotalSeconds > 90)
                     _connected = false;

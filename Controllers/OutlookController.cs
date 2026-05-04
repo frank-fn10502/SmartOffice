@@ -251,11 +251,12 @@ namespace SmartOffice.Hub.Controllers
         /// Web 或 Outlook 送出 chat message。
         /// </summary>
         [HttpPost("chat")]
-        public async Task<IActionResult> PostChat([FromBody] ChatMessageDto msg)
+        public async Task<IActionResult> PostChat([FromBody] ChatMessageDto msg, CancellationToken ct)
         {
             msg.Timestamp = DateTime.Now;
             _chatStore.Add(msg);
-            await _hub.Clients.All.SendAsync("NewChatMessage", msg);
+            await _hub.Clients.All.SendAsync("NewChatMessage", msg, ct);
+            await _mockOutlook.TryReplyToChatAsync(msg, ct);
             return Ok(msg);
         }
 

@@ -666,6 +666,16 @@ select {
   line-height: 1.4;
 }
 
+.identity-warning {
+  padding: 9px 10px;
+  border: 1px solid #f7c948;
+  border-radius: 6px;
+  background: #fff8db;
+  color: #8a5a00;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .inspector-actions {
   display: flex;
   flex-wrap: wrap;

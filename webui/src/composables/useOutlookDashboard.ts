@@ -197,6 +197,8 @@ export function useOutlookDashboard() {
       .filter(Boolean)
   })
 
+  const selectedMailHasIdentity = computed(() => Boolean(selectedMail.value?.id?.trim()))
+
   function resetMailPropertiesDraft(mail: MailItemDto | null) {
     if (!mail) return
     const flagInterval = mail.flagInterval || (mail.isMarkedAsTask ? 'today' : 'none')
@@ -383,6 +385,7 @@ export function useOutlookDashboard() {
   }
 
   async function applyMailProperties(mail: MailItemDto) {
+    if (!mail.id?.trim()) return
     const selectedCategories = [...new Set(mailPropertiesDraft.value.categories.map((category) => category.trim()).filter(Boolean))]
     const existingCategoryNames = new Set(categories.value.map((category) => category.name.toLowerCase()))
     const newCategories = selectedCategories
@@ -487,7 +490,7 @@ export function useOutlookDashboard() {
   }
 
   async function moveMailToFolder(mail: MailItemDto, destinationFolderPath: string) {
-    if (!destinationFolderPath || destinationFolderPath === mail.folderPath) return
+    if (!mail.id?.trim() || !destinationFolderPath || destinationFolderPath === mail.folderPath) return
     await runMailOperation(() =>
       outlookApi.requestMoveMail({
         mailId: mail.id,
@@ -498,6 +501,10 @@ export function useOutlookDashboard() {
   }
 
   function startMailDrag(mail: MailItemDto, index: number, event: DragEvent) {
+    if (!mail.id?.trim()) {
+      event.preventDefault()
+      return
+    }
     if (outlookBusy.value) return
     selectMail(index)
     draggedMailId.value = mail.id
@@ -728,6 +735,7 @@ export function useOutlookDashboard() {
     selectedFolderPath,
     selectedMail,
     selectedMailCategories,
+    selectedMailHasIdentity,
     selectedMailHtml,
     selectedMailIndex,
     selectedMailIsOpen,

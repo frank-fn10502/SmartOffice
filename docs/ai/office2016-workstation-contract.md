@@ -1,6 +1,6 @@
 # Outlook AddIn SignalR 溝通介面
 
-本文件整理目前 `SmartOffice.Hub` 與工作機 Outlook AddIn 的正式 SignalR-only contract。HTTP polling 到 SignalR 的差異與過渡方式請看 `docs/ai/outlook-signalr-migration.md`。
+本文件整理目前 `SmartOffice.Hub` 與工作機 Outlook AddIn 的正式 SignalR-only contract。Web UI 每個功能會送出的 command 與工作機實作注意事項請看 `docs/ai/webui-features.md`；HTTP polling 到 SignalR 的差異與過渡方式請看 `docs/ai/outlook-signalr-migration.md`。
 
 ## 適用範圍
 
@@ -166,7 +166,7 @@ AddIn 可 invoke 下列 server method：
 }
 ```
 
-`categories` 只在 `set_mail_categories` 使用；其他 marker command 可留空。
+`mailId` 不可為空。Web UI 以 `MailItemDto.id` 填入此欄位；工作機 AddIn 的 `PushMails` 必須提供 Outlook `MailItem.EntryID` 或其他可由 AddIn 找回該 mail 的穩定識別。`categories` 只在 `set_mail_categories` 使用；其他 marker command 可留空。
 
 ### MailPropertiesCommandRequest
 
@@ -190,6 +190,8 @@ AddIn 可 invoke 下列 server method：
   ]
 }
 ```
+
+`mailId` 不可為空。若工作機 AddIn push 回來的 mail 沒有 `id`，Web UI 會停用修改與移動，避免送出 `missing mail id` 的 command。
 
 `flagInterval` 目前預期值：
 
@@ -238,6 +240,10 @@ AddIn 可 invoke 下列 server method：
   "destinationFolderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
 }
 ```
+
+`move_mail` 只有在目前 mail 有非空 `id` 時才會由 Web UI 送出。AddIn 應用 `mailId` 找到 Outlook item，將 `destinationFolderPath` 解析成 Outlook `Folder` object，呼叫 Outlook `MailItem.Move(destinationFolder)`，完成後回推最新 `PushMails` 與 `PushFolders`。
+
+注意：Microsoft 文件說 Outlook `MailItem.EntryID` 在 item save 或 send 後才會存在，跨 store 移動時可能改變。因此 AddIn 若使用 EntryID 當 `MailItemDto.id`，移動後應重新讀取並回推最新 mail snapshot。相關官方依據與 Web UI 操作對照請看 `docs/ai/webui-features.md`。
 
 ## Push Payload Sample
 

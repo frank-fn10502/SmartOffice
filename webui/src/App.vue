@@ -69,6 +69,7 @@ const {
   selectedFolderPath,
   selectedMail,
   selectedMailCategories,
+  selectedMailHasIdentity,
   selectedMailHtml,
   selectedMailIndex,
   selectedMailIsOpen,
@@ -319,6 +320,9 @@ const {
                   <span>{{ formatDateTime(selectedMail.receivedTime) }}</span>
                   <span>來源：{{ selectedFolderName }}</span>
                 </div>
+                <div v-if="!selectedMailHasIdentity" class="identity-warning">
+                  這封郵件缺少 id，Add-in 需在 PushMails 回傳 Outlook EntryID 或穩定識別後才能修改或移動。
+                </div>
 
                 <div class="marker-tags">
                   <el-tag :type="selectedMail.isRead ? 'info' : 'warning'" effect="plain">
@@ -416,7 +420,7 @@ const {
                       size="large"
                       class="commit-button"
                       :loading="operationLoading"
-                      :disabled="outlookBusy && !operationLoading"
+                      :disabled="!selectedMailHasIdentity || (outlookBusy && !operationLoading)"
                       @click="applyMailProperties(selectedMail)"
                     >
                       送出並更新 Outlook
