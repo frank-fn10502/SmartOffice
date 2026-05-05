@@ -604,45 +604,67 @@ namespace SmartOffice.Hub.Services
 
         private static List<MailAttachmentDto> BuildMockAttachments(MailItemDto mail)
         {
-            if (mail.Id is "mock-001" or "mock-004")
+            var attachments = mail.Id switch
             {
-                return new List<MailAttachmentDto>
+                "mock-001" => new[]
                 {
-                    new()
-                    {
-                        MailId = mail.Id,
-                        AttachmentId = "1",
-                        Name = "客戶需求摘要.pdf",
-                        ContentType = "application/pdf",
-                        Size = 128_000,
-                    },
-                    new()
-                    {
-                        MailId = mail.Id,
-                        AttachmentId = "2",
-                        Name = "demo-agenda.pptx",
-                        ContentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        Size = 256_000,
-                    },
-                };
-            }
-
-            if (mail.Id == "mock-002")
-            {
-                return new List<MailAttachmentDto>
+                    ("客戶需求摘要.pdf", "application/pdf", 128_000L),
+                    ("demo-agenda.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", 256_000L),
+                },
+                "mock-002" => new[]
                 {
-                    new()
-                    {
-                        MailId = mail.Id,
-                        AttachmentId = "1",
-                        Name = "合約附件.docx",
-                        ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        Size = 96_000,
-                    },
-                };
-            }
+                    ("合約附件.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 96_000L),
+                    ("報價明細.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 74_000L),
+                },
+                "mock-003" => new[]
+                {
+                    ("hover-test-cases.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 42_000L),
+                },
+                "mock-004" => new[]
+                {
+                    ("下週-demo-runbook.pdf", "application/pdf", 188_000L),
+                    ("demo-assets.zip", "application/zip", 512_000L),
+                },
+                "mock-005" => new[]
+                {
+                    ("專案資料夾歸檔清單.csv", "text/csv", 18_000L),
+                },
+                "mock-006" => new[]
+                {
+                    ("已寄出附件範例.txt", "text/plain", 3_200L),
+                },
+                "mock-007" => new[]
+                {
+                    ("封存通知.eml", "message/rfc822", 64_000L),
+                },
+                "mock-008" => new[]
+                {
+                    ("草稿附件-placeholder.pdf", "application/pdf", 22_000L),
+                },
+                "mock-009" => new[]
+                {
+                    ("上月客戶回覆附件.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 88_000L),
+                },
+                _ => Array.Empty<(string Name, string ContentType, long Size)>(),
+            };
 
-            return new List<MailAttachmentDto>();
+            return attachments
+                .Select((attachment, index) => new MailAttachmentDto
+                {
+                    MailId = mail.Id,
+                    AttachmentId = (index + 1).ToString(),
+                    Name = attachment.Item1,
+                    ContentType = attachment.Item2,
+                    Size = attachment.Item3,
+                })
+                .ToList();
+        }
+
+        private static void ApplyMockAttachmentSummary(MailItemDto mail)
+        {
+            var attachments = BuildMockAttachments(mail);
+            mail.AttachmentCount = attachments.Count;
+            mail.AttachmentNames = string.Join("、", attachments.Select(attachment => attachment.Name));
         }
 
         private List<CalendarEventDto> FilterCalendar(FetchCalendarRequest? request)
@@ -859,7 +881,7 @@ namespace SmartOffice.Hub.Services
             string? bodyHtml = null)
         {
             var body = $"Mock 郵件內容：{subject}\n\n這封郵件用於本機測試 Web UI、drag/drop 與 contract 行為。";
-            return new MailItemDto
+            var mail = new MailItemDto
             {
                 Id = id,
                 Subject = subject,
@@ -878,6 +900,8 @@ namespace SmartOffice.Hub.Services
                 Importance = isMarkedAsTask ? "high" : "normal",
                 Sensitivity = "normal",
             };
+            ApplyMockAttachmentSummary(mail);
+            return mail;
         }
 
         private FolderDto? FindFolder(string path)
@@ -947,6 +971,8 @@ namespace SmartOffice.Hub.Services
                 Categories = mail.Categories,
                 IsRead = mail.IsRead,
                 IsMarkedAsTask = mail.IsMarkedAsTask,
+                AttachmentCount = mail.AttachmentCount,
+                AttachmentNames = mail.AttachmentNames,
                 FlagRequest = mail.FlagRequest,
                 FlagInterval = mail.FlagInterval,
                 TaskStartDate = mail.TaskStartDate,

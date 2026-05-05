@@ -104,6 +104,8 @@ export interface MailItemDto {
   categories: string
   isRead: boolean
   isMarkedAsTask: boolean
+  attachmentCount: number
+  attachmentNames: string
   flagRequest: string
   flagInterval: string
   taskStartDate?: string

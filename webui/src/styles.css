@@ -726,6 +726,15 @@ select {
   font-size: 0.82rem;
 }
 
+.mail-row-attachment-summary {
+  max-width: 100%;
+  overflow: hidden;
+  color: #475467;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mail-row-tags {
   display: flex;
   align-items: center;
@@ -782,6 +791,13 @@ select {
   color: #344054;
   font-size: 0.84rem;
   font-weight: 800;
+}
+
+.attachment-header-title {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 .attachment-list {

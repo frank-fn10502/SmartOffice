@@ -13,6 +13,8 @@ namespace SmartOffice.Hub.Models
         public string Categories { get; set; } = string.Empty;
         public bool IsRead { get; set; }
         public bool IsMarkedAsTask { get; set; }
+        public int AttachmentCount { get; set; }
+        public string AttachmentNames { get; set; } = string.Empty;
         public string FlagRequest { get; set; } = string.Empty;
         public string FlagInterval { get; set; } = "none";
         public DateTime? TaskStartDate { get; set; }

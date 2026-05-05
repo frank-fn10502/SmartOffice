@@ -264,8 +264,12 @@ const {
                   <span class="mail-row-main">
                     <strong>{{ mail.subject }}</strong>
                     <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                    <span v-if="mail.attachmentCount > 0" class="mail-row-attachment-summary" :title="mail.attachmentNames">
+                      {{ mail.attachmentNames }}
+                    </span>
                   </span>
                   <span class="mail-row-tags">
+                    <el-tag v-if="mail.attachmentCount > 0" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
                     <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
                     <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
                       {{ flagIntervalLabel(mail.flagInterval) }}
@@ -301,8 +305,10 @@ const {
                 <p v-else class="hint">點開郵件後才會載入內容；目前沒有可顯示的 body。</p>
                 <div class="mail-attachments">
                   <div class="attachment-header">
-                    <span>附件</span>
-                    <el-tag effect="plain">{{ selectedMailAttachments.length }}</el-tag>
+                    <span class="attachment-header-title">
+                      <span>附件</span>
+                      <el-tag effect="plain">{{ selectedMailAttachments.length }}</el-tag>
+                    </span>
                   </div>
                   <div v-if="isAttachmentListLoading(mail)" class="pane-loading">
                     <span>附件清單載入中...</span>

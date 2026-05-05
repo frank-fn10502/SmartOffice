@@ -281,6 +281,8 @@ namespace SmartOffice.Hub.Services
                 Categories = mail.Categories,
                 IsRead = mail.IsRead,
                 IsMarkedAsTask = mail.IsMarkedAsTask,
+                AttachmentCount = mail.AttachmentCount,
+                AttachmentNames = mail.AttachmentNames,
                 FlagRequest = mail.FlagRequest,
                 FlagInterval = mail.FlagInterval,
                 TaskStartDate = mail.TaskStartDate,

@@ -68,6 +68,8 @@ export function normalizeMailItem(item: unknown): MailItemDto {
     categories: readStringList(source.categories ?? source.Categories),
     isRead: readBoolean(source, 'isRead', 'IsRead'),
     isMarkedAsTask,
+    attachmentCount: readNumber(source, 'attachmentCount', 'AttachmentCount'),
+    attachmentNames: readString(source, 'attachmentNames', 'AttachmentNames'),
     flagRequest,
     flagInterval,
     taskStartDate: readDate(source, 'taskStartDate', 'TaskStartDate'),

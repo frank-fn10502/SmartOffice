@@ -528,6 +528,8 @@ AI / MCP client 可用下列 endpoint 查詢 command 執行狀態：
 - `categories`: string
 - `isRead`: boolean
 - `isMarkedAsTask`: boolean
+- `attachmentCount`: number，mail list header 顯示用；未知時可為 `0`，完整 metadata 仍以 `fetch_mail_attachments` / `PushMailAttachments` 為準。
+- `attachmentNames`: string，mail list header 顯示用，多個附件名稱建議以 `、` 或 `, ` 串接；避免放入檔案內容或本機路徑。
 - `flagRequest`: string
 - `flagInterval`: string
 - `taskStartDate`: DateTime 或 `null`
