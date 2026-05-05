@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using SmartOffice.Hub.Hubs;
 using SmartOffice.Hub.Models;
-using System.Text.RegularExpressions;
 
 namespace SmartOffice.Hub.Services
 {
@@ -47,7 +46,7 @@ namespace SmartOffice.Hub.Services
             {
                 EnsureSeeded();
                 _mailStore.ApplyFolderBatch(BuildFolderBatch(reset: true, isFinal: true));
-                _mailStore.SetMails(FilterMails(MockPaths.Inbox, "1m", 30));
+                _mailStore.SetMails(MockOutlookMailSearch.FilterMails(_mockMails, MockOutlookPaths.Inbox, MockOutlookPaths.Inbox, "1m", 30));
                 _mailStore.SetCategories(new List<OutlookCategoryDto>(_mockCategories));
                 _mailStore.SetRules(new List<OutlookRuleDto>(_mockRules));
                 _mailStore.SetCalendarEvents(new List<CalendarEventDto>(_mockCalendar));
@@ -61,7 +60,7 @@ namespace SmartOffice.Hub.Services
             if (!IsEnabled) return false;
 
             FolderSyncBatchDto? folderBatch = null;
-            MailSearchBatchDto? mailSearchBatch = null;
+            MailSearchSliceResultDto? mailSearchSliceResult = null;
             MailSearchCompleteDto? mailSearchComplete = null;
             List<MailItemDto>? mails = null;
             MailItemDto? mail = null;
@@ -83,32 +82,45 @@ namespace SmartOffice.Hub.Services
                         _mailStore.ApplyFolderBatch(folderBatch);
                         break;
                     case "fetch_mails":
-                        mails = FilterMails(
-                            command.MailsRequest?.FolderPath ?? MockPaths.Inbox,
+                        mails = MockOutlookMailSearch.FilterMails(
+                            _mockMails,
+                            MockOutlookPaths.Inbox,
+                            command.MailsRequest?.FolderPath ?? MockOutlookPaths.Inbox,
                             command.MailsRequest?.Range ?? "1m",
                             command.MailsRequest?.MaxCount ?? 30);
                         _mailStore.SetMails(mails);
                         break;
-                    case "search_mails":
-                        var searchResults = SearchMails(command.SearchMailsRequest);
-                        mailSearchBatch = new MailSearchBatchDto
+                    case "fetch_mail_search_slice":
+                        var request = command.MailSearchSliceRequest ?? new MailSearchSliceRequest();
+                        var searchResults = MockOutlookMailSearch.FetchMailSearchSlice(_mockMails, request);
+                        mailSearchSliceResult = new MailSearchSliceResultDto
                         {
-                            SearchId = command.SearchMailsRequest?.SearchId ?? Guid.NewGuid().ToString(),
-                            Sequence = 1,
-                            Reset = true,
-                            IsFinal = true,
+                            SearchId = request.SearchId,
+                            CommandId = command.Id,
+                            ParentCommandId = request.ParentCommandId,
+                            Sequence = request.SliceIndex + 1,
+                            SliceIndex = request.SliceIndex,
+                            SliceCount = request.SliceCount,
+                            Reset = request.ResetSearchResults,
+                            IsFinal = request.CompleteSearchOnSlice,
+                            IsSliceComplete = true,
                             Mails = searchResults,
                             Message = "Mock mail search completed",
                         };
-                        _mailStore.BeginMailSearch();
-                        _mailStore.ApplyMailSearchBatch(mailSearchBatch);
-                        mailSearchComplete = new MailSearchCompleteDto
+                        _mailStore.BeginMailSearch(mailSearchSliceResult.Reset);
+                        _mailStore.ApplyMailSearchSliceResult(mailSearchSliceResult);
+                        if (request.CompleteSearchOnSlice)
                         {
-                            SearchId = mailSearchBatch.SearchId,
-                            TotalCount = searchResults.Count,
-                            Message = "Mock mail search completed",
+                            mailSearchComplete = new MailSearchCompleteDto
+                            {
+                                SearchId = mailSearchSliceResult.SearchId,
+                                CommandId = command.Id,
+                                ParentCommandId = request.ParentCommandId,
+                                TotalCount = _mailStore.GetMailSearchResults().Count,
+                                Message = "Mock mail search completed",
                             Timestamp = DateTime.Now,
                         };
+                        }
                         break;
                     case "fetch_mail_body":
                         mailBody = FetchMailBody(command.MailBodyRequest);
@@ -243,15 +255,15 @@ namespace SmartOffice.Hub.Services
                 }, ct);
             }
             if (mails is not null) await _notifications.Clients.All.SendAsync("MailsUpdated", mails, ct);
-            if (mailSearchBatch is not null)
+            if (mailSearchSliceResult is not null)
             {
-                await _notifications.Clients.All.SendAsync("MailSearchStarted", new MailSearchBatchDto
+                await _notifications.Clients.All.SendAsync("MailSearchStarted", new MailSearchSliceResultDto
                 {
-                    SearchId = mailSearchBatch.SearchId,
+                    SearchId = mailSearchSliceResult.SearchId,
                     Reset = true,
                     Sequence = 0,
                 }, ct);
-                await _notifications.Clients.All.SendAsync("MailSearchPatched", mailSearchBatch, ct);
+                await _notifications.Clients.All.SendAsync("MailSearchPatched", mailSearchSliceResult, ct);
             }
             if (mailSearchComplete is not null) await _notifications.Clients.All.SendAsync("MailSearchCompleted", mailSearchComplete, ct);
             if (mail is not null) await _notifications.Clients.All.SendAsync("MailUpdated", mail, ct);
@@ -301,128 +313,13 @@ namespace SmartOffice.Hub.Services
         {
             if (_mockFolders.Count > 0) return;
 
-            AddMockStore("mock-store-primary", "主要信箱 - Mock User", "ost", @"C:\Users\mock\AppData\Local\Microsoft\Outlook\mock.user@example.test.ost", MockPaths.PrimaryRoot);
-            AddMockFolder("主要信箱 - Mock User", MockPaths.PrimaryRoot, "", "mock-store-primary", true);
-            AddMockFolder("Inbox", MockPaths.Inbox, MockPaths.PrimaryRoot, "mock-store-primary");
-            AddMockFolder("客戶專案", MockPaths.ClientProjects, MockPaths.Inbox, "mock-store-primary");
-            AddMockFolder("Sent Items", MockPaths.Sent, MockPaths.PrimaryRoot, "mock-store-primary");
-            AddMockFolder("Drafts", MockPaths.Drafts, MockPaths.PrimaryRoot, "mock-store-primary");
-            AddMockFolder("Deleted Items", MockPaths.Deleted, MockPaths.PrimaryRoot, "mock-store-primary");
-
-            AddMockStore("mock-store-client-archive", "客戶專案封存.pst", "pst", @"D:\Outlook Archives\客戶專案封存.pst", MockPaths.ClientArchiveRoot);
-            AddMockFolder("客戶專案封存.pst", MockPaths.ClientArchiveRoot, "", "mock-store-client-archive", true);
-            AddMockFolder("Archive", MockPaths.Archive, MockPaths.ClientArchiveRoot, "mock-store-client-archive");
-            AddMockFolder("2026 專案封存", MockPaths.Archive2026, MockPaths.Archive, "mock-store-client-archive");
-
-            AddMockStore("mock-store-legacy-archive", "歷史郵件.pst", "pst", @"E:\MailBackup\歷史郵件.pst", MockPaths.LegacyArchiveRoot);
-            AddMockFolder("歷史郵件.pst", MockPaths.LegacyArchiveRoot, "", "mock-store-legacy-archive", true);
-            AddMockFolder("Legacy Inbox", MockPaths.LegacyInbox, MockPaths.LegacyArchiveRoot, "mock-store-legacy-archive");
-            AddMockFolder("Vendors", MockPaths.LegacyVendors, MockPaths.LegacyArchiveRoot, "mock-store-legacy-archive");
-
-            var now = DateTime.Now;
-            _mockMails.AddRange(new[]
-            {
-                Mail("mock-001", "週會議程與客戶需求整理", "Ada Chen", "ada.chen@example.test", now.AddMinutes(-28), MockPaths.Inbox, false, "客戶,待辦", true, "today", "今天"),
-                Mail("mock-002", "Re: 合約附件確認", "Ben Lin", "ben.lin@example.test", now.AddHours(-2), MockPaths.Inbox, true, "", false, "none", ""),
-                Mail("mock-003", "Office 2016 add-in hover 測試", "QA Lab", "qa@example.test", now.AddHours(-4), MockPaths.Inbox, false, "測試", false, "none", "", bodyHtml: ""),
-                Mail("mock-004", "下週 demo 時程", "Chris Wang", "chris.wang@example.test", now.AddDays(-1), MockPaths.Inbox, true, "追蹤", true, "next_week", "下週"),
-                Mail("mock-005", "專案資料夾歸檔樣本", "Dana Hsu", "dana.hsu@example.test", now.AddDays(-2), MockPaths.ClientProjects, true, "客戶", false, "none", ""),
-                Mail("mock-006", "已寄出的測試郵件", "Mock User", "mock.user@example.test", now.AddDays(-3), MockPaths.Sent, true, "", false, "none", ""),
-                Mail("mock-007", "一週前的封存通知", "System Notice", "notice@example.test", now.AddDays(-7), MockPaths.Archive, true, "測試", false, "none", ""),
-                Mail("mock-008", "草稿：內部追蹤事項", "Mock User", "mock.user@example.test", now.AddDays(-10), MockPaths.Drafts, false, "待辦", true, "no_date", "Follow up"),
-                Mail("mock-009", "上月客戶回覆", "Eve Huang", "eve.huang@example.test", now.AddDays(-25), MockPaths.Archive2026, true, "客戶", false, "none", ""),
-            });
-            RefreshFolderCounts();
-
-            _mockCategories = new List<OutlookCategoryDto>
-            {
-                new() { Name = "客戶", Color = "olCategoryColorBlue", ColorValue = 8, ShortcutKey = "" },
-                new() { Name = "待辦", Color = "olCategoryColorRed", ColorValue = 1, ShortcutKey = "" },
-                new() { Name = "測試", Color = "olCategoryColorGreen", ColorValue = 5, ShortcutKey = "" },
-                new() { Name = "追蹤", Color = "olCategoryColorYellow", ColorValue = 4, ShortcutKey = "" },
-            };
-
-            _mockRules = new List<OutlookRuleDto>
-            {
-                new()
-                {
-                    Name = "客戶郵件標記",
-                    Enabled = true,
-                    ExecutionOrder = 1,
-                    Conditions = new List<string> { "sender contains example.test" },
-                    Actions = new List<string> { "assign category 客戶" },
-                },
-                new()
-                {
-                    Name = "重要追蹤提醒",
-                    Enabled = false,
-                    ExecutionOrder = 2,
-                    Conditions = new List<string> { "subject contains demo" },
-                    Actions = new List<string> { "mark importance high", "flag for follow up" },
-                    Exceptions = new List<string> { "sender is mock.user@example.test" },
-                }
-            };
-
-            _mockCalendar = new List<CalendarEventDto>
-            {
-                new()
-                {
-                    Id = "mock-cal-001",
-                    Subject = "SmartOffice mock sync review",
-                    Start = now.Date.AddHours(15),
-                    End = now.Date.AddHours(15).AddMinutes(30),
-                    Location = "Teams",
-                    Organizer = "mock.user@example.test",
-                    RequiredAttendees = "ada.chen@example.test",
-                    BusyStatus = "busy",
-                },
-                new()
-                {
-                    Id = "mock-cal-002",
-                    Subject = "客戶需求釐清",
-                    Start = now.Date.AddDays(2).AddHours(10),
-                    End = now.Date.AddDays(2).AddHours(11),
-                    Location = "會議室 3A",
-                    Organizer = "ada.chen@example.test",
-                    RequiredAttendees = "mock.user@example.test; dana.hsu@example.test",
-                    IsRecurring = false,
-                    BusyStatus = "tentative",
-                },
-                new()
-                {
-                    Id = "mock-cal-003",
-                    Subject = "每週產品站會",
-                    Start = now.Date.AddDays(6).AddHours(9),
-                    End = now.Date.AddDays(6).AddHours(9).AddMinutes(45),
-                    Location = "Teams",
-                    Organizer = "mock.user@example.test",
-                    RequiredAttendees = "product@example.test",
-                    IsRecurring = true,
-                    BusyStatus = "busy",
-                },
-                new()
-                {
-                    Id = "mock-cal-004",
-                    Subject = "月中客戶回顧",
-                    Start = now.Date.AddDays(14).AddHours(14),
-                    End = now.Date.AddDays(14).AddHours(15),
-                    Location = "Teams",
-                    Organizer = "chris.wang@example.test",
-                    RequiredAttendees = "mock.user@example.test; ada.chen@example.test",
-                    BusyStatus = "busy",
-                },
-                new()
-                {
-                    Id = "mock-cal-005",
-                    Subject = "月底交付檢查",
-                    Start = now.Date.AddDays(24).AddHours(16),
-                    End = now.Date.AddDays(24).AddHours(17),
-                    Location = "會議室 2B",
-                    Organizer = "mock.user@example.test",
-                    RequiredAttendees = "qa@example.test",
-                    BusyStatus = "free",
-                }
-            };
+            var data = MockOutlookSeedFactory.Create();
+            _mockStores = data.Stores;
+            _mockFolders = data.Folders;
+            _mockMails.AddRange(data.Mails);
+            _mockCategories = data.Categories;
+            _mockRules = data.Rules;
+            _mockCalendar = data.Calendar;
         }
 
         private void SeedChat()
@@ -434,106 +331,6 @@ namespace SmartOffice.Hub.Services
                 Text = "Mock Outlook 已連線，可測試郵件、folder、category、calendar 與 chat 流程。",
                 Timestamp = DateTime.Now.AddMinutes(-3),
             });
-        }
-
-        private List<MailItemDto> FilterMails(string folderPath, string range, int maxCount)
-        {
-            var target = string.IsNullOrWhiteSpace(folderPath) ? MockPaths.Inbox : folderPath;
-            var since = RangeStart(range);
-            return _mockMails
-                .Where(mail => mail.FolderPath == target && mail.ReceivedTime >= since)
-                .OrderByDescending(mail => mail.ReceivedTime)
-                .Take(Math.Max(1, maxCount))
-                .Select(CloneMailMetadata)
-                .ToList();
-        }
-
-        private List<MailItemDto> SearchMails(SearchMailsRequest? request)
-        {
-            request ??= new SearchMailsRequest();
-            var maxCount = Math.Clamp(request.MaxCount <= 0 ? 50 : request.MaxCount, 1, 200);
-            var scopeFolders = request.ScopeFolderPaths
-                .Where(path => !string.IsNullOrWhiteSpace(path))
-                .ToList();
-            var scopedStore = FindStore(request.StoreId);
-            var keyword = request.Keyword.Trim();
-
-            return _mockMails
-                .Where(mail => InSearchScope(mail, scopedStore, scopeFolders, request.IncludeSubFolders))
-                .Where(mail => InReceivedTime(mail, request))
-                .Where(mail => MatchesKeyword(mail, request.Fields, keyword, request.MatchMode))
-                .OrderByDescending(mail => mail.ReceivedTime)
-                .Take(maxCount)
-                .Select(CloneMailMetadata)
-                .ToList();
-        }
-
-        private OutlookStoreDto? FindStore(string storeId)
-        {
-            if (!string.IsNullOrWhiteSpace(storeId))
-                return _mockStores.FirstOrDefault(store => string.Equals(store.StoreId, storeId, StringComparison.OrdinalIgnoreCase));
-            return null;
-        }
-
-        private static bool InSearchScope(MailItemDto mail, OutlookStoreDto? store, List<string> scopeFolders, bool includeSubFolders)
-        {
-            if (store is not null && !mail.FolderPath.StartsWith(store.RootFolderPath, StringComparison.OrdinalIgnoreCase))
-                return false;
-            if (scopeFolders.Count == 0) return true;
-            return scopeFolders.Any(path =>
-                string.Equals(mail.FolderPath, path, StringComparison.OrdinalIgnoreCase)
-                || (includeSubFolders && mail.FolderPath.StartsWith($"{path}\\", StringComparison.OrdinalIgnoreCase)));
-        }
-
-        private static bool InReceivedTime(MailItemDto mail, SearchMailsRequest request)
-        {
-            if (request.ExactReceivedTime is not null)
-            {
-                var tolerance = Math.Max(0, request.ExactReceivedToleranceSeconds);
-                return Math.Abs((mail.ReceivedTime - request.ExactReceivedTime.Value).TotalSeconds) <= tolerance;
-            }
-            if (request.ReceivedFrom is not null && mail.ReceivedTime < request.ReceivedFrom.Value) return false;
-            if (request.ReceivedTo is not null && mail.ReceivedTime > request.ReceivedTo.Value) return false;
-            return true;
-        }
-
-        private static bool MatchesKeyword(MailItemDto mail, List<string> fields, string keyword, string matchMode)
-        {
-            if (string.IsNullOrWhiteSpace(keyword)) return true;
-            var haystack = SearchHaystack(mail, fields);
-            if (string.Equals(matchMode, "exact", StringComparison.OrdinalIgnoreCase))
-                return haystack.Any(value => string.Equals(value, keyword, StringComparison.OrdinalIgnoreCase));
-            if (string.Equals(matchMode, "regex", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    return haystack.Any(value => Regex.IsMatch(value, keyword, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100)));
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-            return haystack.Any(value => value.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static List<string> SearchHaystack(MailItemDto mail, List<string> fields)
-        {
-            var selected = fields.Count == 0 ? new List<string> { "subject", "sender" } : fields;
-            var values = new List<string>();
-            if (selected.Contains("subject")) values.Add(mail.Subject);
-            if (selected.Contains("sender"))
-            {
-                values.Add(mail.SenderName);
-                values.Add(mail.SenderEmail);
-            }
-            if (selected.Contains("categories")) values.Add(mail.Categories);
-            if (selected.Contains("body"))
-            {
-                values.Add(mail.Body);
-                values.Add(mail.BodyHtml);
-            }
-            return values;
         }
 
         private MailBodyDto? FetchMailBody(FetchMailBodyRequest? request)
@@ -560,7 +357,7 @@ namespace SmartOffice.Hub.Services
                 && (string.IsNullOrWhiteSpace(request.FolderPath) || item.FolderPath == request.FolderPath));
             if (mail is null) return null;
 
-            var attachments = BuildMockAttachments(mail).Select(attachment =>
+            var attachments = MockOutlookAttachmentFactory.Build(mail).Select(attachment =>
             {
                 attachment.IsExported = false;
                 return attachment;
@@ -582,7 +379,7 @@ namespace SmartOffice.Hub.Services
                 && (string.IsNullOrWhiteSpace(request.FolderPath) || item.FolderPath == request.FolderPath));
             if (mail is null) return null;
 
-            var attachment = BuildMockAttachments(mail).FirstOrDefault(item => item.AttachmentId == request.AttachmentId);
+            var attachment = MockOutlookAttachmentFactory.Build(mail).FirstOrDefault(item => item.AttachmentId == request.AttachmentId);
             if (attachment is null) return null;
 
             var exportPath = _attachmentExports.CreateExportPath(mail.Id, mail.Subject, mail.ReceivedTime, attachment.Name);
@@ -600,71 +397,6 @@ namespace SmartOffice.Hub.Services
                 ExportedAt = DateTime.Now,
             };
             return exported;
-        }
-
-        private static List<MailAttachmentDto> BuildMockAttachments(MailItemDto mail)
-        {
-            var attachments = mail.Id switch
-            {
-                "mock-001" => new[]
-                {
-                    ("客戶需求摘要.pdf", "application/pdf", 128_000L),
-                    ("demo-agenda.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", 256_000L),
-                },
-                "mock-002" => new[]
-                {
-                    ("合約附件.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 96_000L),
-                    ("報價明細.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 74_000L),
-                },
-                "mock-003" => new[]
-                {
-                    ("hover-test-cases.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 42_000L),
-                },
-                "mock-004" => new[]
-                {
-                    ("下週-demo-runbook.pdf", "application/pdf", 188_000L),
-                    ("demo-assets.zip", "application/zip", 512_000L),
-                },
-                "mock-005" => new[]
-                {
-                    ("專案資料夾歸檔清單.csv", "text/csv", 18_000L),
-                },
-                "mock-006" => new[]
-                {
-                    ("已寄出附件範例.txt", "text/plain", 3_200L),
-                },
-                "mock-007" => new[]
-                {
-                    ("封存通知.eml", "message/rfc822", 64_000L),
-                },
-                "mock-008" => new[]
-                {
-                    ("草稿附件-placeholder.pdf", "application/pdf", 22_000L),
-                },
-                "mock-009" => new[]
-                {
-                    ("上月客戶回覆附件.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 88_000L),
-                },
-                _ => Array.Empty<(string Name, string ContentType, long Size)>(),
-            };
-
-            return attachments
-                .Select((attachment, index) => new MailAttachmentDto
-                {
-                    MailId = mail.Id,
-                    AttachmentId = (index + 1).ToString(),
-                    Name = attachment.Item1,
-                    ContentType = attachment.Item2,
-                    Size = attachment.Item3,
-                })
-                .ToList();
-        }
-
-        private static void ApplyMockAttachmentSummary(MailItemDto mail)
-        {
-            var attachments = BuildMockAttachments(mail);
-            mail.AttachmentCount = attachments.Count;
-            mail.AttachmentNames = string.Join("、", attachments.Select(attachment => attachment.Name));
         }
 
         private List<CalendarEventDto> FilterCalendar(FetchCalendarRequest? request)
@@ -772,7 +504,7 @@ namespace SmartOffice.Hub.Services
             {
                 MailId = request.MailId,
                 SourceFolderPath = request.FolderPath,
-                DestinationFolderPath = MockPaths.Deleted,
+                DestinationFolderPath = MockOutlookPaths.Deleted,
             });
         }
 
@@ -817,17 +549,6 @@ namespace SmartOffice.Hub.Services
             };
         }
 
-        private static DateTime RangeStart(string range)
-        {
-            var now = DateTime.Now;
-            return range switch
-            {
-                "1w" => now.AddDays(-7),
-                "1m" => now.AddMonths(-1),
-                _ => now.AddDays(-1),
-            };
-        }
-
         private static string BuildChatReply(string text)
         {
             if (string.IsNullOrWhiteSpace(text))
@@ -842,18 +563,6 @@ namespace SmartOffice.Hub.Services
                 folder.ItemCount = _mockMails.Count(mail => mail.FolderPath == folder.FolderPath);
         }
 
-        private void AddMockStore(string storeId, string displayName, string storeKind, string storeFilePath, string rootFolderPath)
-        {
-            _mockStores.Add(new OutlookStoreDto
-            {
-                StoreId = storeId,
-                DisplayName = displayName,
-                StoreKind = storeKind,
-                StoreFilePath = storeFilePath,
-                RootFolderPath = rootFolderPath,
-            });
-        }
-
         private void AddMockFolder(string name, string folderPath, string parentFolderPath, string storeId, bool isStoreRoot = false)
         {
             _mockFolders.Add(new FolderDto
@@ -864,44 +573,6 @@ namespace SmartOffice.Hub.Services
                 StoreId = storeId,
                 IsStoreRoot = isStoreRoot,
             });
-        }
-
-        private static MailItemDto Mail(
-            string id,
-            string subject,
-            string senderName,
-            string senderEmail,
-            DateTime receivedTime,
-            string folderPath,
-            bool isRead,
-            string categories,
-            bool isMarkedAsTask,
-            string flagInterval,
-            string flagRequest,
-            string? bodyHtml = null)
-        {
-            var body = $"Mock 郵件內容：{subject}\n\n這封郵件用於本機測試 Web UI、drag/drop 與 contract 行為。";
-            var mail = new MailItemDto
-            {
-                Id = id,
-                Subject = subject,
-                SenderName = senderName,
-                SenderEmail = senderEmail,
-                ReceivedTime = receivedTime,
-                Body = body,
-                BodyHtml = bodyHtml ?? $"<article><h2>{subject}</h2><p>Mock 郵件內容，用於本機測試 Web UI 與 Outlook contract。</p></article>",
-                FolderPath = folderPath,
-                Categories = categories,
-                IsRead = isRead,
-                IsMarkedAsTask = isMarkedAsTask,
-                FlagInterval = flagInterval,
-                FlagRequest = flagRequest,
-                TaskDueDate = isMarkedAsTask ? DateTime.Now.Date.AddDays(1) : null,
-                Importance = isMarkedAsTask ? "high" : "normal",
-                Sensitivity = "normal",
-            };
-            ApplyMockAttachmentSummary(mail);
-            return mail;
         }
 
         private FolderDto? FindFolder(string path)
@@ -983,14 +654,6 @@ namespace SmartOffice.Hub.Services
             };
         }
 
-        private static MailItemDto CloneMailMetadata(MailItemDto mail)
-        {
-            var clone = CloneMail(mail);
-            clone.Body = string.Empty;
-            clone.BodyHtml = string.Empty;
-            return clone;
-        }
-
         private static CalendarEventDto CloneCalendarEvent(CalendarEventDto item)
         {
             return new CalendarEventDto
@@ -1007,20 +670,5 @@ namespace SmartOffice.Hub.Services
             };
         }
 
-        private static class MockPaths
-        {
-            public const string PrimaryRoot = "\\\\主要信箱 - Mock User";
-            public const string Inbox = "\\\\主要信箱 - Mock User\\Inbox";
-            public const string ClientProjects = "\\\\主要信箱 - Mock User\\Inbox\\客戶專案";
-            public const string Sent = "\\\\主要信箱 - Mock User\\Sent Items";
-            public const string Drafts = "\\\\主要信箱 - Mock User\\Drafts";
-            public const string Deleted = "\\\\主要信箱 - Mock User\\Deleted Items";
-            public const string ClientArchiveRoot = "\\\\客戶專案封存.pst";
-            public const string Archive = "\\\\客戶專案封存.pst\\Archive";
-            public const string Archive2026 = "\\\\客戶專案封存.pst\\Archive\\2026 專案封存";
-            public const string LegacyArchiveRoot = "\\\\歷史郵件.pst";
-            public const string LegacyInbox = "\\\\歷史郵件.pst\\Legacy Inbox";
-            public const string LegacyVendors = "\\\\歷史郵件.pst\\Vendors";
-        }
     }
 }

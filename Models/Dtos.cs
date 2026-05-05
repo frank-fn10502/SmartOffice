@@ -97,21 +97,47 @@ namespace SmartOffice.Hub.Models
         public List<string> ScopeFolderPaths { get; set; } = new();
         public bool IncludeSubFolders { get; set; } = true;
         public string Keyword { get; set; } = string.Empty;
-        public string MatchMode { get; set; } = "contains"; // contains、exact、regex。regex 僅能在 bounded result 內後篩。
-        public List<string> Fields { get; set; } = new() { "subject", "sender" };
+        public string MatchMode { get; set; } = "contains"; // contains、exact、fuzzy、regex。fuzzy / regex 僅能在 bounded result 內後篩。
+        public List<string> Fields { get; set; } = new() { "subject" };
         public DateTime? ReceivedFrom { get; set; }
         public DateTime? ReceivedTo { get; set; }
-        public DateTime? ExactReceivedTime { get; set; }
-        public int ExactReceivedToleranceSeconds { get; set; } = 60;
         public int MaxCount { get; set; } = 50;
+        public bool IsHubSlice { get; set; }
+        public string ParentCommandId { get; set; } = string.Empty;
+        public int SliceIndex { get; set; }
+        public int SliceCount { get; set; }
+        public bool ResetSearchResults { get; set; } = true;
+        public bool CompleteSearchOnSlice { get; set; } = true;
     }
 
-    public class MailSearchBatchDto
+    public class MailSearchSliceRequest
     {
         public string SearchId { get; set; } = string.Empty;
+        public string CommandId { get; set; } = string.Empty;
+        public string ParentCommandId { get; set; } = string.Empty;
+        public string StoreId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public DateTime? ReceivedFrom { get; set; }
+        public DateTime? ReceivedTo { get; set; }
+        public int MaxCount { get; set; } = 50;
+        public bool IncludeBody { get; set; }
+        public int SliceIndex { get; set; }
+        public int SliceCount { get; set; }
+        public bool ResetSearchResults { get; set; } = true;
+        public bool CompleteSearchOnSlice { get; set; } = true;
+    }
+
+    public class MailSearchSliceResultDto
+    {
+        public string SearchId { get; set; } = string.Empty;
+        public string CommandId { get; set; } = string.Empty;
+        public string ParentCommandId { get; set; } = string.Empty;
         public int Sequence { get; set; }
+        public int SliceIndex { get; set; }
+        public int SliceCount { get; set; }
         public bool Reset { get; set; }
         public bool IsFinal { get; set; }
+        public bool IsSliceComplete { get; set; } = true;
         public List<MailItemDto> Mails { get; set; } = new();
         public string Message { get; set; } = string.Empty;
     }
@@ -119,10 +145,39 @@ namespace SmartOffice.Hub.Models
     public class MailSearchCompleteDto
     {
         public string SearchId { get; set; } = string.Empty;
+        public string CommandId { get; set; } = string.Empty;
+        public string ParentCommandId { get; set; } = string.Empty;
         public int TotalCount { get; set; }
         public bool Success { get; set; } = true;
         public string Message { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    public class MailSearchProgressDto
+    {
+        public string SearchId { get; set; } = string.Empty;
+        public string CommandId { get; set; } = string.Empty;
+        public string Status { get; set; } = "pending"; // pending、running、completed、failed、addin_unavailable。
+        public string Phase { get; set; } = string.Empty; // dispatch、store、folder、filter、completed。
+        public int ProcessedStores { get; set; }
+        public int TotalStores { get; set; }
+        public int ProcessedFolders { get; set; }
+        public int TotalFolders { get; set; }
+        public int ResultCount { get; set; }
+        public string CurrentStoreId { get; set; } = string.Empty;
+        public string CurrentFolderPath { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public int Percent
+        {
+            get
+            {
+                if (Status is "completed") return 100;
+                if (TotalFolders > 0) return Math.Clamp((int)Math.Round(ProcessedFolders * 100.0 / TotalFolders), 0, 99);
+                if (TotalStores > 0) return Math.Clamp((int)Math.Round(ProcessedStores * 100.0 / TotalStores), 0, 99);
+                return Status is "running" ? 1 : 0;
+            }
+        }
     }
 
     public class FetchCalendarRequest
@@ -320,6 +375,7 @@ namespace SmartOffice.Hub.Models
         public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"export_mail_attachment"、"fetch_folders"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
         public FetchMailsRequest? MailsRequest { get; set; }
         public SearchMailsRequest? SearchMailsRequest { get; set; }
+        public MailSearchSliceRequest? MailSearchSliceRequest { get; set; }
         public FetchMailBodyRequest? MailBodyRequest { get; set; }
         public FetchMailAttachmentsRequest? MailAttachmentsRequest { get; set; }
         public ExportMailAttachmentRequest? ExportMailAttachmentRequest { get; set; }

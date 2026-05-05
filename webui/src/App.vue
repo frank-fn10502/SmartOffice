@@ -25,8 +25,7 @@ function formatAttachmentSize(size: number) {
 }
 
 function formatAttachmentMeta(contentType: string, size: number) {
-  const parts = [contentType.trim(), formatAttachmentSize(size)].filter(Boolean)
-  return parts.join(' · ')
+  return `${contentType.trim() || 'unknown'} · ${formatAttachmentSize(size)}`
 }
 
 const {
@@ -87,6 +86,7 @@ const {
   mailPropertiesDraft,
   mailRange,
   mailSearchDraft,
+  mailSearchProgressText,
   mailStats,
   mails,
   moveDraggedMail,
@@ -643,9 +643,9 @@ const {
                 @keydown.enter.prevent="requestMailSearch"
               />
               <el-select v-model="mailSearchDraft.matchMode" class="match-select">
-                <el-option label="片段" value="contains" />
-                <el-option label="完全相同" value="exact" />
-                <el-option label="Regex 後篩" value="regex" />
+                <el-option label="包含關鍵字" value="contains" />
+                <el-option label="模糊符合" value="fuzzy" />
+                <el-option label="完全符合" value="exact" />
               </el-select>
               <el-select v-model="mailSearchDraft.scopeMode" class="scope-select">
                 <el-option label="目前 folder" value="selected_folder" />
@@ -664,29 +664,14 @@ const {
                 v-model="mailSearchDraft.receivedFrom"
                 type="datetime"
                 value-format="YYYY-MM-DDTHH:mm:ss"
-                placeholder="起始時間"
+                placeholder="收到時間起"
               />
               <el-date-picker
                 v-model="mailSearchDraft.receivedTo"
                 type="datetime"
                 value-format="YYYY-MM-DDTHH:mm:ss"
-                placeholder="結束時間"
+                placeholder="收到時間迄"
               />
-              <el-date-picker
-                v-model="mailSearchDraft.exactReceivedTime"
-                type="datetime"
-                value-format="YYYY-MM-DDTHH:mm:ss"
-                placeholder="單一時間"
-              />
-              <el-input-number
-                v-model="mailSearchDraft.exactReceivedToleranceSeconds"
-                :min="0"
-                :max="3600"
-                :step="30"
-                controls-position="right"
-                class="tolerance-input"
-              />
-              <el-checkbox v-model="mailSearchDraft.includeSubFolders">含子 folder</el-checkbox>
             </div>
             <div class="mail-search-row search-options-row">
               <el-checkbox-group v-model="mailSearchDraft.fields">
@@ -695,7 +680,6 @@ const {
                 <el-checkbox label="categories">分類</el-checkbox>
                 <el-checkbox label="body">Body</el-checkbox>
               </el-checkbox-group>
-              <span class="search-note">Regex 只適合小範圍後篩；大型搜尋請優先使用時間、folder 與 store 條件。</span>
             </div>
           </div>
 
@@ -747,7 +731,7 @@ const {
               </div>
             </article>
             <div v-if="loadingMailSearch" class="pane-loading">
-              <span>Outlook 郵件搜尋中...</span>
+              <span>{{ mailSearchProgressText || 'Outlook 郵件搜尋中...' }}</span>
             </div>
           </div>
         </section>

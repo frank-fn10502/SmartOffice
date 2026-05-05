@@ -1,15 +1,16 @@
 # Office 2016 Add-in 線上文件
 
-本文件只紀錄 Office 2016 Add-in 開發與 mock 校準時可查的線上文件入口。工作機與 Hub 的 JSON 格式請看 `docs/addin/signalr-contract.md`；工作機實測資料、差異與錯誤回報格式請看 `docs/addin/test-report.md`。
+本文件只紀錄 Office 2016 AddIn 實作時可查的線上文件入口。SignalR payload 與 DTO 格式請看 `docs/addin/signalr-contract.md`；工作機實測資料、差異與錯誤回報格式請看 `docs/addin/test-report.md`。
 
 最後確認日期：2026-04-29。
 
 ## 使用原則
 
 - 優先使用 Microsoft Learn 官方文件。
-- 第三方文章只能作為輔助，不應作為 SmartOffice.Hub contract 依據。
+- 第三方文章只能作為輔助，不應作為 AddIn contract 或 Outlook 行為依據。
 - Office 2016 desktop 是主要目標環境；不要只看最新 API 文件就假設 Office 2016 可用。
-- 如果工作機實測結果與文件描述不一致，或開發機需要真實資料校準 Web UI、mock、Add-in mapping、檔案寫入或 protocol，請用 `docs/addin/test-report.md` 的格式回報。
+- 如果工作機實測結果與文件描述不一致，或 Outlook API 行為會影響 AddIn mapping、檔案寫入或 DTO 欄位，請用 `docs/addin/test-report.md` 的格式回報。
+- 除非 Microsoft 官方文件明確指出某個 API 呼叫方式可改善效能，否則 AddIn 應選擇最簡單的 Outlook object model 流程；不要為了預想的效能優化加入額外排程、cache 或 legacy fallback。
 
 ## VSTO / COM Add-in
 
@@ -22,10 +23,11 @@ Office 2016 desktop 深度整合通常會碰到 VSTO、COM automation 或 Outloo
 - [Folder object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder)：Outlook folder 與 nested folders。
 - [Folders object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folders)：同一層 folder collection。
 - [Folder.Folders property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.folders)：讀取子資料夾。
+- [Store.GetRootFolder method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.store.getrootfolder)：從單一 Store root 列舉 folder tree；Microsoft 文件也指出這不同於 `NameSpace.Folders` 直接拿目前 profile 所有 stores 的 folders。
 - [MailItem object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem)：郵件 item、subject、sender、body、received time 等欄位。
-- [Application.AdvancedSearch method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearch)：非同步搜尋；scope 可含同一個 store 內的多個 folder，不能跨 store。
+- [Application.AdvancedSearch method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearch)：非同步搜尋；scope 可含同一個 store 內的多個 folder，不能跨 store。Microsoft 文件提醒大量 simultaneous search 會造成顯著搜尋活動並影響 Outlook performance；AddIn 實作時只處理 Hub 給定的單一 search slice。
 - [Application.AdvancedSearchComplete event (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearchcomplete)：`AdvancedSearch` 完成事件，避免以 blocking loop 等待。
-- [Items.Restrict method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict)：在單一 folder items 內做條件篩選，適合搭配日期與 max count 縮小讀取範圍。
+- [Items.Restrict method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict)：在單一 folder items 內做條件篩選，適合搭配日期與 max count 縮小讀取範圍。Microsoft 文件指出 `Restrict` 適合大型 collection 先縮小結果，但也明確說明不能做 Subject contains；contains / fuzzy / body 後篩必須在 bounded candidate set 內處理。
 
 ## Office JavaScript Add-in / Office.js
 

@@ -33,6 +33,13 @@ SmartOffice.Hub cache
 3. 輪詢 `GET /api/outlook/command-results/{commandId}`，直到 `status` 不是 `pending`。
 4. 若 command 會更新 snapshot，再讀取對應 cache endpoint，例如 `/api/outlook/mails` 或 `/api/outlook/folders`。
 
+Mail search 另有進度 endpoint，適合 MCP / Skill 對長時間搜尋做主動確認：
+
+- `GET /api/outlook/mail-search/progress/by-command/{commandId}`：只有 dispatch response 的 `commandId` 時使用。
+- `GET /api/outlook/mail-search/progress/{searchId}`：已知道 search correlation id 時使用。
+
+Search progress 的 `status` 可能是 `pending`、`running`、`completed`、`failed`、`addin_unavailable`，並包含 `percent`、`processedFolders`、`totalFolders`、`resultCount` 與目前 folder path。外部 tool 可以在 `command-results` 尚未完成時，用 progress endpoint 顯示長搜尋狀態。
+
 `command-results` 回應範例：
 
 ```json

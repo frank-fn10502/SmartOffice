@@ -621,16 +621,7 @@ select {
 
 .match-select,
 .scope-select {
-  width: 128px;
-}
-
-.tolerance-input {
-  width: 116px;
-}
-
-.search-note {
-  min-width: 220px;
-  flex: 1 1 260px;
+  width: 136px;
 }
 
 .mail-counts {

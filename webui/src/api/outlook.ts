@@ -11,7 +11,8 @@ import type {
   MailAttachmentDto,
   MailAttachmentsDto,
   MailBodyDto,
-  MailSearchBatchDto,
+  MailSearchSliceResultDto,
+  MailSearchProgressDto,
   MailPropertiesCommandRequest,
   MailItemDto,
   OutlookCategoryDto,
@@ -84,15 +85,40 @@ export function normalizeMailItems(items: unknown): MailItemDto[] {
   return Array.isArray(items) ? items.map(normalizeMailItem) : []
 }
 
-export function normalizeMailSearchBatch(item: unknown): MailSearchBatchDto {
+export function normalizeMailSearchSliceResult(item: unknown): MailSearchSliceResultDto {
   const source = (item ?? {}) as LooseRecord
   return {
     searchId: readString(source, 'searchId', 'SearchId'),
+    commandId: readString(source, 'commandId', 'CommandId'),
+    parentCommandId: readString(source, 'parentCommandId', 'ParentCommandId'),
     sequence: readNumber(source, 'sequence', 'Sequence'),
+    sliceIndex: readNumber(source, 'sliceIndex', 'SliceIndex'),
+    sliceCount: readNumber(source, 'sliceCount', 'SliceCount'),
     reset: readBoolean(source, 'reset', 'Reset'),
     isFinal: readBoolean(source, 'isFinal', 'IsFinal'),
+    isSliceComplete: readBoolean(source, 'isSliceComplete', 'IsSliceComplete'),
     mails: normalizeMailItems(source.mails ?? source.Mails),
     message: readString(source, 'message', 'Message'),
+  }
+}
+
+export function normalizeMailSearchProgress(item: unknown): MailSearchProgressDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    searchId: readString(source, 'searchId', 'SearchId'),
+    commandId: readString(source, 'commandId', 'CommandId'),
+    status: readString(source, 'status', 'Status'),
+    phase: readString(source, 'phase', 'Phase'),
+    processedStores: readNumber(source, 'processedStores', 'ProcessedStores'),
+    totalStores: readNumber(source, 'totalStores', 'TotalStores'),
+    processedFolders: readNumber(source, 'processedFolders', 'ProcessedFolders'),
+    totalFolders: readNumber(source, 'totalFolders', 'TotalFolders'),
+    resultCount: readNumber(source, 'resultCount', 'ResultCount'),
+    currentStoreId: readString(source, 'currentStoreId', 'CurrentStoreId'),
+    currentFolderPath: readString(source, 'currentFolderPath', 'CurrentFolderPath'),
+    message: readString(source, 'message', 'Message'),
+    timestamp: readString(source, 'timestamp', 'Timestamp'),
+    percent: readNumber(source, 'percent', 'Percent'),
   }
 }
 
@@ -214,6 +240,10 @@ export const outlookApi = {
   getFolders: () => getJson<FolderSnapshotDto>('/api/outlook/folders'),
   getMails: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mails')),
   getMailSearchResults: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mail-search')),
+  getMailSearchProgress: async (searchId: string) =>
+    normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/${encodeURIComponent(searchId)}`)),
+  getMailSearchProgressByCommandId: async (commandId: string) =>
+    normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/by-command/${encodeURIComponent(commandId)}`)),
   getRules: () => getJson<OutlookRuleDto[]>('/api/outlook/rules'),
   getCategories: async () => normalizeOutlookCategories(await getJson<unknown>('/api/outlook/categories')),
   getCalendar: () => getJson<CalendarEventDto[]>('/api/outlook/calendar'),

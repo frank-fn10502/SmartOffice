@@ -11,7 +11,7 @@ Outlook AddIn 正式 protocol 已改為 SignalR-only：
 3. Web UI、AI 或 MCP client 透過 Hub HTTP request endpoint 發出要求。
 4. Hub 透過 SignalR client event `OutlookCommand` 即時 dispatch command 給 AddIn。
 5. AddIn 在本機執行 Outlook automation。
-6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushMail`、`PushMailBody`、`PushMailAttachments`、`PushExportedMailAttachment`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果。
+6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushMail`、`PushMailBody`、`PushMailAttachments`、`PushExportedMailAttachment`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果；mail search progress 由 Hub 自行推算。
 7. Hub 更新 cache，並透過 `/hub/notifications` broadcast 給 Web UI。
 
 目前不保留舊 AddIn HTTP long-poll / push channel；工作機 AddIn 不應再呼叫 `/api/outlook/poll` 或 `/api/outlook/push-*`。
@@ -36,15 +36,11 @@ Web UI notification channel：
 
 - `POST /api/outlook/request-folders`：dispatch folder fetch command。
 - `POST /api/outlook/request-mails`：dispatch mail fetch command。
+- `POST /api/outlook/request-mail-search`：dispatch mail search command；Hub 必須先確保 folder cache、展開 store/folder scope、切成單 folder slices，並節流 dispatch 給 AddIn。搜尋預設只看 subject。
 - `POST /api/outlook/request-rules`：dispatch Outlook rule fetch command。
 - `POST /api/outlook/request-categories`：dispatch Outlook master category fetch command。
 - `POST /api/outlook/request-signalr-ping`：透過正式 AddIn channel dispatch `ping` 測試 command。
 - `POST /api/outlook/request-calendar`：dispatch Outlook calendar fetch command。
-- `POST /api/outlook/request-mark-mail-read`：dispatch 單封郵件標記已讀 command。
-- `POST /api/outlook/request-mark-mail-unread`：dispatch 單封郵件標記未讀 command。
-- `POST /api/outlook/request-mark-mail-task`：dispatch 單封郵件 flag/follow-up command。
-- `POST /api/outlook/request-clear-mail-task`：dispatch 單封郵件清除 flag/follow-up command。
-- `POST /api/outlook/request-set-mail-categories`：dispatch 單封郵件 category command。
 - `POST /api/outlook/request-update-mail-properties`：dispatch 單封郵件屬性整批更新 command。
 - `POST /api/outlook/request-upsert-category`：dispatch Outlook master category 新增或更新顏色 command。
 - `POST /api/outlook/request-create-folder`：dispatch 建立 folder command。
@@ -53,6 +49,8 @@ Web UI notification channel：
 - `POST /api/outlook/request-delete-mail`：dispatch `delete_mail` command；AddIn 必須實作為移到 Deleted Items，不可永久刪除。
 - `GET /api/outlook/folders`：讀取 cached folder snapshot，格式是 `FolderSnapshotDto`。
 - `GET /api/outlook/mails`：讀取 cached mails。
+- `GET /api/outlook/mail-search/progress/{searchId}`：查詢 mail search 進度。
+- `GET /api/outlook/mail-search/progress/by-command/{commandId}`：以 command id 查詢 mail search 進度。
 - `GET /api/outlook/rules`：讀取 cached Outlook rules。
 - `GET /api/outlook/categories`：讀取 cached Outlook master category list。
 - `GET /api/outlook/calendar`：讀取 cached Outlook calendar events。
@@ -73,6 +71,28 @@ Web UI notification channel：
 HTTP status 是 `409 Conflict`。
 
 AI / MCP client 的完整建議流程請參考 `docs/ai/mcp-skill-integration.md`。
+
+目前郵件已讀、flag 與 category mutation 以 `request-update-mail-properties` / `update_mail_properties` 為正式入口。舊的 marker-style endpoint 若仍存在於程式碼中，只能視為待移除的 transitional surface，不應再寫入 `docs/addin/` 或要求工作機 AddIn 維護相容 handler。
+
+## Hub Mail Search Planning
+
+Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 folder slice。Hub 收到 `request-mail-search` 時必須：
+
+1. 若 folder cache 為空，先 dispatch `fetch_folders` 並等待 cached folder tree 可用。
+2. 若 folder cache 無法建立，讓原始 search command 失敗並回 `folder_cache_unavailable`。
+3. 使用 cached folder tree 展開原始 request 的 `storeId` / `scopeFolderPaths` / `includeSubFolders`。
+4. 將搜尋計畫切成單 folder slices；每個 slice 都要有非空 `storeId`、單一 `scopeFolderPaths[0]`、`includeSubFolders=false`、`isHubSlice=true`。
+5. 依序 dispatch slices，slice 之間保留短暫 delay，避免大量 Outlook search 同時啟動。
+6. 用 `MailSearchProgress` broadcast 整體進度；MCP / Skill 可用 progress endpoint 主動查詢。
+
+原始 request scope 展開規則：
+
+| 原始 `storeId` | 原始 `scopeFolderPaths` | Hub 規劃方式 |
+| --- | --- | --- |
+| 非空 | 非空 | 展開指定 store 內的指定 folder；`includeSubFolders=true` 時包含子 folder。 |
+| 非空 | 空陣列 | 展開該 store 底下所有可搜尋 mail folders。 |
+| 空字串 | 非空 | 用 cached folder tree 找出 folder 所在 store，再分成單 folder slices。 |
+| 空字串 | 空陣列 | 展開所有 stores 底下所有可搜尋 mail folders。 |
 
 ## AddIn SignalR Server Method
 
@@ -119,6 +139,10 @@ Web UI notification endpoint 是 `/hub/notifications`。
 - `FolderSyncCompleted`
 - `MailsUpdated`
 - `MailUpdated`
+- `MailSearchStarted`
+- `MailSearchPatched`
+- `MailSearchProgress`
+- `MailSearchCompleted`
 - `RulesUpdated`
 - `CategoriesUpdated`
 - `CalendarUpdated`

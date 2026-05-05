@@ -1,10 +1,12 @@
 # AddIn 實作者文件
 
-本資料夾是給工作機 Outlook AddIn 實作者與工作機 AI 看的文件。請從 checklist 開始，不要直接跳到 DTO 細節。
+本資料夾是給工作機 Outlook AddIn 實作者與工作機 AI 看的文件。這裡只描述 AddIn 需要遵守的 Outlook automation 與 SignalR contract；除非直接影響 AddIn 實作，否則不在此解釋 Web UI、Hub 內部流程、mock 或開發機架構。
+
+AddIn 的定位很薄：收到 command、呼叫 Outlook API、把結果轉成 DTO 回推。排程、跨 folder 搜尋語意、快取、負載管理、progress 推算、資料合併與對外 API 都由 Hub 負責。
 
 ## 建議閱讀順序
 
-1. `features-checklist.md`：Web UI 需要 AddIn 實作的功能、完成定義與驗收項目。
+1. `features-checklist.md`：AddIn 必須實作的 command、完成定義與驗收項目。
 2. `signalr-contract.md`：SignalR method、command payload、DTO 欄位與 JSON 範例。
 3. `outlook-references.md`：需要確認 Outlook / Office 2016 行為時再查看的官方文件入口。
 4. `test-report.md`：工作機測到差異、錯誤或真實資料形狀時的回報格式。
@@ -12,7 +14,10 @@
 ## 使用原則
 
 - checklist 是任務入口；contract 是欄位規格。
+- 不相容舊版 AddIn contract；不要保留 `/api/outlook/poll`、`/api/outlook/push-*`、舊 chat HTTP endpoint 或沒有實際使用的 command handler。
+- 不維護未使用功能。若目前 contract 沒列出、工作機也沒有實際需求，請刪除或不要新增。
+- AddIn 不負責負載管理。除非 Microsoft 官方文件明確指出某個 Outlook API 呼叫方式可改善效能，否則優先採用最單純、可診斷、可中止的實作。
 - AddIn 不應用 mock data 反推 Outlook object model 行為。
 - 真實 mail body、folder name、PST path、category name 與 chat message 都可能含敏感 business data；回報時必須匿名化。
-- 郵件列表採兩段式載入：`fetch_mails` 只回 metadata，不應載入或回推完整 `body` / `bodyHtml`；使用者點開單封郵件時，Web UI 會送 `fetch_mail_body`，AddIn 再回推該封內容。
-- 附件採兩段式處理：`fetch_mail_attachments` 只回附件 metadata；使用者或 AI/MCP 選定附件後才送 `export_mail_attachment`，AddIn 只匯出到約定路徑，不負責開檔。
+- 郵件列表採兩段式載入：`fetch_mails` 只回 metadata，不應載入或回推完整 `body` / `bodyHtml`；收到 `fetch_mail_body` 時才讀取該封內容。
+- 附件採兩段式處理：`fetch_mail_attachments` 只回附件 metadata；收到 `export_mail_attachment` 時才匯出到約定路徑。AddIn 不負責開檔。

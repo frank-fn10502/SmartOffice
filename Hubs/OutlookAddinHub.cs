@@ -117,19 +117,62 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
-        public async Task BeginMailSearch(MailSearchBatchDto batch)
+        public Task BeginMailSearch(MailSearchSliceResultDto batch)
+        {
+            return HandleBeginMailSearchAsync(batch);
+        }
+
+        public Task PushMailSearchSliceResult(MailSearchSliceResultDto batch)
+        {
+            return HandleMailSearchSliceResultAsync(batch);
+        }
+
+        public Task CompleteMailSearchSlice(MailSearchCompleteDto info)
+        {
+            return HandleCompleteMailSearchSliceAsync(info);
+        }
+
+        public Task CompleteMailSearch(MailSearchCompleteDto info)
+        {
+            return HandleCompleteMailSearchSliceAsync(info);
+        }
+
+        private async Task HandleBeginMailSearchAsync(MailSearchSliceResultDto batch)
         {
             _mailStore.BeginMailSearch(batch.Reset);
+            var progress = _mailStore.UpdateMailSearchProgress(new MailSearchProgressDto
+            {
+                SearchId = batch.SearchId,
+                Status = "running",
+                Phase = "store",
+                ResultCount = _mailStore.GetMailSearchResults().Count,
+                Message = string.IsNullOrWhiteSpace(batch.Message) ? "Mail search started." : batch.Message,
+                Timestamp = DateTime.Now,
+            });
             _addinStatus.AddLog("info", $"Mail search started: {batch.SearchId}");
             await _notifications.Clients.All.SendAsync("MailSearchStarted", batch);
+            await _notifications.Clients.All.SendAsync("MailSearchProgress", progress);
             await BroadcastStatusAndLogsAsync();
         }
 
-        public async Task PushMailSearchBatch(MailSearchBatchDto batch)
+        private async Task HandleMailSearchSliceResultAsync(MailSearchSliceResultDto batch)
         {
-            _mailStore.ApplyMailSearchBatch(batch);
+            _mailStore.ApplyMailSearchSliceResult(batch);
+            var progress = _mailStore.GetMailSearchProgress(batch.SearchId);
+            if (!string.IsNullOrWhiteSpace(batch.CommandId) && batch.IsSliceComplete)
+            {
+                _commandResults.RecordResult(new OutlookCommandResult
+                {
+                    CommandId = batch.CommandId,
+                    Success = true,
+                    Message = string.IsNullOrWhiteSpace(batch.Message) ? "Mail search slice completed." : batch.Message,
+                    Timestamp = DateTime.Now,
+                });
+            }
             _addinStatus.RecordPush("mail search results", batch.Mails.Count);
             await _notifications.Clients.All.SendAsync("MailSearchPatched", batch);
+            if (progress is not null)
+                await _notifications.Clients.All.SendAsync("MailSearchProgress", progress);
 
             if (batch.IsFinal)
             {
@@ -145,13 +188,33 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
-        public async Task CompleteMailSearch(MailSearchCompleteDto info)
+        private async Task HandleCompleteMailSearchSliceAsync(MailSearchCompleteDto info)
         {
             if (info.TotalCount <= 0)
                 info.TotalCount = _mailStore.GetMailSearchResults().Count;
 
+            if (!string.IsNullOrWhiteSpace(info.CommandId))
+            {
+                _commandResults.RecordResult(new OutlookCommandResult
+                {
+                    CommandId = info.CommandId,
+                    Success = info.Success,
+                    Message = info.Message,
+                    Timestamp = info.Timestamp,
+                });
+            }
+            var progress = _mailStore.UpdateMailSearchProgress(new MailSearchProgressDto
+            {
+                SearchId = info.SearchId,
+                Status = info.Success ? "completed" : "failed",
+                Phase = "completed",
+                ResultCount = info.TotalCount,
+                Message = info.Message,
+                Timestamp = info.Timestamp,
+            });
             _addinStatus.AddLog(info.Success ? "info" : "warn", $"Mail search completed: {info.TotalCount} mails. {info.Message}");
             await _notifications.Clients.All.SendAsync("MailSearchCompleted", info);
+            await _notifications.Clients.All.SendAsync("MailSearchProgress", progress);
             await BroadcastStatusAndLogsAsync();
         }
 

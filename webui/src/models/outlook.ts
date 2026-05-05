@@ -58,30 +58,52 @@ export interface SearchMailsRequest {
   scopeFolderPaths: string[]
   includeSubFolders: boolean
   keyword: string
-  matchMode: 'contains' | 'exact' | 'regex'
+  matchMode: 'contains' | 'exact' | 'fuzzy' | 'regex'
   fields: string[]
   receivedFrom?: string
   receivedTo?: string
-  exactReceivedTime?: string
-  exactReceivedToleranceSeconds: number
   maxCount: number
 }
 
-export interface MailSearchBatchDto {
+export interface MailSearchSliceResultDto {
   searchId: string
+  commandId: string
+  parentCommandId: string
   sequence: number
+  sliceIndex: number
+  sliceCount: number
   reset: boolean
   isFinal: boolean
+  isSliceComplete: boolean
   mails: MailItemDto[]
   message: string
 }
 
 export interface MailSearchCompleteDto {
   searchId: string
+  commandId: string
+  parentCommandId: string
   totalCount: number
   success: boolean
   message: string
   timestamp: string
+}
+
+export interface MailSearchProgressDto {
+  searchId: string
+  commandId: string
+  status: string
+  phase: string
+  processedStores: number
+  totalStores: number
+  processedFolders: number
+  totalFolders: number
+  resultCount: number
+  currentStoreId: string
+  currentFolderPath: string
+  message: string
+  timestamp: string
+  percent: number
 }
 
 export interface OutlookCommandResult {
