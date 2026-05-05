@@ -43,6 +43,7 @@ Office 2016 Add-in
 Web UI 與外部整合工具可透過下列 endpoint 發出 request；Hub 會透過 SignalR dispatch command 給 Outlook AddIn：
 
 - `POST /api/outlook/request-folders`
+- `POST /api/outlook/request-folder-children`
 - `POST /api/outlook/request-mails`
 
 Outlook AddIn 透過 SignalR 取得 command：
@@ -164,7 +165,8 @@ Outlook route prefix：
 
 主要 Web UI / 外部整合工具 request endpoint：
 
-- `POST /request-folders`：dispatch folder fetch command。
+- `POST /request-folders`：由 Hub 依序 dispatch `fetch_folder_roots` 與多個 `fetch_folder_children`。
+- `POST /request-folder-children`：dispatch 單一 parent folder children fetch command。
 - `POST /request-mails`：dispatch mail fetch command。
 - `GET /folders`：讀取 cached folders。
 - `GET /mails`：讀取 cached mails。

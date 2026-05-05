@@ -29,7 +29,7 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
 | 功能 | Command / Method | AddIn 完成後必須回推 |
 | --- | --- | --- |
 | AddIn 連線 | `ping` | `ReportCommandResult` |
-| Store-first folder tree | `fetch_folders` | `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync` |
+| Hub-driven folder discovery | `fetch_folder_roots`、`fetch_folder_children` | `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync` |
 | 讀取郵件 | `fetch_mails` | `PushMails` metadata |
 | 搜尋郵件 candidates | `fetch_mail_search_slice` | `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice` |
 | 讀取郵件內容 | `fetch_mail_body` | `PushMailBody` |
@@ -59,13 +59,16 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
 - [ ] Hub 可看到 AddIn 已註冊。
 - [ ] Hub 可收到 `ping` 的 command result。
 
-### 2. Store-first Folder Tree
+### 2. Hub-driven Folder Discovery
 
-第一層必須是 Outlook Store，而不是直接回 Inbox/Sent。
+第一層必須是 Outlook Store，而且 folder discovery 必須由 Hub 分段 dispatch；AddIn 不得一次遞迴整棵樹。
 
-- [ ] AddIn 收到 `fetch_folders`。
-- [ ] 使用 Outlook `Application.Session.Stores` 列出目前 profile 的所有 stores。
-- [ ] 每個 store 使用 `Store.GetRootFolder()` 取得 root folder。
+- [ ] AddIn 收到 `fetch_folder_roots`。
+- [ ] `fetch_folder_roots` 只使用 Outlook `Application.Session.Stores` 列出目前 profile 的所有 stores。
+- [ ] `fetch_folder_roots` 只對每個 store 使用 `Store.GetRootFolder()` 取得 root folder，不讀 subfolders。
+- [ ] AddIn 收到 `fetch_folder_children`。
+- [ ] `fetch_folder_children` 使用 `storeId` + `parentEntryId` 優先定位 parent folder，必要時才用 `parentFolderPath`。
+- [ ] `fetch_folder_children` 只讀 parent 的直接 children，除非 Hub 指定較大的 `maxDepth`。
 - [ ] invoke `BeginFolderSync` 開始 folder 增量同步。
 - [ ] 用 `PushFolderBatch` 分批送回 `OutlookStoreDto[]` 與 flat `FolderDto[]`。
 - [ ] invoke `CompleteFolderSync` 結束 folder 增量同步。
@@ -79,11 +82,16 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
   - `rootFolderPath`
 - [ ] 每個 `FolderDto` 都填入：
   - `name`
+  - `entryId`
   - `folderPath`
+  - `parentEntryId`
   - `parentFolderPath`
   - `itemCount`
   - `storeId`
   - `isStoreRoot`
+  - `hasChildren`
+  - `childrenLoaded`
+  - `discoveryState`
 - [ ] Store root folder 的 `parentFolderPath = ""` 且 `isStoreRoot = true`，底下 folder 都是 `false`。
 - [ ] `FolderDto` 不再包含 `subFolders`，也不重複傳 store metadata。
 - [ ] `.pst` / `.ost` 的真實位置填在 `storeFilePath`；回報文件中必須匿名化路徑。

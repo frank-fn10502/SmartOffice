@@ -18,6 +18,8 @@ namespace SmartOffice.Hub.Controllers
         private readonly IHubContext<NotificationHub> _hub;
         private readonly AddinStatusStore _addinStatus;
         private readonly AttachmentExportService _attachmentExports;
+        private const int FolderDiscoveryCommandDelayMs = 75;
+        private const int FolderDiscoveryMaxCommands = 2000;
 
         public OutlookController(MailStore mailStore, ChatStore chatStore,
             CommandResultStore commandResults, OutlookCommandQueue commandQueue, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus, AttachmentExportService attachmentExports)
@@ -227,11 +229,7 @@ namespace SmartOffice.Hub.Controllers
             });
             await _hub.Clients.All.SendAsync("MailSearchProgress", progress, ct);
 
-            var result = await _commandQueue.ExecuteQueuedCommandAsync(
-                new PendingCommand { Type = "fetch_folders" },
-                () => _mailStore.CountFolders() > 0,
-                ensureReady: true,
-                ct: ct);
+            var result = await DiscoverFoldersQueuedAsync(ct);
             if (!result.Success) return false;
             return _mailStore.CountFolders() > 0;
         }
@@ -417,7 +415,114 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-folders")]
         public async Task<IActionResult> RequestFolders(CancellationToken ct)
         {
-            return await DispatchCommandAsync(new PendingCommand { Type = "fetch_folders" }, ct);
+            return await _commandQueue.ExecuteExclusiveAsync(
+                operationCt => RequestFoldersQueuedAsync(operationCt),
+                CancellationToken.None);
+        }
+
+        [HttpPost("request-folder-children")]
+        public async Task<IActionResult> RequestFolderChildren([FromBody] FolderDiscoveryRequest req, CancellationToken ct)
+        {
+            req ??= new FolderDiscoveryRequest();
+            req.MaxDepth = Math.Clamp(req.MaxDepth <= 0 ? 1 : req.MaxDepth, 1, 3);
+            req.MaxChildren = Math.Clamp(req.MaxChildren <= 0 ? 50 : req.MaxChildren, 1, 200);
+            req.Reset = false;
+
+            return await _commandQueue.ExecuteExclusiveAsync(
+                operationCt => RequestFolderChildrenQueuedAsync(req, operationCt),
+                CancellationToken.None);
+        }
+
+        private async Task<IActionResult> RequestFolderChildrenQueuedAsync(FolderDiscoveryRequest req, CancellationToken ct)
+        {
+            var command = new PendingCommand
+            {
+                Type = "fetch_folder_children",
+                FolderDiscoveryRequest = req,
+            };
+            var result = await _commandQueue.ExecuteQueuedCommandAsync(
+                command,
+                () => _mailStore.IsFolderChildrenLoaded(req.StoreId, req.ParentEntryId, req.ParentFolderPath),
+                ensureReady: true,
+                ct: ct);
+            var body = new { commandId = command.Id, status = result.Status, message = result.Message };
+            return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
+        }
+
+        private async Task<IActionResult> RequestFoldersQueuedAsync(CancellationToken ct)
+        {
+            var result = await DiscoverFoldersQueuedAsync(ct);
+            var snapshot = _mailStore.GetFolderSnapshot();
+            var body = new
+            {
+                commandId = result.CommandId,
+                status = result.Status,
+                message = result.Message,
+                stores = snapshot.Stores.Count,
+                folders = snapshot.Folders.Count,
+            };
+            return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
+        }
+
+        private async Task<OutlookQueuedCommandResult> DiscoverFoldersQueuedAsync(CancellationToken ct)
+        {
+            var syncId = Guid.NewGuid().ToString();
+            var rootCommand = new PendingCommand
+            {
+                Type = "fetch_folder_roots",
+                FolderDiscoveryRequest = new FolderDiscoveryRequest
+                {
+                    SyncId = syncId,
+                    Reset = true,
+                    MaxDepth = 0,
+                    MaxChildren = 50,
+                },
+            };
+
+            var rootResult = await _commandQueue.ExecuteQueuedCommandAsync(
+                rootCommand,
+                () => _mailStore.CountStoreRoots() > 0,
+                ensureReady: true,
+                ct: ct);
+            if (!rootResult.Success) return rootResult;
+
+            var dispatchedChildren = 0;
+            while (!ct.IsCancellationRequested)
+            {
+                var target = _mailStore.GetPendingFolderDiscoveryTargets().FirstOrDefault();
+                if (target is null)
+                    return OutlookQueuedCommandResult.Completed(rootCommand.Id, "completed", "Hub-driven folder discovery completed.");
+
+                if (dispatchedChildren >= FolderDiscoveryMaxCommands)
+                    return OutlookQueuedCommandResult.Failed(rootCommand.Id, "folder_discovery_limit", "Hub stopped folder discovery because the command limit was reached.");
+
+                var childCommand = new PendingCommand
+                {
+                    Type = "fetch_folder_children",
+                    FolderDiscoveryRequest = new FolderDiscoveryRequest
+                    {
+                        SyncId = syncId,
+                        StoreId = target.StoreId,
+                        ParentEntryId = target.EntryId,
+                        ParentFolderPath = target.FolderPath,
+                        MaxDepth = 1,
+                        MaxChildren = 50,
+                        Reset = false,
+                    },
+                };
+
+                var childResult = await _commandQueue.ExecuteQueuedCommandAsync(
+                    childCommand,
+                    () => _mailStore.IsFolderChildrenLoaded(target.StoreId, target.EntryId, target.FolderPath),
+                    ensureReady: true,
+                    ct: ct);
+                if (!childResult.Success) return childResult;
+
+                dispatchedChildren++;
+                await Task.Delay(FolderDiscoveryCommandDelayMs, ct);
+            }
+
+            return OutlookQueuedCommandResult.Failed(rootCommand.Id, "cancelled", "Folder discovery was cancelled.");
         }
 
         /// <summary>
@@ -581,7 +686,12 @@ namespace SmartOffice.Hub.Controllers
         {
             return cmd.Type switch
             {
-                "fetch_folders" => () => _mailStore.CountFolders() > 0,
+                "fetch_folder_roots" => () => _mailStore.CountStoreRoots() > 0,
+                "fetch_folder_children" when cmd.FolderDiscoveryRequest is not null => () =>
+                    _mailStore.IsFolderChildrenLoaded(
+                        cmd.FolderDiscoveryRequest.StoreId,
+                        cmd.FolderDiscoveryRequest.ParentEntryId,
+                        cmd.FolderDiscoveryRequest.ParentFolderPath),
                 _ => null,
             };
         }

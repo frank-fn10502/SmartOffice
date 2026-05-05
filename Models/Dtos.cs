@@ -35,11 +35,16 @@ namespace SmartOffice.Hub.Models
     public class FolderDto
     {
         public string Name { get; set; } = string.Empty;
+        public string EntryId { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
+        public string ParentEntryId { get; set; } = string.Empty;
         public string ParentFolderPath { get; set; } = string.Empty;
         public int ItemCount { get; set; }
         public string StoreId { get; set; } = string.Empty;
         public bool IsStoreRoot { get; set; }
+        public bool HasChildren { get; set; }
+        public bool ChildrenLoaded { get; set; }
+        public string DiscoveryState { get; set; } = "partial"; // partial、loaded、failed。
     }
 
     public class OutlookStoreDto
@@ -81,6 +86,17 @@ namespace SmartOffice.Hub.Models
         public bool Success { get; set; } = true;
         public string Message { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    public class FolderDiscoveryRequest
+    {
+        public string SyncId { get; set; } = Guid.NewGuid().ToString();
+        public string StoreId { get; set; } = string.Empty;
+        public string ParentEntryId { get; set; } = string.Empty;
+        public string ParentFolderPath { get; set; } = string.Empty;
+        public int MaxDepth { get; set; } = 1;
+        public int MaxChildren { get; set; } = 50;
+        public bool Reset { get; set; }
     }
 
     public class FetchMailsRequest
@@ -372,7 +388,8 @@ namespace SmartOffice.Hub.Models
     public class PendingCommand
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"export_mail_attachment"、"fetch_folders"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
+        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_folder_roots"、"fetch_folder_children"、"fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"export_mail_attachment"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
+        public FolderDiscoveryRequest? FolderDiscoveryRequest { get; set; }
         public FetchMailsRequest? MailsRequest { get; set; }
         public SearchMailsRequest? SearchMailsRequest { get; set; }
         public MailSearchSliceRequest? MailSearchSliceRequest { get; set; }

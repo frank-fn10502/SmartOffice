@@ -90,11 +90,11 @@ function folderTitle(folder: FolderTreeNode) {
     >
       <button
         class="folder-toggle"
-        :class="{ expanded: expandedFolders.has(folder.folderPath), empty: visibleChildren(folder).length === 0 }"
+        :class="{ expanded: expandedFolders.has(folder.folderPath), empty: !folder.hasChildren && visibleChildren(folder).length === 0 }"
         type="button"
         @click.stop="emit('toggle', folder.folderPath)"
       >
-        <el-icon v-if="visibleChildren(folder).length > 0"><ArrowRight /></el-icon>
+        <el-icon v-if="folder.hasChildren || visibleChildren(folder).length > 0"><ArrowRight /></el-icon>
       </button>
 
       <el-icon class="folder-kind">

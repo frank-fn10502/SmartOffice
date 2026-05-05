@@ -1,10 +1,15 @@
 export interface FolderDto {
   name: string
+  entryId: string
   folderPath: string
+  parentEntryId: string
   parentFolderPath: string
   itemCount: number
   storeId: string
   isStoreRoot: boolean
+  hasChildren: boolean
+  childrenLoaded: boolean
+  discoveryState: 'partial' | 'loaded' | 'failed' | string
 }
 
 export interface OutlookStoreDto {
@@ -50,6 +55,16 @@ export interface FolderSyncCompleteDto {
 export interface CommandDispatchResponse {
   commandId: string
   status: 'mocked' | 'dispatched' | 'addin_unavailable' | string
+}
+
+export interface FolderDiscoveryRequest {
+  syncId?: string
+  storeId?: string
+  parentEntryId?: string
+  parentFolderPath?: string
+  maxDepth?: number
+  maxChildren?: number
+  reset?: boolean
 }
 
 export interface SearchMailsRequest {

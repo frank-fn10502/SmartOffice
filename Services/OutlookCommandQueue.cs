@@ -9,7 +9,6 @@ namespace SmartOffice.Hub.Services
         private static readonly TimeSpan ConnectionTimeout = TimeSpan.FromSeconds(45);
         private static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(90);
-        private static readonly TimeSpan FolderWarmupTimeout = TimeSpan.FromSeconds(60);
         private static readonly TimeSpan ReadyFreshness = TimeSpan.FromSeconds(20);
 
         private readonly SemaphoreSlim _queue = new(1, 1);
@@ -96,24 +95,7 @@ namespace SmartOffice.Hub.Services
 
             _lastReadyAt = DateTime.Now;
 
-            if (commandType == "fetch_folders" || _mailStore.CountFolders() > 0)
-                return OutlookQueuedCommandResult.Completed(string.Empty, "ready", "Outlook AddIn is ready.");
-
-            var folders = await DispatchAndWaitAsync(
-                new PendingCommand { Type = "fetch_folders" },
-                () => _mailStore.CountFolders() > 0,
-                FolderWarmupTimeout,
-                ct);
-
-            if (folders.Success && _mailStore.CountFolders() > 0)
-            {
-                _lastReadyAt = DateTime.Now;
-                return OutlookQueuedCommandResult.Completed(string.Empty, "ready", "Outlook folder cache is ready.");
-            }
-
-            return folders.Success
-                ? OutlookQueuedCommandResult.Failed(folders.CommandId, "folder_cache_unavailable", "Outlook folder cache is still empty after warmup.")
-                : folders;
+            return OutlookQueuedCommandResult.Completed(string.Empty, "ready", "Outlook AddIn is ready.");
         }
 
         private async Task<bool> WaitForSignalRConnectionAsync(TimeSpan timeout, CancellationToken ct)

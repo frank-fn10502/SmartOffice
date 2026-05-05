@@ -265,6 +265,40 @@ namespace SmartOffice.Hub.Services
             lock (_lock) { return CountFolders(_folders); }
         }
 
+        public int CountStoreRoots()
+        {
+            lock (_lock) { return _folders.Count(folder => folder.IsStoreRoot); }
+        }
+
+        public List<FolderDto> GetPendingFolderDiscoveryTargets()
+        {
+            lock (_lock)
+            {
+                return _folders
+                    .Where(folder => folder.HasChildren && !folder.ChildrenLoaded)
+                    .OrderBy(folder => folder.IsStoreRoot ? 0 : 1)
+                    .ThenBy(folder => folder.StoreId)
+                    .ThenBy(folder => folder.FolderPath)
+                    .Select(CloneFolder)
+                    .ToList();
+            }
+        }
+
+        public bool IsFolderChildrenLoaded(string storeId, string parentEntryId, string parentFolderPath)
+        {
+            lock (_lock)
+            {
+                return _folders.Any(folder =>
+                    !string.IsNullOrWhiteSpace(folder.StoreId)
+                    && string.Equals(folder.StoreId, storeId, StringComparison.OrdinalIgnoreCase)
+                    && (
+                        (!string.IsNullOrWhiteSpace(parentEntryId) && string.Equals(folder.EntryId, parentEntryId, StringComparison.OrdinalIgnoreCase))
+                        || (!string.IsNullOrWhiteSpace(parentFolderPath) && string.Equals(folder.FolderPath, parentFolderPath, StringComparison.OrdinalIgnoreCase))
+                    )
+                    && folder.ChildrenLoaded);
+            }
+        }
+
         public void SetRules(List<OutlookRuleDto> rules)
         {
             lock (_lock) { _rules = new List<OutlookRuleDto>(rules); }
@@ -375,11 +409,16 @@ namespace SmartOffice.Hub.Services
             return new FolderDto
             {
                 Name = folder.Name,
+                EntryId = folder.EntryId,
                 FolderPath = folder.FolderPath,
+                ParentEntryId = folder.ParentEntryId,
                 ParentFolderPath = folder.ParentFolderPath,
                 ItemCount = folder.ItemCount,
                 StoreId = folder.StoreId,
                 IsStoreRoot = folder.IsStoreRoot,
+                HasChildren = folder.HasChildren,
+                ChildrenLoaded = folder.ChildrenLoaded,
+                DiscoveryState = folder.DiscoveryState,
             };
         }
 

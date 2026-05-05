@@ -161,11 +161,19 @@ namespace SmartOffice.Hub.Services
             folders.Add(new FolderDto
             {
                 Name = name,
+                EntryId = MockFolderEntryId(storeId, folderPath),
                 FolderPath = folderPath,
+                ParentEntryId = string.IsNullOrWhiteSpace(parentFolderPath) ? string.Empty : MockFolderEntryId(storeId, parentFolderPath),
                 ParentFolderPath = parentFolderPath,
                 StoreId = storeId,
                 IsStoreRoot = isStoreRoot,
+                DiscoveryState = "partial",
             });
+        }
+
+        private static string MockFolderEntryId(string storeId, string folderPath)
+        {
+            return $"{storeId}:{folderPath}";
         }
 
         private static MailItemDto Mail(
@@ -216,7 +224,12 @@ namespace SmartOffice.Hub.Services
         private static void RefreshFolderCounts(List<FolderDto> folders, List<MailItemDto> mails)
         {
             foreach (var folder in folders)
+            {
                 folder.ItemCount = mails.Count(mail => mail.FolderPath == folder.FolderPath);
+                folder.HasChildren = folders.Any(child => child.ParentFolderPath == folder.FolderPath);
+                folder.ChildrenLoaded = !folder.HasChildren;
+                folder.DiscoveryState = folder.HasChildren ? "partial" : "loaded";
+            }
         }
     }
 

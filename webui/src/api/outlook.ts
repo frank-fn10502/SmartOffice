@@ -253,6 +253,13 @@ export const outlookApi = {
   getAttachmentExportSettings: () => getJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings'),
 
   requestFolders: () => postJson<CommandDispatchResponse>('/api/outlook/request-folders'),
+  requestFolderChildren: (body: {
+    storeId: string
+    parentEntryId: string
+    parentFolderPath: string
+    maxDepth?: number
+    maxChildren?: number
+  }) => postJson<CommandDispatchResponse>('/api/outlook/request-folder-children', body),
   requestMails: (body: { folderPath: string; range: string; maxCount: number }) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-mails', body),
   requestMailSearch: (body: SearchMailsRequest) =>

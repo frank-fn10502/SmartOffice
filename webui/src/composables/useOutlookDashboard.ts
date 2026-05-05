@@ -44,7 +44,7 @@ import {
   categoryOptionColor,
   categoryTextColor,
 } from '../utils/categoryColors'
-import { applyFolderBatch, buildFolderTree, collectFolderOptions, folderType, visibleRootFolders } from '../utils/folders'
+import { applyFolderBatch, buildFolderTree, collectFolderOptions, findFolderByPath, folderType, visibleRootFolders } from '../utils/folders'
 import {
   addMonths,
   dateInputToIso,
@@ -568,11 +568,28 @@ function categoryTagStyle(name: string) {
     selectedMailHtml.value = false
   }
 
-  function toggleFolder(path: string) {
+  async function toggleFolder(path: string) {
     if (outlookBusy.value) return
     const next = new Set(expandedFolders.value)
     if (next.has(path)) next.delete(path)
-    else next.add(path)
+    else {
+      next.add(path)
+      const folder = findFolderByPath(folders.value, path)
+      if (folder?.hasChildren && !folder.childrenLoaded) {
+        loadingFolders.value = true
+        try {
+          await outlookApi.requestFolderChildren({
+            storeId: folder.storeId,
+            parentEntryId: folder.entryId,
+            parentFolderPath: folder.folderPath,
+            maxDepth: 1,
+            maxChildren: 50,
+          })
+        } finally {
+          loadingFolders.value = false
+        }
+      }
+    }
     expandedFolders.value = next
   }
 
