@@ -24,6 +24,9 @@
 - `docs/ai/protocols.md`：Office AddIn SignalR protocol、route 與 SignalR event。
 - `docs/ai/workstation-solution.md`：Hub 與工作機 SmartOffice solution 的關係，以及 AddIn 任務應在哪裡實作。
 - `docs/ai/plan-splitting.md`：切分 `Plan/` 任務給工作機 AI 或 VS Code Copilot custom agent 的粒度、必要文件與狀態追蹤規範。
+- `docs/ai_plugin/README.md`：MCP 與 Agents SKILL 文件入口。
+- `docs/ai_plugin/mcp.md`：MCP adapter 與 tool 設計入口。
+- `docs/ai_plugin/agents-skill.md`：Agents SKILL 設計入口。
 - `docs/addin/README.md`：工作機 Outlook AddIn 實作者文件入口。
 - `docs/addin/features-checklist.md`：工作機 AI 對照 AddIn command、完成定義與驗收項目的 checklist。
 - `docs/addin/outlook-references.md`：Office 2016 Add-in 線上文件入口。

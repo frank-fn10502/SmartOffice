@@ -70,7 +70,7 @@ Web UI notification channel：
 
 HTTP status 是 `409 Conflict`。
 
-AI / MCP client 的完整建議流程請參考 `docs/ai/mcp-skill-integration.md`。
+AI / MCP client 與 Agents SKILL 的完整建議流程請參考 `docs/ai_plugin/mcp-agents-skill-integration.md`。
 
 目前郵件已讀、flag 與 category mutation 以 `request-update-mail-properties` / `update_mail_properties` 為正式入口。舊的 marker-style endpoint 若仍存在於程式碼中，只能視為待移除的 transitional surface，不應再寫入 `docs/addin/` 或要求工作機 AddIn 維護相容 handler。
 
@@ -83,7 +83,7 @@ Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 fol
 3. 使用 cached folder tree 展開原始 request 的 `storeId` / `scopeFolderPaths` / `includeSubFolders`。
 4. 將搜尋計畫切成單 folder slices；每個 slice 都要有非空 `storeId`、單一 `scopeFolderPaths[0]`、`includeSubFolders=false`、`isHubSlice=true`。
 5. 依序 dispatch slices，slice 之間保留短暫 delay，避免大量 Outlook search 同時啟動。
-6. 用 `MailSearchProgress` broadcast 整體進度；MCP / Skill 可用 progress endpoint 主動查詢。
+6. 用 `MailSearchProgress` broadcast 整體進度；MCP / Agents SKILL 可用 progress endpoint 主動查詢。
 
 原始 request scope 展開規則：
 
