@@ -7,6 +7,59 @@ namespace SmartOffice.Hub.Services
     public class MailStore
     {
         private readonly object _lock = new();
+        private static readonly HashSet<string> SystemFolderNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Sync Issues",
+            "Conflicts",
+            "Local Failures",
+            "Server Failures",
+            "RSS Feeds",
+            "RSS Subscriptions",
+            "Quick Step Settings",
+            "Conversation Action Settings",
+            "Conversation History",
+            "Social Activity Notifications",
+            "ExternalContacts",
+            "MyContactsExtended",
+            "Recipient Cache",
+            "PersonMetadata",
+            "{A9E2BC46-B3A0-4243-B315-60D991004455}",
+            "{06967759-274D-40B2-A3EB-D7F9E73727D7}",
+            "Yammer Root",
+            "Files",
+            "GraphFilesAndWorkPagesFolder",
+            "Finder",
+            "Common Views",
+            "Reminders",
+            "Shortcuts",
+            "Spooler Queue",
+            "公用資料夾",
+            "公用文件夾",
+            "Public Folders",
+            "?ffentliche Ordner",
+            "Dossiers publics",
+            "Recoverable Items",
+            "Deletions",
+            "Purges",
+            "Versions",
+            "DiscoveryHolds",
+            "Calendar Logging",
+            "Audits",
+            "AdminAuditLogs",
+            "FreeBusy Data",
+            "Top of Information Store",
+            "System",
+            "ExchangeSyncData",
+            "AllItems",
+            "AllContacts",
+            "Freebusy Data",
+            "Schedule",
+            "GAL Contacts",
+            "OAB Version 2",
+            "OAB Version 3",
+            "OAB Version 4",
+            "Offline Address Book",
+        };
         private List<MailItemDto> _mails = new();
         private List<FolderDto> _folders = new();
         private List<OutlookStoreDto> _stores = new();
@@ -248,6 +301,7 @@ namespace SmartOffice.Hub.Services
 
                 foreach (var item in batch.Folders)
                 {
+                    if (IsSystemFolder(item)) continue;
                     var folder = CloneFolder(item);
                     UpsertFolder(_folders, folder);
                 }
@@ -353,6 +407,15 @@ namespace SmartOffice.Hub.Services
         private static int CountFolders(List<FolderDto> folders)
         {
             return folders.Count;
+        }
+
+        private static bool IsSystemFolder(FolderDto folder)
+        {
+            if (SystemFolderNames.Contains(folder.Name)) return true;
+
+            var pathSegments = folder.FolderPath
+                .Split('\\', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return pathSegments.Any(segment => SystemFolderNames.Contains(segment));
         }
 
         private static List<OutlookStoreDto> CloneStores(List<OutlookStoreDto> stores)

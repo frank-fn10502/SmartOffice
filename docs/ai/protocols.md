@@ -34,7 +34,7 @@ Web UI notification channel：
 
 這些 endpoint 仍是 Web UI、AI 或 MCP client 對 Hub 的入口。Hub 收到 request 後會透過 `/hub/outlook-addin` dispatch `OutlookCommand`。
 
-- `POST /api/outlook/request-folders`：Hub 主導完整 folder discovery，依序 dispatch `fetch_folder_roots` 與多個 `fetch_folder_children`。
+- `POST /api/outlook/request-folders`：只 dispatch `fetch_folder_roots`，載入 stores 與 root folders。
 - `POST /api/outlook/request-folder-children`：dispatch 單一 parent folder 的 `fetch_folder_children`。
 - `POST /api/outlook/request-mails`：dispatch mail fetch command。
 - `POST /api/outlook/request-mail-search`：dispatch mail search command；Hub 必須先確保 folder cache、展開 store/folder scope、切成單 folder slices，並節流 dispatch 給 AddIn。搜尋預設只看 subject。
@@ -79,7 +79,7 @@ AI / MCP client 與 Agents SKILL 的完整建議流程請參考 `docs/ai_plugin/
 
 Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 folder slice。Hub 收到 `request-mail-search` 時必須：
 
-1. 若 folder cache 為空，先由 Hub 依序 dispatch `fetch_folder_roots` 與必要的 `fetch_folder_children`，等待 cached folder tree 可用。
+1. 若 folder cache 為空，先由 Hub dispatch `fetch_folder_roots`，建立 store/root folder cache；mail search 只使用目前已載入的 folder cache，不得為了搜尋自動展開整棵 folder tree。
 2. 若 folder cache 無法建立，讓原始 search command 失敗並回 `folder_cache_unavailable`。
 3. 使用 cached folder tree 展開原始 request 的 `storeId` / `scopeFolderPaths` / `includeSubFolders`。
 4. 將搜尋計畫切成單 folder slices；每個 slice 都要有非空 `storeId`、單一 `scopeFolderPaths[0]`、`includeSubFolders=false`、`isHubSlice=true`。

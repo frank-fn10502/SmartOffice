@@ -122,7 +122,7 @@ export function useOutlookDashboard() {
     maxCount: 50,
   })
   const chatText = ref('')
-  const loadingFolders = ref(true)
+  const loadingFolders = ref(false)
   const loadingMails = ref(true)
   const loadingRules = ref(false)
   const loadingCategories = ref(true)
@@ -532,15 +532,47 @@ function categoryTagStyle(name: string) {
     return folderStores.value.find((store) => store.storeId === folder.storeId)
   }
 
-  function findPreferredInboxFolder() {
+  function findLoadedInboxFolder() {
     const inboxes = folderOptions.value.filter((folder) => folderType(folder.name) === 'inbox')
     return (
       inboxes.find((folder) => folderStore(folder)?.storeKind?.toLowerCase() === 'ost')
       ?? inboxes.find((folder) => ['exchange', 'ost'].includes(folderStore(folder)?.storeKind?.toLowerCase() ?? ''))
       ?? inboxes[0]
-      ?? folderOptions.value[0]
       ?? null
     )
+  }
+
+  function findPreferredInboxFolder() {
+    return findLoadedInboxFolder() ?? folderOptions.value[0] ?? null
+  }
+
+  function findPreferredInboxRootFolder() {
+    return (
+      visibleFolders.value.find((folder) => folderStore(folder)?.storeKind?.toLowerCase() === 'ost')
+      ?? visibleFolders.value.find((folder) => ['exchange', 'ost'].includes(folderStore(folder)?.storeKind?.toLowerCase() ?? ''))
+      ?? visibleFolders.value[0]
+      ?? null
+    )
+  }
+
+  async function ensureStartupInboxFolderLoaded() {
+    if (findLoadedInboxFolder()) return
+    const root = findPreferredInboxRootFolder()
+    if (!root?.hasChildren || root.childrenLoaded) return
+
+    loadingFolders.value = true
+    try {
+      await outlookApi.requestFolderChildren({
+        storeId: root.storeId,
+        parentEntryId: root.entryId,
+        parentFolderPath: root.folderPath,
+        maxDepth: 1,
+        maxChildren: 50,
+      })
+      await loadCachedFolders()
+    } finally {
+      loadingFolders.value = false
+    }
   }
 
   function expandFolderAncestors(folderPath: string) {
@@ -815,6 +847,8 @@ function categoryTagStyle(name: string) {
       initialFoldersFetchCompleted = true
       loadingFolders.value = false
     }
+    if (unmounted) return
+    await ensureStartupInboxFolderLoaded()
     if (unmounted) return
     selectInboxFolder()
 
@@ -1325,8 +1359,10 @@ function categoryTagStyle(name: string) {
       selectedMailHtml.value = false
     }
     if (view === 'admin') {
-      await refreshAdminData()
-      await loadAttachmentExportSettings()
+      await Promise.allSettled([
+        refreshAdminData(),
+        loadAttachmentExportSettings(),
+      ])
     }
   }
 

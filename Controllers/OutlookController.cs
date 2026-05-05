@@ -18,8 +18,6 @@ namespace SmartOffice.Hub.Controllers
         private readonly IHubContext<NotificationHub> _hub;
         private readonly AddinStatusStore _addinStatus;
         private readonly AttachmentExportService _attachmentExports;
-        private const int FolderDiscoveryCommandDelayMs = 75;
-        private const int FolderDiscoveryMaxCommands = 2000;
 
         public OutlookController(MailStore mailStore, ChatStore chatStore,
             CommandResultStore commandResults, OutlookCommandQueue commandQueue, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus, AttachmentExportService attachmentExports)
@@ -229,7 +227,7 @@ namespace SmartOffice.Hub.Controllers
             });
             await _hub.Clients.All.SendAsync("MailSearchProgress", progress, ct);
 
-            var result = await DiscoverFoldersQueuedAsync(ct);
+            var result = await FetchFolderRootsQueuedAsync(ct);
             if (!result.Success) return false;
             return _mailStore.CountFolders() > 0;
         }
@@ -451,7 +449,7 @@ namespace SmartOffice.Hub.Controllers
 
         private async Task<IActionResult> RequestFoldersQueuedAsync(CancellationToken ct)
         {
-            var result = await DiscoverFoldersQueuedAsync(ct);
+            var result = await FetchFolderRootsQueuedAsync(ct);
             var snapshot = _mailStore.GetFolderSnapshot();
             var body = new
             {
@@ -464,7 +462,7 @@ namespace SmartOffice.Hub.Controllers
             return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
         }
 
-        private async Task<OutlookQueuedCommandResult> DiscoverFoldersQueuedAsync(CancellationToken ct)
+        private async Task<OutlookQueuedCommandResult> FetchFolderRootsQueuedAsync(CancellationToken ct)
         {
             var syncId = Guid.NewGuid().ToString();
             var rootCommand = new PendingCommand
@@ -486,43 +484,7 @@ namespace SmartOffice.Hub.Controllers
                 ct: ct);
             if (!rootResult.Success) return rootResult;
 
-            var dispatchedChildren = 0;
-            while (!ct.IsCancellationRequested)
-            {
-                var target = _mailStore.GetPendingFolderDiscoveryTargets().FirstOrDefault();
-                if (target is null)
-                    return OutlookQueuedCommandResult.Completed(rootCommand.Id, "completed", "Hub-driven folder discovery completed.");
-
-                if (dispatchedChildren >= FolderDiscoveryMaxCommands)
-                    return OutlookQueuedCommandResult.Failed(rootCommand.Id, "folder_discovery_limit", "Hub stopped folder discovery because the command limit was reached.");
-
-                var childCommand = new PendingCommand
-                {
-                    Type = "fetch_folder_children",
-                    FolderDiscoveryRequest = new FolderDiscoveryRequest
-                    {
-                        SyncId = syncId,
-                        StoreId = target.StoreId,
-                        ParentEntryId = target.EntryId,
-                        ParentFolderPath = target.FolderPath,
-                        MaxDepth = 1,
-                        MaxChildren = 50,
-                        Reset = false,
-                    },
-                };
-
-                var childResult = await _commandQueue.ExecuteQueuedCommandAsync(
-                    childCommand,
-                    () => _mailStore.IsFolderChildrenLoaded(target.StoreId, target.EntryId, target.FolderPath),
-                    ensureReady: true,
-                    ct: ct);
-                if (!childResult.Success) return childResult;
-
-                dispatchedChildren++;
-                await Task.Delay(FolderDiscoveryCommandDelayMs, ct);
-            }
-
-            return OutlookQueuedCommandResult.Failed(rootCommand.Id, "cancelled", "Folder discovery was cancelled.");
+            return OutlookQueuedCommandResult.Completed(rootCommand.Id, "completed", "Hub loaded Outlook stores and root folders.");
         }
 
         /// <summary>

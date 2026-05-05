@@ -165,7 +165,7 @@ Outlook route prefix：
 
 主要 Web UI / 外部整合工具 request endpoint：
 
-- `POST /request-folders`：由 Hub 依序 dispatch `fetch_folder_roots` 與多個 `fetch_folder_children`。
+- `POST /request-folders`：只 dispatch `fetch_folder_roots`，載入 stores 與 root folders。
 - `POST /request-folder-children`：dispatch 單一 parent folder children fetch command。
 - `POST /request-mails`：dispatch mail fetch command。
 - `GET /folders`：讀取 cached folders。
