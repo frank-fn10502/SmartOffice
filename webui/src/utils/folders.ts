@@ -16,6 +16,11 @@ const hiddenFolderNames = [
   'people',
   'externalcontacts',
   'yammer',
+  'public folders',
+  '公用資料夾',
+  '公用文件夾',
+  'dossiers publics',
+  'ffentliche ordner',
 ]
 
 export function isHiddenFolder(name: string) {

@@ -60,6 +60,14 @@ namespace SmartOffice.Hub.Services
             "OAB Version 4",
             "Offline Address Book",
         };
+        private static readonly string[] SystemFolderNameFragments =
+        {
+            "公用資料夾",
+            "公用文件夾",
+            "Public Folders",
+            "Dossiers publics",
+            "ffentliche Ordner",
+        };
         private List<MailItemDto> _mails = new();
         private List<FolderDto> _folders = new();
         private List<OutlookStoreDto> _stores = new();
@@ -296,11 +304,27 @@ namespace SmartOffice.Hub.Services
                     _folders = new List<FolderDto>();
                 }
 
+                var rejectedStoreIds = batch.Stores
+                    .Where(IsSystemStore)
+                    .Select(store => store.StoreId)
+                    .Where(storeId => !string.IsNullOrWhiteSpace(storeId))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (rejectedStoreIds.Count > 0)
+                {
+                    _stores.RemoveAll(store => rejectedStoreIds.Contains(store.StoreId));
+                    _folders.RemoveAll(folder => rejectedStoreIds.Contains(folder.StoreId));
+                }
+
                 foreach (var store in batch.Stores)
+                {
+                    if (rejectedStoreIds.Contains(store.StoreId)) continue;
                     UpsertStore(_stores, CloneStore(store));
+                }
 
                 foreach (var item in batch.Folders)
                 {
+                    if (rejectedStoreIds.Contains(item.StoreId)) continue;
                     if (IsSystemFolder(item)) continue;
                     var folder = CloneFolder(item);
                     UpsertFolder(_folders, folder);
@@ -411,11 +435,24 @@ namespace SmartOffice.Hub.Services
 
         private static bool IsSystemFolder(FolderDto folder)
         {
-            if (SystemFolderNames.Contains(folder.Name)) return true;
+            return IsSystemNameOrPath(folder.Name) || IsSystemNameOrPath(folder.FolderPath);
+        }
 
-            var pathSegments = folder.FolderPath
+        private static bool IsSystemStore(OutlookStoreDto store)
+        {
+            return IsSystemNameOrPath(store.DisplayName) || IsSystemNameOrPath(store.RootFolderPath);
+        }
+
+        private static bool IsSystemNameOrPath(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            var segments = value
                 .Split('\\', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return pathSegments.Any(segment => SystemFolderNames.Contains(segment));
+
+            return segments.Any(segment =>
+                SystemFolderNames.Contains(segment)
+                || SystemFolderNameFragments.Any(fragment => segment.Contains(fragment, StringComparison.OrdinalIgnoreCase)));
         }
 
         private static List<OutlookStoreDto> CloneStores(List<OutlookStoreDto> stores)
