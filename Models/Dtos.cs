@@ -157,6 +157,11 @@ namespace SmartOffice.Hub.Models
         public string MailId { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
         public string AttachmentId { get; set; } = string.Empty;
+        public int Index { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string ExportRootPath { get; set; } = string.Empty;
     }
 
     public class OpenExportedAttachmentRequest

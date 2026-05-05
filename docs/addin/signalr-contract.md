@@ -554,6 +554,19 @@ AddIn 處理 `fetch_mail_attachments` 時，請從 Outlook `MailItem.Attachments
 - `exportedAttachmentId`: string，尚未匯出時空白。
 - `exportedPath`: string，尚未匯出時空白。
 
+### ExportMailAttachmentRequest
+
+Web UI 發出 `export_mail_attachment` 時會帶下列欄位。對 Outlook COM/VSTO AddIn，請優先使用 `index` 或可解析為整數的 `attachmentId` 取回 `mail.Attachments.Item(index)`；這是配合 Microsoft Outlook Object Model 的 1-based `Attachments` collection。若 `attachmentId` 不是數字，AddIn 可用自己在 metadata 階段建立的 mapping 查回附件。
+
+- `mailId`: string，目標 mail id。
+- `folderPath`: string，目標 mail 所在 folder path。
+- `attachmentId`: string；若 metadata 有 `index`，Web UI 會送 `index.ToString()`，方便 AddIn 直接呼叫 `Attachments.Item(index)`。
+- `index`: number；Outlook `Attachment.Index`。
+- `name`: string；Web UI 目前顯示的附件名稱。
+- `fileName`: string；metadata 中的 Outlook `Attachment.FileName`。
+- `displayName`: string；metadata 中的 Outlook `Attachment.DisplayName`。
+- `exportRootPath`: string；Hub 目前允許開檔的 attachment export root。AddIn 輸出檔案必須放在此 root 底下，否則 `/api/outlook/open-exported-attachment` 會拒絕開啟。
+
 ### ExportedMailAttachmentDto
 
 AddIn 處理 `export_mail_attachment` 時，請用 request 的 `attachmentId` 找回同一個 Outlook `Attachment`，將檔案儲存到 Hub 約定的 attachment root 底下，呼叫 Outlook `Attachment.SaveAsFile(path)` 後再 `PushExportedMailAttachment`。

@@ -231,7 +231,15 @@ export const outlookApi = {
     postJson<CommandDispatchResponse>('/api/outlook/request-mail-body', body),
   requestMailAttachments: (body: { mailId: string; folderPath: string }) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-mail-attachments', body),
-  requestExportMailAttachment: (body: { mailId: string; folderPath: string; attachmentId: string }) =>
+  requestExportMailAttachment: (body: {
+    mailId: string
+    folderPath: string
+    attachmentId: string
+    index: number
+    name: string
+    fileName: string
+    displayName: string
+  }) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-export-mail-attachment', body),
   openExportedAttachment: (body: { exportedAttachmentId: string }) =>
     postJson('/api/outlook/open-exported-attachment', body),

@@ -99,6 +99,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-export-mail-attachment")]
         public async Task<IActionResult> RequestExportMailAttachment([FromBody] ExportMailAttachmentRequest req, CancellationToken ct)
         {
+            if (string.IsNullOrWhiteSpace(req.ExportRootPath))
+                req.ExportRootPath = _attachmentExports.RootPath;
+
             var cmd = new PendingCommand
             {
                 Type = "export_mail_attachment",

@@ -420,10 +420,11 @@ function categoryTagStyle(name: string) {
   function patchExportedAttachment(payload: ExportedMailAttachmentDto) {
     if (!payload.mailId || !payload.attachmentId) return
     const attachments = mailAttachmentsByMailId.value[payload.mailId] ?? []
+    const matchedAttachment = attachments.find((attachment) => isSameAttachment(attachment, payload))
     mailAttachmentsByMailId.value = {
       ...mailAttachmentsByMailId.value,
       [payload.mailId]: attachments.map((attachment) =>
-        attachment.attachmentId === payload.attachmentId
+        isSameAttachment(attachment, payload)
           ? {
               ...attachment,
               isExported: true,
@@ -434,7 +435,17 @@ function categoryTagStyle(name: string) {
           : attachment,
       ),
     }
+    if (matchedAttachment) completeAttachmentExport(payload.mailId, matchedAttachment.attachmentId)
     completeAttachmentExport(payload.mailId, payload.attachmentId)
+  }
+
+  function isSameAttachment(attachment: MailAttachmentDto, exported: ExportedMailAttachmentDto) {
+    return (
+      attachment.attachmentId === exported.attachmentId
+      || Boolean(attachment.id && attachment.id === exported.id)
+      || Boolean(attachment.index > 0 && attachment.index === exported.index)
+      || Boolean(attachment.name && attachment.name === exported.name)
+    )
   }
 
   async function loadCachedFolders() {
@@ -943,12 +954,17 @@ function categoryTagStyle(name: string) {
   async function exportMailAttachment(mail: MailItemDto, attachment: MailAttachmentDto) {
     if (!mail.id?.trim() || !attachment.attachmentId || isAttachmentExporting(mail, attachment)) return
     const key = attachmentKey(mail.id, attachment.attachmentId)
+    const exportAttachmentId = attachment.index > 0 ? String(attachment.index) : attachment.attachmentId
     exportingAttachmentIds.value = new Set(exportingAttachmentIds.value).add(key)
     try {
       const response = await outlookApi.requestExportMailAttachment({
         mailId: mail.id,
         folderPath: mail.folderPath,
-        attachmentId: attachment.attachmentId,
+        attachmentId: exportAttachmentId,
+        index: attachment.index,
+        name: attachment.name,
+        fileName: attachment.fileName,
+        displayName: attachment.displayName,
       })
       const current = mailAttachmentsByMailId.value[mail.id]?.find((item) => item.attachmentId === attachment.attachmentId)
       if (current?.isExported) {

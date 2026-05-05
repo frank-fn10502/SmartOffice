@@ -24,6 +24,11 @@ function formatAttachmentSize(size: number) {
   return `${size} B`
 }
 
+function formatAttachmentMeta(contentType: string, size: number) {
+  const parts = [contentType.trim(), formatAttachmentSize(size)].filter(Boolean)
+  return parts.join(' · ')
+}
+
 const {
   activeView,
   addCategoryToMasterList,
@@ -318,7 +323,7 @@ const {
                     <div v-for="attachment in selectedMailAttachments" :key="attachment.attachmentId" class="attachment-row">
                       <span class="attachment-main">
                         <strong>{{ attachment.name }}</strong>
-                        <span>{{ attachment.contentType || 'unknown' }} · {{ formatAttachmentSize(attachment.size) }}</span>
+                        <span>{{ formatAttachmentMeta(attachment.contentType, attachment.size) }}</span>
                       </span>
                       <span class="attachment-actions">
                         <el-button
