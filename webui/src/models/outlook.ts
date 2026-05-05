@@ -73,11 +73,13 @@ export interface SearchMailsRequest {
   scopeFolderPaths: string[]
   includeSubFolders: boolean
   keyword: string
-  matchMode: 'contains' | 'exact' | 'fuzzy' | 'regex'
-  fields: string[]
+  textFields: Array<'subject' | 'sender' | 'body'>
+  categoryNames: string[]
+  hasAttachments?: boolean
+  flagState: 'any' | 'flagged' | 'unflagged'
+  readState: 'any' | 'unread' | 'read'
   receivedFrom?: string
   receivedTo?: string
-  maxCount: number
 }
 
 export interface MailSearchSliceResultDto {

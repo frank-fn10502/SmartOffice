@@ -18,15 +18,20 @@ namespace SmartOffice.Hub.Services
             AddFolder(folders, "Drafts", MockOutlookPaths.Drafts, MockOutlookPaths.PrimaryRoot, "mock-store-primary");
             AddFolder(folders, "Deleted Items", MockOutlookPaths.Deleted, MockOutlookPaths.PrimaryRoot, "mock-store-primary");
 
-            AddStore(stores, "mock-store-client-archive", "客戶專案封存.pst", "pst", @"D:\Outlook Archives\客戶專案封存.pst", MockOutlookPaths.ClientArchiveRoot);
-            AddFolder(folders, "客戶專案封存.pst", MockOutlookPaths.ClientArchiveRoot, "", "mock-store-client-archive", true);
-            AddFolder(folders, "Archive", MockOutlookPaths.Archive, MockOutlookPaths.ClientArchiveRoot, "mock-store-client-archive");
-            AddFolder(folders, "2026 專案封存", MockOutlookPaths.Archive2026, MockOutlookPaths.Archive, "mock-store-client-archive");
+            AddStore(stores, "mock-store-ops", "營運共享信箱 - Mock Ops", "ost", @"C:\Users\mock\AppData\Local\Microsoft\Outlook\mock.ops@example.test.ost", MockOutlookPaths.OpsRoot);
+            AddFolder(folders, "營運共享信箱 - Mock Ops", MockOutlookPaths.OpsRoot, "", "mock-store-ops", true);
+            AddFolder(folders, "Ops Queue", MockOutlookPaths.OpsQueue, MockOutlookPaths.OpsRoot, "mock-store-ops");
+            AddFolder(folders, "Escalations", MockOutlookPaths.OpsEscalations, MockOutlookPaths.OpsRoot, "mock-store-ops");
 
-            AddStore(stores, "mock-store-legacy-archive", "歷史郵件.pst", "pst", @"E:\MailBackup\歷史郵件.pst", MockOutlookPaths.LegacyArchiveRoot);
-            AddFolder(folders, "歷史郵件.pst", MockOutlookPaths.LegacyArchiveRoot, "", "mock-store-legacy-archive", true);
-            AddFolder(folders, "Legacy Inbox", MockOutlookPaths.LegacyInbox, MockOutlookPaths.LegacyArchiveRoot, "mock-store-legacy-archive");
-            AddFolder(folders, "Vendors", MockOutlookPaths.LegacyVendors, MockOutlookPaths.LegacyArchiveRoot, "mock-store-legacy-archive");
+            AddStore(stores, "mock-store-legal-cold", "法務冷資料庫.pst", "pst", @"D:\Outlook Archives\法務冷資料庫.pst", MockOutlookPaths.LegalArchiveRoot);
+            AddFolder(folders, "法務冷資料庫.pst", MockOutlookPaths.LegalArchiveRoot, "", "mock-store-legal-cold", true);
+            AddFolder(folders, "合約保管庫", MockOutlookPaths.Archive, MockOutlookPaths.LegalArchiveRoot, "mock-store-legal-cold");
+            AddFolder(folders, "簽核完成 2026", MockOutlookPaths.Archive2026, MockOutlookPaths.Archive, "mock-store-legal-cold");
+
+            AddStore(stores, "mock-store-vendor-ledger", "供應商票據倉.pst", "pst", @"E:\MailBackup\供應商票據倉.pst", MockOutlookPaths.VendorArchiveRoot);
+            AddFolder(folders, "供應商票據倉.pst", MockOutlookPaths.VendorArchiveRoot, "", "mock-store-vendor-ledger", true);
+            AddFolder(folders, "票據入口", MockOutlookPaths.LegacyInbox, MockOutlookPaths.VendorArchiveRoot, "mock-store-vendor-ledger");
+            AddFolder(folders, "供應商對帳", MockOutlookPaths.LegacyVendors, MockOutlookPaths.VendorArchiveRoot, "mock-store-vendor-ledger");
 
             var mails = new List<MailItemDto>
             {
@@ -36,9 +41,12 @@ namespace SmartOffice.Hub.Services
                 Mail("mock-004", "下週 demo 時程", "Chris Wang", "chris.wang@example.test", now.AddDays(-1), MockOutlookPaths.Inbox, true, "追蹤", true, "next_week", "下週"),
                 Mail("mock-005", "專案資料夾歸檔樣本", "Dana Hsu", "dana.hsu@example.test", now.AddDays(-2), MockOutlookPaths.ClientProjects, true, "客戶", false, "none", ""),
                 Mail("mock-006", "已寄出的測試郵件", "Mock User", "mock.user@example.test", now.AddDays(-3), MockOutlookPaths.Sent, true, "", false, "none", ""),
-                Mail("mock-007", "一週前的封存通知", "System Notice", "notice@example.test", now.AddDays(-7), MockOutlookPaths.Archive, true, "測試", false, "none", ""),
+                Mail("mock-007", "營運交接清單更新", "Ops Robot", "ops@example.test", now.AddHours(-6), MockOutlookPaths.OpsQueue, false, "測試", false, "none", ""),
                 Mail("mock-008", "草稿：內部追蹤事項", "Mock User", "mock.user@example.test", now.AddDays(-10), MockOutlookPaths.Drafts, false, "待辦", true, "no_date", "Follow up"),
-                Mail("mock-009", "上月客戶回覆", "Eve Huang", "eve.huang@example.test", now.AddDays(-25), MockOutlookPaths.Archive2026, true, "客戶", false, "none", ""),
+                Mail("mock-009", "法務封存：NDA 簽核完成", "Legal Desk", "legal@example.test", now.AddDays(-4), MockOutlookPaths.Archive2026, true, "追蹤", false, "none", ""),
+                Mail("mock-010", "供應商票據差異表", "Vendor Team", "vendor@example.test", now.AddDays(-5), MockOutlookPaths.LegacyVendors, true, "待辦", true, "this_week", "本週"),
+                Mail("mock-011", "票據入口：待補發票掃描", "Finance Bot", "finance@example.test", now.AddDays(-12), MockOutlookPaths.LegacyInbox, false, "", false, "none", ""),
+                Mail("mock-012", "營運升級：夜間批次異常", "NOC", "noc@example.test", now.AddMinutes(-75), MockOutlookPaths.OpsEscalations, false, "測試,追蹤", true, "today", "今天"),
             };
             RefreshFolderCounts(folders, mails);
 

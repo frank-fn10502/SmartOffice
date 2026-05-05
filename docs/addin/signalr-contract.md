@@ -83,7 +83,7 @@ Payload：
 | `fetch_folder_roots` | `folderDiscoveryRequest` | 只讀取 Outlook stores 與各 store root folder；不得遞迴 subfolders。 |
 | `fetch_folder_children` | `folderDiscoveryRequest` | 只讀取指定 parent folder 的直接 children；Hub 會逐段排程。 |
 | `fetch_mails` | `mailsRequest` | 讀取指定 folder 的 mail metadata，不應包含完整 body |
-| `fetch_mail_search_slice` | `mailSearchSliceRequest` | 讀取指定單一 folder 的 mail candidates |
+| `fetch_mail_search_slice` | `mailSearchSliceRequest` | 讀取指定單一 folder 的 mail search slice |
 | `fetch_mail_body` | `mailBodyRequest` | 使用者點開單封 mail 後，讀取該 mail body |
 | `fetch_mail_attachments` | `mailAttachmentsRequest` | 讀取單封 mail 的附件 metadata |
 | `export_mail_attachment` | `exportMailAttachmentRequest` | 將指定 attachment 匯出到約定的本機 attachment root |
@@ -113,9 +113,9 @@ AddIn 可 invoke 下列 server method：
 | `CompleteFolderSync` | `FolderSyncCompleteDto` | 結束 folder 增量同步 |
 | `PushMails` | `MailItemDto[]` | 回推目前 mail snapshot；`fetch_mails` 的回傳應只含 metadata，`body` / `bodyHtml` 留空 |
 | `PushMail` | `MailItemDto` | 回推同 id 的單封 mail；用於 `update_mail_properties` 這類不應重抓列表的單封 mutation |
-| `BeginMailSearch` | `MailSearchSliceResultDto` | 開始 mail candidate slice |
-| `PushMailSearchSliceResult` | `MailSearchSliceResultDto` | 推送一批 folder candidates；AddIn 不處理 keyword / fuzzy / regex 後篩 |
-| `CompleteMailSearchSlice` | `MailSearchCompleteDto` | 結束 mail candidate slice |
+| `BeginMailSearch` | `MailSearchSliceResultDto` | 開始 mail search slice |
+| `PushMailSearchSliceResult` | `MailSearchSliceResultDto` | 推送 Outlook 內建搜尋結果 |
+| `CompleteMailSearchSlice` | `MailSearchCompleteDto` | 結束 mail search slice |
 | `PushMailBody` | `MailBodyDto` | 回推同 id 的 body；用於 `fetch_mail_body` |
 | `PushMailAttachments` | `MailAttachmentsDto` | 回推 attachment metadata；用於 `fetch_mail_attachments` |
 | `PushExportedMailAttachment` | `ExportedMailAttachmentDto` | 回推已匯出的 attachment path；用於 `export_mail_attachment` |
@@ -126,7 +126,7 @@ AddIn 可 invoke 下列 server method：
 | `ReportAddinLog` | `AddinLogEntry` | 回報診斷 log |
 | `ReportCommandResult` | `OutlookCommandResult` | 回報 command 成敗 |
 
-每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變 Outlook snapshot，請同時 invoke 對應 `Push*` method。Folder discovery 只使用 `fetch_folder_roots` 與 `fetch_folder_children`，並透過 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync` 回推增量結果；AddIn 不得實作一次遞迴整棵樹的 command。Mail search candidate slice 只使用 `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice`，不要用 `PushMails` 覆蓋目前 folder list。單封屬性更新請使用 `PushMail`，不要為了更新一封 mail 重新 `PushMails`。郵件 body 請只在 `fetch_mail_body` 後以 `PushMailBody` 回推。附件採 `fetch_mail_attachments` 先看 metadata、有需要才 `export_mail_attachment` 匯出到本機路徑；AddIn 不負責開檔。
+每個 command 完成後，建議至少 invoke `ReportCommandResult`。如果 command 會改變 Outlook snapshot，請同時 invoke 對應 `Push*` method。Folder discovery 只使用 `fetch_folder_roots` 與 `fetch_folder_children`，並透過 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync` 回推增量結果；AddIn 不得實作一次遞迴整棵樹的 command。Mail search slice 只使用 `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice`，不要用 `PushMails` 覆蓋目前 folder list。單封屬性更新請使用 `PushMail`，不要為了更新一封 mail 重新 `PushMails`。郵件 body 請只在 `fetch_mail_body` 後以 `PushMailBody` 回推。附件採 `fetch_mail_attachments` 先看 metadata、有需要才 `export_mail_attachment` 匯出到本機路徑；AddIn 不負責開檔。
 
 `fetch_folder_roots` 與 `fetch_folder_children` 不應只回 `ReportCommandResult(success=true)`。AddIn 必須在成功結果前至少完成 `PushFolderBatch` 或 `CompleteFolderSync`；如果 Outlook store 尚未 ready、parent folder 無效或列舉結果異常，請回報 `success=false` 與可診斷訊息。
 
@@ -219,10 +219,14 @@ AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-a
   "parentCommandId": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
   "storeId": "[redacted store id]",
   "folderPath": "\\\\主要信箱 - User\\Inbox",
+  "keyword": "客戶",
+  "textFields": ["subject"],
+  "categoryNames": ["Customer"],
+  "hasAttachments": true,
+  "flagState": "any",
+  "readState": "unread",
   "receivedFrom": "2026-05-01T00:00:00+08:00",
   "receivedTo": "2026-05-04T23:59:59+08:00",
-  "maxCount": 50,
-  "includeBody": false,
   "sliceIndex": 0,
   "sliceCount": 30,
   "resetSearchResults": true,
@@ -235,16 +239,22 @@ AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-a
 - `parentCommandId`: 原始 `request-mail-search` 的 command id。
 - `storeId`: 指定單一 Outlook Store，必須非空。
 - `folderPath`: 指定單一 Outlook folder，必須非空。
+- `keyword`: 文字搜尋關鍵字；空白時只套用篩選條件。
+- `textFields`: keyword 文字搜尋欄位；目前正式值為 `subject`、`sender`、`body`。預設只有 `subject`。
+- `categoryNames`: 分類篩選；任一分類符合即可。
+- `hasAttachments`: 附件篩選；`true` 表示包含附件，`false` 表示不含附件，省略表示不限。
+- `flagState`: 旗標篩選；`any`、`flagged` 或 `unflagged`。
+- `readState`: 已讀篩選；`any`、`unread` 或 `read`。
 - `receivedFrom` / `receivedTo`: 收到時間區段，兩者可獨立使用。
-- `maxCount`: candidate 回傳上限；AddIn 端應再 clamp，建議不超過 200。
-- `includeBody`: `true` 時才讀取 body / bodyHtml；`false` 時只回 metadata。
 - `sliceIndex` / `sliceCount`: folder slice 序號與總數，可用於 progress message。
 - `resetSearchResults`: 只有第一個 slice 是 `true`；AddIn 呼叫 `BeginMailSearch` 或第一批 `PushMailSearchSliceResult` 時應沿用。
 - `completeSearchOnSlice`: 只有最後一個 slice 是 `true`；AddIn 只有最後一個 slice 才應呼叫 `CompleteMailSearchSlice` 或送 `isFinal=true`。
 
-AddIn 若收到空 `storeId` 或空 `folderPath`，應使用 `CompleteMailSearchSlice(success=false)` 結束該 slice，不得自行展開整個 store 或全域搜尋。`keyword`、`matchMode`、`fields` 是 Hub 的語意搜尋資料，不會傳給 AddIn。
+AddIn 若收到空 `storeId` 或空 `folderPath`，應使用 `CompleteMailSearchSlice(success=false)` 結束該 slice，不得自行展開整個 store 或全域搜尋。
 
-Candidate slice result sample：
+AddIn 必須在指定單一 folder 內依 Microsoft Outlook `AdvancedSearch` / DASL 這類內建搜尋流程，把 `keyword`、`textFields`、分類、附件、旗標、已讀狀態與時間組成 filter，再回傳符合的 metadata。Hub 不做主要 keyword 後篩；這不是 typo-tolerant fuzzy search。
+
+Mail search slice result sample：
 
 ```json
 {

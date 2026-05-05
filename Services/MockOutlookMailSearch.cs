@@ -1,5 +1,4 @@
 using SmartOffice.Hub.Models;
-using System.Text.RegularExpressions;
 
 namespace SmartOffice.Hub.Services
 {
@@ -19,14 +18,60 @@ namespace SmartOffice.Hub.Services
 
         public static List<MailItemDto> FetchMailSearchSlice(List<MailItemDto> mails, MailSearchSliceRequest request)
         {
-            var maxCount = Math.Clamp(request.MaxCount <= 0 ? 50 : request.MaxCount, 1, 200);
-            return mails
+            var query = mails
                 .Where(mail => string.Equals(mail.FolderPath, request.FolderPath, StringComparison.OrdinalIgnoreCase))
                 .Where(mail => InReceivedTime(mail, request.ReceivedFrom, request.ReceivedTo))
-                .OrderByDescending(mail => mail.ReceivedTime)
-                .Take(maxCount)
-                .Select(mail => request.IncludeBody ? CloneMail(mail) : CloneMailMetadata(mail))
-                .ToList();
+                .Where(mail => MatchesSearchFilters(mail, request))
+                .Where(mail => MatchesOutlookIndexSearch(mail, request))
+                .OrderByDescending(mail => mail.ReceivedTime);
+
+            return query.Select(CloneMailMetadata).ToList();
+        }
+
+        private static bool MatchesOutlookIndexSearch(MailItemDto mail, MailSearchSliceRequest request)
+        {
+            var keyword = request.Keyword.Trim();
+            if (string.IsNullOrWhiteSpace(keyword)) return true;
+            return SearchTextValues(mail, request.TextFields)
+                .Any(value => value.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool MatchesSearchFilters(MailItemDto mail, MailSearchSliceRequest request)
+        {
+            if (request.HasAttachments is true && mail.AttachmentCount <= 0) return false;
+            if (request.HasAttachments is false && mail.AttachmentCount > 0) return false;
+            if (request.FlagState == "flagged" && !mail.IsMarkedAsTask) return false;
+            if (request.FlagState == "unflagged" && mail.IsMarkedAsTask) return false;
+            if (request.ReadState == "unread" && mail.IsRead) return false;
+            if (request.ReadState == "read" && !mail.IsRead) return false;
+            if (request.CategoryNames.Count > 0)
+            {
+                var categories = SplitCategories(mail.Categories);
+                if (!request.CategoryNames.Any(category => categories.Contains(category))) return false;
+            }
+            return true;
+        }
+
+        private static HashSet<string> SplitCategories(string categories)
+        {
+            return categories
+                .Split(new[] { ',', '、', ';' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static IEnumerable<string> SearchTextValues(MailItemDto mail, List<string> textFields)
+        {
+            if (textFields.Any(field => string.Equals(field, "subject", StringComparison.OrdinalIgnoreCase))) yield return mail.Subject;
+            if (textFields.Any(field => string.Equals(field, "sender", StringComparison.OrdinalIgnoreCase)))
+            {
+                yield return mail.SenderName;
+                yield return mail.SenderEmail;
+            }
+            if (textFields.Any(field => string.Equals(field, "body", StringComparison.OrdinalIgnoreCase)))
+            {
+                yield return mail.Body;
+                yield return mail.BodyHtml;
+            }
         }
 
         private static bool InReceivedTime(MailItemDto mail, DateTime? receivedFrom, DateTime? receivedTo)
@@ -34,121 +79,6 @@ namespace SmartOffice.Hub.Services
             if (receivedFrom is not null && mail.ReceivedTime < receivedFrom.Value) return false;
             if (receivedTo is not null && mail.ReceivedTime > receivedTo.Value) return false;
             return true;
-        }
-
-        private static bool MatchesKeyword(MailItemDto mail, List<string> fields, string keyword, string matchMode)
-        {
-            if (string.IsNullOrWhiteSpace(keyword)) return true;
-            var haystack = SearchHaystack(mail, fields);
-            if (string.Equals(matchMode, "exact", StringComparison.OrdinalIgnoreCase))
-                return haystack.Any(value => string.Equals(value, keyword, StringComparison.OrdinalIgnoreCase));
-            if (string.Equals(matchMode, "regex", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    return haystack.Any(value => Regex.IsMatch(value, keyword, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100)));
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-            if (string.Equals(matchMode, "fuzzy", StringComparison.OrdinalIgnoreCase))
-                return haystack.Any(value => FuzzyMatches(value, keyword));
-            return haystack.Any(value => value.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static List<string> SearchHaystack(MailItemDto mail, List<string> fields)
-        {
-            var selected = fields.Count == 0 ? new List<string> { "subject" } : fields;
-            var values = new List<string>();
-            if (HasSearchField(selected, "subject")) values.Add(mail.Subject);
-            if (HasSearchField(selected, "sender"))
-            {
-                values.Add(mail.SenderName);
-                values.Add(mail.SenderEmail);
-            }
-            if (HasSearchField(selected, "categories")) values.Add(mail.Categories);
-            if (HasSearchField(selected, "body"))
-            {
-                values.Add(mail.Body);
-                values.Add(mail.BodyHtml);
-            }
-            return values;
-        }
-
-        private static bool HasSearchField(List<string> fields, string field)
-        {
-            return fields.Any(item => string.Equals(item, field, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static bool FuzzyMatches(string value, string keyword)
-        {
-            var normalizedValue = NormalizeFuzzyText(value);
-            var normalizedKeyword = NormalizeFuzzyText(keyword);
-            if (string.IsNullOrWhiteSpace(normalizedValue) || string.IsNullOrWhiteSpace(normalizedKeyword)) return false;
-            if (normalizedValue.Contains(normalizedKeyword, StringComparison.OrdinalIgnoreCase)) return true;
-            if (IsSubsequence(normalizedKeyword, normalizedValue)) return true;
-
-            var keywordTokens = SplitFuzzyTokens(keyword);
-            if (keywordTokens.Count == 0) return false;
-            var valueTokens = SplitFuzzyTokens(value);
-            return keywordTokens.All(term => valueTokens.Any(token => WithinFuzzyDistance(token, term)));
-        }
-
-        private static string NormalizeFuzzyText(string value)
-        {
-            return new string(value
-                .Where(char.IsLetterOrDigit)
-                .Select(char.ToLowerInvariant)
-                .ToArray());
-        }
-
-        private static List<string> SplitFuzzyTokens(string value)
-        {
-            return Regex.Split(value.ToLowerInvariant(), @"[^\p{L}\p{Nd}]+")
-                .Where(token => !string.IsNullOrWhiteSpace(token))
-                .ToList();
-        }
-
-        private static bool WithinFuzzyDistance(string value, string keyword)
-        {
-            if (value.Contains(keyword, StringComparison.OrdinalIgnoreCase)) return true;
-            var threshold = keyword.Length <= 4 ? 1 : Math.Max(1, keyword.Length / 4);
-            return LevenshteinDistance(value, keyword) <= threshold;
-        }
-
-        private static bool IsSubsequence(string needle, string haystack)
-        {
-            var index = 0;
-            foreach (var item in haystack)
-            {
-                if (index < needle.Length && item == needle[index]) index++;
-                if (index == needle.Length) return true;
-            }
-            return false;
-        }
-
-        private static int LevenshteinDistance(string left, string right)
-        {
-            if (left.Length == 0) return right.Length;
-            if (right.Length == 0) return left.Length;
-
-            var previous = Enumerable.Range(0, right.Length + 1).ToArray();
-            var current = new int[right.Length + 1];
-            for (var i = 1; i <= left.Length; i++)
-            {
-                current[0] = i;
-                for (var j = 1; j <= right.Length; j++)
-                {
-                    var cost = left[i - 1] == right[j - 1] ? 0 : 1;
-                    current[j] = Math.Min(
-                        Math.Min(current[j - 1] + 1, previous[j] + 1),
-                        previous[j - 1] + cost);
-                }
-                (previous, current) = (current, previous);
-            }
-            return previous[right.Length];
         }
 
         private static DateTime RangeStart(string range)

@@ -28,7 +28,8 @@ tools: ['read', 'search', 'edit', 'execute']
 - 優先遵守任務檔案的「執行位置」。
 - 若任務要求在另一個 repository、另一台主機、外部服務或特定環境執行，且目前 workspace 不符合，請不要修改無關程式碼；應回報此任務需在正確環境執行。
 - 只有任務明確要求修改目前 workspace，且專案文件允許時，才進行檔案變更。
-- 修改時維持既有 contract 與 public API 的相容性；不要隨意 rename field、route、command 或 public interface。
+- 本 repository 是 PoC / prototype，不預設維持舊版 contract 與 public API 相容性；修改 field、route、command 或 public interface 時，以目前正式行為為準，並同步移除未使用舊欄位、舊 handler、相容 shim 與 fallback。
+- 若不確定某段舊行為是否仍有人依賴，最多回報並詢問是否要完全刪除；除非任務或使用者明確要求 backward compatibility，否則不要留下雙軌相容程式碼。
 - 不要引入新的大型依賴、framework、service 或 SDK，除非任務或專案文件明確要求。
 - 不要寫入或外洩真實敏感資料。
 

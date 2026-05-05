@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmartOffice.Hub.Models
 {
     public class MailItemDto
@@ -113,17 +115,13 @@ namespace SmartOffice.Hub.Models
         public List<string> ScopeFolderPaths { get; set; } = new();
         public bool IncludeSubFolders { get; set; } = true;
         public string Keyword { get; set; } = string.Empty;
-        public string MatchMode { get; set; } = "contains"; // contains、exact、fuzzy、regex。fuzzy / regex 僅能在 bounded result 內後篩。
-        public List<string> Fields { get; set; } = new() { "subject" };
+        public List<string> TextFields { get; set; } = new() { "subject" };
+        public List<string> CategoryNames { get; set; } = new();
+        public bool? HasAttachments { get; set; }
+        public string FlagState { get; set; } = "any";
+        public string ReadState { get; set; } = "any";
         public DateTime? ReceivedFrom { get; set; }
         public DateTime? ReceivedTo { get; set; }
-        public int MaxCount { get; set; } = 50;
-        public bool IsHubSlice { get; set; }
-        public string ParentCommandId { get; set; } = string.Empty;
-        public int SliceIndex { get; set; }
-        public int SliceCount { get; set; }
-        public bool ResetSearchResults { get; set; } = true;
-        public bool CompleteSearchOnSlice { get; set; } = true;
     }
 
     public class MailSearchSliceRequest
@@ -133,10 +131,14 @@ namespace SmartOffice.Hub.Models
         public string ParentCommandId { get; set; } = string.Empty;
         public string StoreId { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
+        public string Keyword { get; set; } = string.Empty;
+        public List<string> TextFields { get; set; } = new() { "subject" };
+        public List<string> CategoryNames { get; set; } = new();
+        public bool? HasAttachments { get; set; }
+        public string FlagState { get; set; } = "any";
+        public string ReadState { get; set; } = "any";
         public DateTime? ReceivedFrom { get; set; }
         public DateTime? ReceivedTo { get; set; }
-        public int MaxCount { get; set; } = 50;
-        public bool IncludeBody { get; set; }
         public int SliceIndex { get; set; }
         public int SliceCount { get; set; }
         public bool ResetSearchResults { get; set; } = true;

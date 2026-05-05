@@ -18,6 +18,7 @@ namespace SmartOffice.Hub.Controllers
         private readonly IHubContext<NotificationHub> _hub;
         private readonly AddinStatusStore _addinStatus;
         private readonly AttachmentExportService _attachmentExports;
+        private static readonly TimeSpan FolderCacheMaxAge = TimeSpan.FromMinutes(30);
 
         public OutlookController(MailStore mailStore, ChatStore chatStore,
             CommandResultStore commandResults, OutlookCommandQueue commandQueue, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus, AttachmentExportService attachmentExports)
@@ -137,10 +138,11 @@ namespace SmartOffice.Hub.Controllers
 
         private void NormalizeMailSearchRequest(SearchMailsRequest req)
         {
-            req.Fields = NormalizeMailSearchFields(req.Fields);
-            req.MatchMode = NormalizeMailSearchMatchMode(req.MatchMode);
             req.ScopeFolderPaths ??= new List<string>();
-            req.MaxCount = Math.Clamp(req.MaxCount <= 0 ? 50 : req.MaxCount, 1, 200);
+            req.TextFields = NormalizeMailSearchTextFields(req.TextFields);
+            req.CategoryNames = NormalizeMailSearchCategoryNames(req.CategoryNames);
+            req.FlagState = NormalizeMailSearchState(req.FlagState, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "any", "flagged", "unflagged" });
+            req.ReadState = NormalizeMailSearchState(req.ReadState, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "any", "unread", "read" });
         }
 
         private List<MailSearchSliceRequest> BuildMailSearchSlices(SearchMailsRequest req, string parentCommandId)
@@ -150,14 +152,14 @@ namespace SmartOffice.Hub.Controllers
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            var candidateFolders = snapshot.Folders
+            var searchableFolders = snapshot.Folders
                 .Where(folder => !folder.IsStoreRoot)
                 .Where(folder => string.IsNullOrWhiteSpace(req.StoreId) || string.Equals(folder.StoreId, req.StoreId, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             var scopedFolders = requestedPaths.Count == 0
-                ? candidateFolders
-                : candidateFolders
+                ? searchableFolders
+                : searchableFolders
                     .Where(folder => requestedPaths.Any(path =>
                         string.Equals(folder.FolderPath, path, StringComparison.OrdinalIgnoreCase)
                         || (req.IncludeSubFolders && folder.FolderPath.StartsWith($"{path}\\", StringComparison.OrdinalIgnoreCase))))
@@ -177,10 +179,14 @@ namespace SmartOffice.Hub.Controllers
                     ParentCommandId = parentCommandId,
                     StoreId = folder.StoreId,
                     FolderPath = folder.FolderPath,
+                    Keyword = req.Keyword,
+                    TextFields = new List<string>(req.TextFields),
+                    CategoryNames = new List<string>(req.CategoryNames),
+                    HasAttachments = req.HasAttachments,
+                    FlagState = req.FlagState,
+                    ReadState = req.ReadState,
                     ReceivedFrom = req.ReceivedFrom,
                     ReceivedTo = req.ReceivedTo,
-                    MaxCount = req.MaxCount,
-                    IncludeBody = req.Fields.Any(field => string.Equals(field, "body", StringComparison.OrdinalIgnoreCase)),
                     SliceIndex = index,
                     SliceCount = plannedFolders.Count,
                     ResetSearchResults = index == 0,
@@ -189,47 +195,105 @@ namespace SmartOffice.Hub.Controllers
                 .ToList();
         }
 
-        private static List<string> NormalizeMailSearchFields(List<string>? fields)
+        private static List<string> NormalizeMailSearchTextFields(List<string>? textFields)
         {
             var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "subject",
                 "sender",
-                "categories",
                 "body"
             };
-            var normalized = (fields ?? new List<string>())
+            var normalized = (textFields ?? new List<string>())
                 .Where(field => allowed.Contains(field))
                 .Select(field => field.ToLowerInvariant())
                 .Distinct()
                 .ToList();
-            return normalized.Count == 0 ? new List<string> { "subject" } : normalized;
+            return normalized.Count > 0 ? normalized : new List<string> { "subject" };
         }
 
-        private static string NormalizeMailSearchMatchMode(string matchMode)
+        private static List<string> NormalizeMailSearchCategoryNames(List<string>? categoryNames)
         {
-            var normalized = (matchMode ?? string.Empty).Trim().ToLowerInvariant();
-            return normalized is "contains" or "exact" or "fuzzy" or "regex" ? normalized : "contains";
+            return (categoryNames ?? new List<string>())
+                .Select(category => category.Trim())
+                .Where(category => !string.IsNullOrWhiteSpace(category))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static string NormalizeMailSearchState(string state, HashSet<string> allowed)
+        {
+            var normalized = (state ?? string.Empty).Trim().ToLowerInvariant();
+            return allowed.Contains(normalized) ? normalized : "any";
         }
 
         private async Task<bool> EnsureFolderCacheForMailSearchAsync(PendingCommand searchCommand, CancellationToken ct)
         {
-            if (_mailStore.CountFolders() > 0) return true;
+            return await EnsureFolderCacheAsync(searchCommand, ct);
+        }
 
+        private async Task<bool> EnsureFolderCacheAsync(PendingCommand? ownerCommand, CancellationToken ct)
+        {
+            if (_mailStore.CountFolders() <= 0 || _mailStore.IsFolderCacheStale(FolderCacheMaxAge))
+            {
+                await SendFolderCacheProgressAsync(ownerCommand, "Hub is loading Outlook folders before running folder-dependent command.", ct);
+
+                var result = await FetchFolderRootsQueuedAsync(ct);
+                if (!result.Success) return false;
+            }
+
+            await LoadPendingFolderDiscoveryTargetsAsync(ownerCommand, ct);
+            return _mailStore.CountFolders() > 0;
+        }
+
+        private async Task LoadPendingFolderDiscoveryTargetsAsync(PendingCommand? ownerCommand, CancellationToken ct)
+        {
+            const int maxDiscoveryCommands = 200;
+            var dispatched = 0;
+            while (dispatched < maxDiscoveryCommands)
+            {
+                var target = _mailStore.GetPendingFolderDiscoveryTargets().FirstOrDefault();
+                if (target is null) return;
+
+                await SendFolderCacheProgressAsync(ownerCommand, $"Hub is loading folder children before running folder-dependent command: {target.FolderPath}", ct, target);
+
+                var command = new PendingCommand
+                {
+                    Type = "fetch_folder_children",
+                    FolderDiscoveryRequest = new FolderDiscoveryRequest
+                    {
+                        StoreId = target.StoreId,
+                        ParentEntryId = target.EntryId,
+                        ParentFolderPath = target.FolderPath,
+                        MaxDepth = 1,
+                        MaxChildren = 200,
+                        Reset = false,
+                    },
+                };
+                var result = await _commandQueue.ExecuteQueuedCommandAsync(
+                    command,
+                    () => _mailStore.IsFolderChildrenLoaded(target.StoreId, target.EntryId, target.FolderPath),
+                    ensureReady: true,
+                    ct: ct);
+                if (!result.Success) return;
+                dispatched++;
+            }
+        }
+
+        private async Task SendFolderCacheProgressAsync(PendingCommand? ownerCommand, string message, CancellationToken ct, FolderDto? target = null)
+        {
+            if (ownerCommand?.Type != "search_mails" || ownerCommand.SearchMailsRequest is null) return;
             var progress = _mailStore.UpdateMailSearchProgress(new MailSearchProgressDto
             {
-                SearchId = searchCommand.SearchMailsRequest?.SearchId ?? string.Empty,
-                CommandId = searchCommand.Id,
+                SearchId = ownerCommand.SearchMailsRequest.SearchId,
+                CommandId = ownerCommand.Id,
                 Status = "running",
                 Phase = "load_folders",
-                Message = "Hub is loading Outlook folders before planning mail search.",
+                CurrentStoreId = target?.StoreId ?? string.Empty,
+                CurrentFolderPath = target?.FolderPath ?? string.Empty,
+                Message = message,
                 Timestamp = DateTime.Now,
             });
             await _hub.Clients.All.SendAsync("MailSearchProgress", progress, ct);
-
-            var result = await FetchFolderRootsQueuedAsync(ct);
-            if (!result.Success) return false;
-            return _mailStore.CountFolders() > 0;
         }
 
         private async Task<OutlookQueuedCommandResult> DispatchMailSearchSlicesAsync(PendingCommand parentCommand, List<MailSearchSliceRequest> slices, CancellationToken ct)
@@ -637,11 +701,39 @@ namespace SmartOffice.Hub.Controllers
         private async Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)
         {
             // Hub 已收下的 AddIn request 要由中心 queue 控制完成，避免外部 client 斷線造成 Outlook automation 半路取消。
-            var result = await _commandQueue.ExecuteAsync(cmd, DataReadyPredicate(cmd), ct: CancellationToken.None);
-            await CompleteSearchProgressAsync(cmd, result.Success ? "completed" : result.Status, result.Message, CancellationToken.None);
-            await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), CancellationToken.None);
-            var body = new { commandId = result.CommandId == string.Empty ? cmd.Id : result.CommandId, status = result.Status, message = result.Message };
-            return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
+            return await _commandQueue.ExecuteExclusiveAsync(async operationCt =>
+            {
+                if (RequiresFolderCache(cmd) && !await EnsureFolderCacheAsync(cmd, operationCt))
+                {
+                    var failedBody = new { commandId = cmd.Id, status = "folder_cache_unavailable", message = "Hub could not load Outlook folders before running folder-dependent command." };
+                    return Conflict(failedBody);
+                }
+
+                var result = await _commandQueue.ExecuteQueuedCommandAsync(cmd, DataReadyPredicate(cmd), ct: operationCt);
+                await CompleteSearchProgressAsync(cmd, result.Success ? "completed" : result.Status, result.Message, CancellationToken.None);
+                await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), CancellationToken.None);
+                var body = new { commandId = result.CommandId == string.Empty ? cmd.Id : result.CommandId, status = result.Status, message = result.Message };
+                return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
+            }, CancellationToken.None);
+        }
+
+        private static bool RequiresFolderCache(PendingCommand cmd)
+        {
+            return cmd.Type is
+                "fetch_mails"
+                or "fetch_mail_body"
+                or "fetch_mail_attachments"
+                or "export_mail_attachment"
+                or "mark_mail_read"
+                or "mark_mail_unread"
+                or "mark_mail_task"
+                or "clear_mail_task"
+                or "set_mail_categories"
+                or "update_mail_properties"
+                or "create_folder"
+                or "delete_folder"
+                or "move_mail"
+                or "delete_mail";
         }
 
         private Func<bool>? DataReadyPredicate(PendingCommand cmd)

@@ -37,7 +37,7 @@ Web UI notification channel：
 - `POST /api/outlook/request-folders`：只 dispatch `fetch_folder_roots`，載入 stores 與 root folders。
 - `POST /api/outlook/request-folder-children`：dispatch 單一 parent folder 的 `fetch_folder_children`。
 - `POST /api/outlook/request-mails`：dispatch mail fetch command。
-- `POST /api/outlook/request-mail-search`：dispatch mail search command；Hub 必須先確保 folder cache、展開 store/folder scope、切成單 folder slices，並節流 dispatch 給 AddIn。搜尋預設只看 subject。
+- `POST /api/outlook/request-mail-search`：dispatch mail search command；Hub 必須先確保 folder cache、展開 store/folder scope、切成單 folder slices，並節流 dispatch 給 AddIn。搜尋由 Outlook 內建搜尋執行，條件包含文字搜尋與篩選條件。
 - `POST /api/outlook/request-rules`：dispatch Outlook rule fetch command。
 - `POST /api/outlook/request-categories`：dispatch Outlook master category fetch command。
 - `POST /api/outlook/request-signalr-ping`：透過正式 AddIn channel dispatch `ping` 測試 command。
@@ -82,9 +82,15 @@ Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 fol
 1. 若 folder cache 為空，先由 Hub dispatch `fetch_folder_roots`，建立 store/root folder cache；mail search 只使用目前已載入的 folder cache，不得為了搜尋自動展開整棵 folder tree。
 2. 若 folder cache 無法建立，讓原始 search command 失敗並回 `folder_cache_unavailable`。
 3. 使用 cached folder tree 展開原始 request 的 `storeId` / `scopeFolderPaths` / `includeSubFolders`。
-4. 將搜尋計畫切成單 folder slices；每個 slice 都要有非空 `storeId`、單一 `scopeFolderPaths[0]`、`includeSubFolders=false`、`isHubSlice=true`。
+4. 將搜尋計畫切成單 folder slices；每個 slice 都要有非空 `storeId` 與單一 `folderPath`。
 5. 依序 dispatch slices，slice 之間保留短暫 delay，避免大量 Outlook search 同時啟動。
 6. 用 `MailSearchProgress` broadcast 整體進度；MCP / Agents SKILL 可用 progress endpoint 主動查詢。
+
+搜尋條件：
+
+- Hub 把 `keyword`、`textFields` 與分類、附件、旗標、已讀狀態、時間等篩選條件傳給每個 `MailSearchSliceRequest`。
+- AddIn 在單一 folder 內依 Microsoft Outlook `AdvancedSearch` / DASL 這類內建搜尋流程組合 filter，再回傳符合條件的 metadata。
+- `keyword` 預設只套用在 `subject`，使用者可在 Web UI 選擇 `sender` 或 `body`。這不是 typo-tolerant fuzzy search。
 
 原始 request scope 展開規則：
 

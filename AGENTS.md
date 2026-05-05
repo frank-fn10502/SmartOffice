@@ -11,7 +11,9 @@
 - 在本 repository 的 `Plan/` 任務是交給工作機 AI 使用的 AddIn 實作指引；除非使用者明確要求修改 Hub contract，否則不要把 `Plan/` 任務解讀成要修改 Hub 程式碼。
 - `Plan/status.md` 是 VS Code Copilot custom agent 的任務佇列狀態檔；切分或執行 `Plan/` 任務時也必須遵守 `docs/ai/plan-splitting.md`。
 - 修改時維持 SmartOffice.Hub 的邊界：Add-in 負責 Office automation，Hub 負責 HTTP API、SignalR、command routing 與 temporary state，Web UI 負責檢視、手動 request、chat 與 diagnostics。
-- Hub 對外 contract 偏好小而明確且 backward-compatible；但 `docs/addin/` 的 AddIn contract 不維護舊版或未使用功能，工作機 AddIn 只實作目前正式 SignalR contract。
+- 本 repository 是 PoC / prototype，不預設保留舊版相容程式碼；contract、DTO、UI state、mock 與文件都應以目前正式行為為準。
+- 修改 contract 或流程時，請刪除未使用的舊欄位、舊模式、相容 shim、fallback branch 與死碼；不要留下「可能以後會用」但目前無法驗證或無法處理的相容垃圾。
+- 若不確定某段舊行為是否仍有人依賴，最多先詢問使用者是否要完全刪除；除非使用者明確要求 backward compatibility，否則以乾淨刪除為預設。
 - 修改時留意檔案長度與職責邊界；接近或超過約 800 行要評估切分，超過約 1000 行應優先抽出自然模組。詳見 `docs/ai/coding.md` 與 `docs/ai/frontend.md`。
 - Office 2016 與受限企業環境是設計約束。除非任務明確需要，避免引入 database、frontend build system、background job framework 或 AI SDK。
 - 請假設 mail body、folder name 與 chat message 都可能含有敏感 business data。

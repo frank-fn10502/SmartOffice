@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
 using SmartOffice.Hub.Models;
-using System.Text.RegularExpressions;
 
 namespace SmartOffice.Hub.Services
 {
@@ -75,6 +74,7 @@ namespace SmartOffice.Hub.Services
         private List<OutlookCategoryDto> _categories = new();
         private List<CalendarEventDto> _calendarEvents = new();
         private List<MailItemDto> _mailSearchResults = new();
+        private DateTime _folderCacheUpdatedAt = DateTime.MinValue;
         private readonly Dictionary<string, MailSearchProgressDto> _mailSearchProgress = new();
         private readonly Dictionary<string, SearchMailsRequest> _mailSearchRequests = new();
         private readonly Dictionary<string, MailAttachmentsDto> _attachments = new();
@@ -250,11 +250,8 @@ namespace SmartOffice.Hub.Services
             lock (_lock)
             {
                 if (batch.Reset) _mailSearchResults = new List<MailItemDto>();
-                var mails = _mailSearchRequests.TryGetValue(batch.SearchId, out var request)
-                    ? batch.Mails.Where(mail => MatchesSearchRequest(mail, request))
-                    : batch.Mails;
-                foreach (var mail in mails)
-                    UpsertMail(_mailSearchResults, CloneMail(mail));
+                foreach (var mail in batch.Mails)
+                    UpsertMail(_mailSearchResults, CloneMailMetadata(mail));
 
                 if (_mailSearchProgress.TryGetValue(batch.SearchId, out var progress))
                 {
@@ -291,6 +288,7 @@ namespace SmartOffice.Hub.Services
             {
                 _stores = new List<OutlookStoreDto>();
                 _folders = new List<FolderDto>();
+                _folderCacheUpdatedAt = DateTime.MinValue;
             }
         }
 
@@ -302,6 +300,7 @@ namespace SmartOffice.Hub.Services
                 {
                     _stores = new List<OutlookStoreDto>();
                     _folders = new List<FolderDto>();
+                    _folderCacheUpdatedAt = DateTime.MinValue;
                 }
 
                 var rejectedStoreIds = batch.Stores
@@ -330,6 +329,9 @@ namespace SmartOffice.Hub.Services
                     UpsertFolder(_folders, folder);
                 }
 
+                if (batch.Stores.Count > 0 || batch.Folders.Count > 0)
+                    _folderCacheUpdatedAt = DateTime.Now;
+
                 return new FolderSnapshotDto
                 {
                     Stores = CloneStores(_stores),
@@ -346,6 +348,15 @@ namespace SmartOffice.Hub.Services
         public int CountStoreRoots()
         {
             lock (_lock) { return _folders.Count(folder => folder.IsStoreRoot); }
+        }
+
+        public bool IsFolderCacheStale(TimeSpan maxAge)
+        {
+            lock (_lock)
+            {
+                return _folderCacheUpdatedAt == DateTime.MinValue
+                    || DateTime.Now - _folderCacheUpdatedAt > maxAge;
+            }
         }
 
         public List<FolderDto> GetPendingFolderDiscoveryTargets()
@@ -504,6 +515,14 @@ namespace SmartOffice.Hub.Services
             };
         }
 
+        private static MailItemDto CloneMailMetadata(MailItemDto mail)
+        {
+            var clone = CloneMail(mail);
+            clone.Body = string.Empty;
+            clone.BodyHtml = string.Empty;
+            return clone;
+        }
+
         private static FolderDto CloneFolder(FolderDto folder)
         {
             return new FolderDto
@@ -551,128 +570,14 @@ namespace SmartOffice.Hub.Services
                 ScopeFolderPaths = new List<string>(request.ScopeFolderPaths),
                 IncludeSubFolders = request.IncludeSubFolders,
                 Keyword = request.Keyword,
-                MatchMode = request.MatchMode,
-                Fields = new List<string>(request.Fields),
+                TextFields = new List<string>(request.TextFields),
+                CategoryNames = new List<string>(request.CategoryNames),
+                HasAttachments = request.HasAttachments,
+                FlagState = request.FlagState,
+                ReadState = request.ReadState,
                 ReceivedFrom = request.ReceivedFrom,
                 ReceivedTo = request.ReceivedTo,
-                MaxCount = request.MaxCount,
             };
-        }
-
-        private static bool MatchesSearchRequest(MailItemDto mail, SearchMailsRequest request)
-        {
-            var keyword = request.Keyword.Trim();
-            if (string.IsNullOrWhiteSpace(keyword)) return true;
-            var haystack = SearchHaystack(mail, request.Fields);
-            if (string.Equals(request.MatchMode, "exact", StringComparison.OrdinalIgnoreCase))
-                return haystack.Any(value => string.Equals(value, keyword, StringComparison.OrdinalIgnoreCase));
-            if (string.Equals(request.MatchMode, "regex", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    return haystack.Any(value => Regex.IsMatch(value, keyword, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100)));
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-            if (string.Equals(request.MatchMode, "fuzzy", StringComparison.OrdinalIgnoreCase))
-                return haystack.Any(value => FuzzyMatches(value, keyword));
-            return haystack.Any(value => value.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static List<string> SearchHaystack(MailItemDto mail, List<string> fields)
-        {
-            var selected = fields.Count == 0 ? new List<string> { "subject" } : fields;
-            var values = new List<string>();
-            if (HasSearchField(selected, "subject")) values.Add(mail.Subject);
-            if (HasSearchField(selected, "sender"))
-            {
-                values.Add(mail.SenderName);
-                values.Add(mail.SenderEmail);
-            }
-            if (HasSearchField(selected, "categories")) values.Add(mail.Categories);
-            if (HasSearchField(selected, "body"))
-            {
-                values.Add(mail.Body);
-                values.Add(mail.BodyHtml);
-            }
-            return values;
-        }
-
-        private static bool HasSearchField(List<string> fields, string field)
-        {
-            return fields.Any(item => string.Equals(item, field, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static bool FuzzyMatches(string value, string keyword)
-        {
-            var normalizedValue = NormalizeFuzzyText(value);
-            var normalizedKeyword = NormalizeFuzzyText(keyword);
-            if (string.IsNullOrWhiteSpace(normalizedValue) || string.IsNullOrWhiteSpace(normalizedKeyword)) return false;
-            if (normalizedValue.Contains(normalizedKeyword, StringComparison.OrdinalIgnoreCase)) return true;
-            if (IsSubsequence(normalizedKeyword, normalizedValue)) return true;
-
-            var keywordTokens = SplitFuzzyTokens(keyword);
-            if (keywordTokens.Count == 0) return false;
-            var valueTokens = SplitFuzzyTokens(value);
-            return keywordTokens.All(term => valueTokens.Any(token => WithinFuzzyDistance(token, term)));
-        }
-
-        private static string NormalizeFuzzyText(string value)
-        {
-            return new string(value
-                .Where(char.IsLetterOrDigit)
-                .Select(char.ToLowerInvariant)
-                .ToArray());
-        }
-
-        private static List<string> SplitFuzzyTokens(string value)
-        {
-            return Regex.Split(value.ToLowerInvariant(), @"[^\p{L}\p{Nd}]+")
-                .Where(token => !string.IsNullOrWhiteSpace(token))
-                .ToList();
-        }
-
-        private static bool WithinFuzzyDistance(string value, string keyword)
-        {
-            if (value.Contains(keyword, StringComparison.OrdinalIgnoreCase)) return true;
-            var threshold = keyword.Length <= 4 ? 1 : Math.Max(1, keyword.Length / 4);
-            return LevenshteinDistance(value, keyword) <= threshold;
-        }
-
-        private static bool IsSubsequence(string needle, string haystack)
-        {
-            var index = 0;
-            foreach (var item in haystack)
-            {
-                if (index < needle.Length && item == needle[index]) index++;
-                if (index == needle.Length) return true;
-            }
-            return false;
-        }
-
-        private static int LevenshteinDistance(string left, string right)
-        {
-            if (left.Length == 0) return right.Length;
-            if (right.Length == 0) return left.Length;
-
-            var previous = Enumerable.Range(0, right.Length + 1).ToArray();
-            var current = new int[right.Length + 1];
-            for (var i = 1; i <= left.Length; i++)
-            {
-                current[0] = i;
-                for (var j = 1; j <= right.Length; j++)
-                {
-                    var cost = left[i - 1] == right[j - 1] ? 0 : 1;
-                    current[j] = Math.Min(
-                        Math.Min(current[j - 1] + 1, previous[j] + 1),
-                        previous[j - 1] + cost);
-                }
-                (previous, current) = (current, previous);
-            }
-            return previous[right.Length];
         }
 
         private static MailAttachmentsDto CloneMailAttachments(MailAttachmentsDto attachments)

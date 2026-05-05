@@ -27,7 +27,8 @@ Office 2016 desktop 深度整合通常會碰到 VSTO、COM automation 或 Outloo
 - [MailItem object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem)：郵件 item、subject、sender、body、received time 等欄位。
 - [Application.AdvancedSearch method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearch)：非同步搜尋；scope 可含同一個 store 內的多個 folder，不能跨 store。Microsoft 文件提醒大量 simultaneous search 會造成顯著搜尋活動並影響 Outlook performance；AddIn 實作時只處理 Hub 給定的單一 search slice。
 - [Application.AdvancedSearchComplete event (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearchcomplete)：`AdvancedSearch` 完成事件，避免以 blocking loop 等待。
-- [Items.Restrict method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict)：在單一 folder items 內做條件篩選，適合搭配日期與 max count 縮小讀取範圍。Microsoft 文件指出 `Restrict` 適合大型 collection 先縮小結果，但也明確說明不能做 Subject contains；contains / fuzzy / body 後篩必須在 bounded candidate set 內處理。
+- [Search the Inbox for Items with Subject Containing Office](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/search-and-filter/search-the-inbox-for-items-with-subject-containing-office)：Microsoft 的 Subject contains 範例，示範以 DASL `ci_phrasematch` 查詢 Subject 內含關鍵字；正式搜尋應參考這類 Outlook 內建搜尋流程。
+- [Items.Restrict method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict)：在單一 folder items 內做條件篩選，適合搭配日期、分類、已讀狀態等條件縮小結果。Microsoft 文件指出 `Restrict` 適合大型 collection 先縮小結果，但也明確說明不能做 Subject contains；文字 contains 請優先使用 Outlook 內建搜尋 / DASL content index。
 
 ## Office JavaScript Add-in / Office.js
 

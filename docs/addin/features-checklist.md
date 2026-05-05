@@ -31,7 +31,7 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
 | AddIn 連線 | `ping` | `ReportCommandResult` |
 | Hub-driven folder discovery | `fetch_folder_roots`、`fetch_folder_children` | `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync` |
 | 讀取郵件 | `fetch_mails` | `PushMails` metadata |
-| 搜尋郵件 candidates | `fetch_mail_search_slice` | `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice` |
+| 搜尋郵件 | `fetch_mail_search_slice` | `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice` |
 | 讀取郵件內容 | `fetch_mail_body` | `PushMailBody` |
 | 讀取附件清單 | `fetch_mail_attachments` | `PushMailAttachments` |
 | 匯出附件 | `export_mail_attachment` | `PushExportedMailAttachment` |
@@ -130,27 +130,24 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
 - [ ] 沒有出現「缺少 id」警告。
 - [ ] 已讀、flag、category、move/delete 都能用有效 `mailId` 執行。
 
-### 4. Mail Search Candidates
+### 4. Mail Search
 
-AddIn 收到的是 Hub 已規劃好的單一 Outlook folder candidate 讀取 slice；AddIn 不負責 keyword、contains、fuzzy、regex、跨 folder 搜尋語意、全域排程或整體 progress。
+AddIn 收到的是 Hub 已規劃好的單一 Outlook folder search slice；AddIn 不負責跨 folder 排程或整體 progress。搜尋由 keyword 文字搜尋與獨立篩選條件組成，並依 Microsoft Outlook `AdvancedSearch` / DASL 這類內建搜尋流程執行。
 
 - [ ] AddIn 收到 `fetch_mail_search_slice`。
 - [ ] AddIn 使用 `mailSearchSliceRequest.storeId` 與 `folderPath` 定位單一 Outlook folder。
 - [ ] AddIn 若收到空 `storeId` 或空 `folderPath`，必須用 `CompleteMailSearchSlice(success=false)` 結束該 slice；不得自行全域掃描。
-- [ ] AddIn 只套用 Outlook 原生且低成本的限制：單一 folder、`receivedFrom` / `receivedTo`、`maxCount`。
-- [ ] `includeBody=false` 時只回 metadata，`body` / `bodyHtml` 留空。
-- [ ] `includeBody=true` 時才讀取 body，供 Hub 做 body keyword 後篩。
-- [ ] `maxCount` 必須有上限，建議 AddIn 端 clamp 到 200 以內。
-- [ ] 使用 `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice` 回傳 candidates；不要用 `PushMails` 覆蓋目前 folder list。
+- [ ] AddIn 使用 Outlook 內建搜尋在單一 folder 內套用 `keyword`、`textFields`、分類、附件、旗標、已讀狀態與時間；不要實作 typo-tolerant fuzzy search，也不要套用掃描數量限制。
+- [ ] search result 只回 metadata，`body` / `bodyHtml` 留空。
+- [ ] 使用 `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice` 回傳搜尋結果；不要用 `PushMails` 覆蓋目前 folder list。
 - [ ] `PushMailSearchSliceResult` 必須帶回 `commandId`、`parentCommandId`、`sliceIndex`、`sliceCount` 與 `isSliceComplete=true`，讓 Hub 自行推算 slice 完成與整體進度。
 - [ ] AddIn 不需要自行做跨 folder 排程；單一 folder 搜尋仍應避免 blocking Outlook UI。
 - [ ] 發生 Outlook busy、search timeout 或使用者取消時，使用 `CompleteMailSearchSlice(success=false)` 並以匿名化 message 說明。
 
 驗收：
 
-- [ ] AddIn 不會自行處理 regex / fuzzy / keyword contains。
+- [ ] 搜尋有走 Outlook 內建搜尋，而不是自行掃描後篩。
 - [ ] AddIn 不會收到空 scope 後自行全域掃描。
-- [ ] 單一 slice 只回 bounded candidates。
 - [ ] Outlook busy、timeout 或取消時，有失敗結果而不是卡住。
 
 ### 5. 修改郵件屬性

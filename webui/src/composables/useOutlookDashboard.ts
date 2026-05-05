@@ -110,17 +110,23 @@ export function useOutlookDashboard() {
   const mailRange = ref('1m')
   const mailCount = ref(30)
   const loadingMailSearch = ref(false)
+  const searchResultViewMode = ref<'flat' | 'tree'>('tree')
+  const collapsedSearchResultStores = ref<Set<string>>(new Set())
+  const collapsedSearchResultFolders = ref<Set<string>>(new Set())
   const activeMailSearchId = ref('')
   const mailSearchProgress = ref<MailSearchProgressDto | null>(null)
   const mailSearchDraft = ref({
     keyword: '',
-    matchMode: 'contains' as 'contains' | 'exact' | 'fuzzy',
-    fields: ['subject'] as string[],
+    textFields: ['subject'] as Array<'subject' | 'sender' | 'body'>,
+    categoryNames: [] as string[],
+    hasAttachments: undefined as boolean | undefined,
+    flagState: 'any' as 'any' | 'flagged' | 'unflagged',
+    readState: 'any' as 'any' | 'unread' | 'read',
     receivedFrom: '',
     receivedTo: '',
     scopeMode: 'selected_folder' as 'selected_folder' | 'selected_store' | 'global',
-    maxCount: 50,
   })
+  const activeMailSearchSummary = ref<Array<{ label: string; value: string; tone: 'active' | 'muted' | 'info' }>>([])
   const chatText = ref('')
   const loadingFolders = ref(false)
   const loadingMails = ref(true)
@@ -172,6 +178,59 @@ export function useOutlookDashboard() {
 
   const visibleFolders = computed(() => visibleRootFolders(folders.value))
   const mails = computed(() => mailListMode.value === 'search' ? mailSearchResults.value : folderMails.value)
+  const searchResultRows = computed(() => mailSearchResults.value.map((mail, index) => ({
+    mail,
+    index,
+    sourceLabel: mailSourceLabel(mail),
+  })))
+  const searchResultGroups = computed(() => {
+    const groups = new Map<string, {
+      key: string
+      label: string
+      count: number
+      collapsed: boolean
+      folders: {
+        key: string
+        label: string
+        path: string
+        count: number
+        collapsed: boolean
+        rows: typeof searchResultRows.value
+      }[]
+    }>()
+    for (const row of searchResultRows.value) {
+      const source = mailSource(row.mail)
+      const storeKey = source.storeId || source.storeLabel
+      const folderKey = `${storeKey}\n${source.folderPath || source.folderLabel}`
+      let store = groups.get(storeKey)
+      if (!store) {
+        store = {
+          key: storeKey,
+          label: source.storeLabel,
+          count: 0,
+          collapsed: collapsedSearchResultStores.value.has(storeKey),
+          folders: [],
+        }
+        groups.set(storeKey, store)
+      }
+      let folder = store.folders.find((item) => item.key === folderKey)
+      if (!folder) {
+        folder = {
+          key: folderKey,
+          label: source.folderLabel,
+          path: source.folderPath,
+          count: 0,
+          collapsed: collapsedSearchResultFolders.value.has(folderKey),
+          rows: [],
+        }
+        store.folders.push(folder)
+      }
+      store.count += 1
+      folder.count += 1
+      folder.rows.push(row)
+    }
+    return [...groups.values()]
+  })
 
   const mailStats = computed(() => ({
     unread: mails.value.filter((mail) => !mail.isRead).length,
@@ -264,6 +323,8 @@ export function useOutlookDashboard() {
     return `${progress.percent}% · ${scopeText}${current}`
   })
 
+  const mailSearchSummaryItems = computed(() => activeMailSearchSummary.value)
+
   const selectedMailFolderName = computed(() => {
     return selectedMail.value?.folderPath ? folderNameForPath(selectedMail.value.folderPath) : '未選擇'
   })
@@ -309,6 +370,66 @@ export function useOutlookDashboard() {
   function folderNameForPath(path: string) {
     if (!path) return '未選擇'
     return folderOptions.value.find((folder) => folder.folderPath === path)?.label.trim() ?? path
+  }
+
+  function folderLeafName(path: string) {
+    const parts = path.split(/[\\/]+/).map((part) => part.trim()).filter(Boolean)
+    return parts.at(-1) || path || 'Unknown folder'
+  }
+
+  function mailSource(mail: MailItemDto) {
+    const folder = folderOptions.value.find((item) => item.folderPath === mail.folderPath)
+    const store = folderStores.value.find((item) => item.storeId === folder?.storeId)
+    const storeLabel = searchStoreLabel(store, folder?.storeId)
+    const folderLabel = folder?.name || folderLeafName(mail.folderPath)
+    return {
+      storeId: store?.storeId || folder?.storeId || '',
+      storeLabel,
+      folderLabel,
+      folderPath: mail.folderPath,
+    }
+  }
+
+  function searchStoreLabel(store: OutlookStoreDto | undefined, fallbackStoreId = '') {
+    if (!store) return fallbackStoreId || 'Unknown store'
+    const kind = store.storeKind?.trim().toUpperCase() || 'STORE'
+    if (kind === 'PST') {
+      const fileName = store.storeFilePath.split(/[\\/]+/).filter(Boolean).at(-1)
+      return `PST · ${fileName || store.displayName || store.storeId}`
+    }
+    if (kind === 'OST') return `OST · ${store.displayName || store.storeId}`
+    return `${kind} · ${store.displayName || store.storeId}`
+  }
+
+  function mailSourceLabel(mail: MailItemDto) {
+    const source = mailSource(mail)
+    return source.folderPath ? `${source.storeLabel} / ${source.folderLabel}` : source.storeLabel
+  }
+
+  function compareMailSearchResults(left: MailItemDto, right: MailItemDto) {
+    const leftLabel = mailSourceLabel(left)
+    const rightLabel = mailSourceLabel(right)
+    const sourceOrder = leftLabel.localeCompare(rightLabel, undefined, { sensitivity: 'base' })
+    if (sourceOrder !== 0) return sourceOrder
+    return new Date(right.receivedTime).getTime() - new Date(left.receivedTime).getTime()
+  }
+
+  function setMailSearchResults(items: MailItemDto[]) {
+    mailSearchResults.value = [...items].sort(compareMailSearchResults)
+  }
+
+  function toggleSearchResultStore(key: string) {
+    const next = new Set(collapsedSearchResultStores.value)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    collapsedSearchResultStores.value = next
+  }
+
+  function toggleSearchResultFolder(key: string) {
+    const next = new Set(collapsedSearchResultFolders.value)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    collapsedSearchResultFolders.value = next
   }
 
   function calendarEventSegment(event: CalendarEventDto, weekStart: Date, weekEnd: Date) {
@@ -671,7 +792,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function loadCachedMailSearchResults() {
-    mailSearchResults.value = await outlookApi.getMailSearchResults()
+    setMailSearchResults(await outlookApi.getMailSearchResults())
   }
 
   async function loadCachedRules() {
@@ -727,6 +848,48 @@ function categoryTagStyle(name: string) {
     return selectedFolder?.storeId ?? ''
   }
 
+  function searchScopeLabel(scopeMode: typeof mailSearchDraft.value.scopeMode, storeId: string, scopeFolderPaths: string[]) {
+    if (scopeMode === 'global') return '全部信箱'
+    if (scopeMode === 'selected_folder') return scopeFolderPaths[0] ? `${folderNameForPath(scopeFolderPaths[0])} + 子資料夾` : '目前資料夾未選擇'
+    const store = folderStores.value.find((item) => item.storeId === storeId)
+    return searchStoreLabel(store, storeId)
+  }
+
+  function searchDateLabel(value: string) {
+    return value ? value.replace('T', ' ') : ''
+  }
+
+  function searchReceivedCondition(from: string, to: string) {
+    if (from && to) return `${searchDateLabel(from)} <= 時間 <= ${searchDateLabel(to)}`
+    if (from) return `時間 >= ${searchDateLabel(from)}`
+    if (to) return `時間 <= ${searchDateLabel(to)}`
+    return ''
+  }
+
+  function buildMailSearchSummary(storeId: string, scopeFolderPaths: string[]) {
+    const draft = mailSearchDraft.value
+    const keyword = draft.keyword.trim()
+    const receivedCondition = searchReceivedCondition(draft.receivedFrom, draft.receivedTo)
+    const fieldLabels: Record<string, string> = {
+      subject: '標題',
+      sender: '寄件者',
+      body: '內容',
+    }
+    const textFields = draft.textFields.map(field => fieldLabels[field] ?? field).join('、') || '標題'
+    const summary = [
+      { label: '範圍', value: searchScopeLabel(draft.scopeMode, storeId, scopeFolderPaths), tone: 'info' },
+      { label: '文字範圍', value: textFields, tone: 'info' },
+    ]
+    if (draft.categoryNames.length > 0) summary.push({ label: '分類', value: draft.categoryNames.join('、'), tone: 'info' })
+    if (draft.hasAttachments !== undefined) summary.push({ label: '附件', value: draft.hasAttachments ? '包含附件' : '不含附件', tone: 'info' })
+    if (draft.flagState !== 'any') summary.push({ label: '旗標', value: draft.flagState === 'flagged' ? '有旗標' : '無旗標', tone: 'info' })
+    if (draft.readState !== 'any') summary.push({ label: '狀態', value: draft.readState === 'unread' ? '未讀' : '已讀', tone: 'info' })
+    if (receivedCondition) summary.unshift({ label: '時間', value: receivedCondition, tone: 'active' })
+    if (keyword) summary.unshift({ label: '文字', value: `包含 "${keyword}"`, tone: 'active' })
+    else summary.push({ label: '文字', value: '未使用', tone: 'muted' })
+    return summary as typeof activeMailSearchSummary.value
+  }
+
   async function requestMailSearch() {
     if (loadingMailSearch.value) return
     const searchId = window.crypto?.randomUUID?.() ?? `${Date.now()}`
@@ -734,11 +897,14 @@ function categoryTagStyle(name: string) {
       ? [selectedFolderPath.value]
       : []
     const storeId = mailSearchDraft.value.scopeMode === 'global' ? '' : selectedStoreIdForSearch()
+    activeMailSearchSummary.value = buildMailSearchSummary(storeId, scopeFolderPaths)
     loadingMailSearch.value = true
     activeMailSearchId.value = searchId
     mailSearchProgress.value = null
     mailListMode.value = 'search'
     mailSearchResults.value = []
+    collapsedSearchResultStores.value = new Set()
+    collapsedSearchResultFolders.value = new Set()
     selectedMailIndex.value = null
     openMailIndexes.value = new Set()
     htmlMailIndexes.value = new Set()
@@ -750,11 +916,13 @@ function categoryTagStyle(name: string) {
         scopeFolderPaths,
         includeSubFolders: true,
         keyword: mailSearchDraft.value.keyword,
-        matchMode: mailSearchDraft.value.matchMode,
-        fields: mailSearchDraft.value.fields,
+        textFields: mailSearchDraft.value.textFields,
+        categoryNames: mailSearchDraft.value.categoryNames,
+        hasAttachments: mailSearchDraft.value.hasAttachments,
+        flagState: mailSearchDraft.value.flagState,
+        readState: mailSearchDraft.value.readState,
         receivedFrom: localDateTimeToIso(mailSearchDraft.value.receivedFrom),
         receivedTo: localDateTimeToIso(mailSearchDraft.value.receivedTo),
-        maxCount: mailSearchDraft.value.maxCount,
       })
       activeMailSearchCommandId = response.commandId
       try {
@@ -786,7 +954,7 @@ function categoryTagStyle(name: string) {
     const current = batch.reset ? [] : mailSearchResults.value
     const byId = new Map(current.map((mail) => [mail.id, mail]))
     for (const mail of batch.mails) byId.set(mail.id, mail)
-    mailSearchResults.value = [...byId.values()]
+    setMailSearchResults([...byId.values()])
     mailListMode.value = 'search'
     if (selectedMailIndex.value === null && mailSearchResults.value.length > 0) selectedMailIndex.value = 0
     if (batch.isFinal) loadingMailSearch.value = false
@@ -1611,6 +1779,10 @@ function categoryTagStyle(name: string) {
     mailSearchDraft,
     mailSearchProgress,
     mailSearchProgressText,
+    mailSearchSummaryItems,
+    searchResultGroups,
+    searchResultRows,
+    searchResultViewMode,
     mailSearchResults,
     isAttachmentExporting,
     isAttachmentListLoading,
@@ -1670,6 +1842,8 @@ function categoryTagStyle(name: string) {
     toggleFolder,
     toggleMail,
     toggleMailFormat,
+    toggleSearchResultFolder,
+    toggleSearchResultStore,
     updateCategoryColor,
     visibleFolders,
     visibleMasterCategories,

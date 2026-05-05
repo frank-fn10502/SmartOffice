@@ -274,8 +274,8 @@ namespace SmartOffice.Hub.Services
                 await _notifications.Clients.All.SendAsync("MailSearchStarted", new MailSearchSliceResultDto
                 {
                     SearchId = mailSearchSliceResult.SearchId,
-                    Reset = true,
-                    Sequence = 0,
+                    Reset = mailSearchSliceResult.Reset,
+                    Sequence = mailSearchSliceResult.Sequence,
                 }, ct);
                 await _notifications.Clients.All.SendAsync("MailSearchPatched", mailSearchSliceResult, ct);
             }
