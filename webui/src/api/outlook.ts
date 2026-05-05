@@ -108,15 +108,28 @@ export function normalizeMailBody(item: unknown): MailBodyDto {
 
 export function normalizeMailAttachment(item: unknown): MailAttachmentDto {
   const source = (item ?? {}) as LooseRecord
+  const attachmentId = readString(source, 'attachmentId', 'AttachmentId') || readString(source, 'id', 'Id') || readString(source, 'index', 'Index')
+  const name = readString(source, 'name', 'Name') || readString(source, 'fileName', 'FileName') || readString(source, 'displayName', 'DisplayName')
+  const exportedPath = readString(source, 'exportedPath', 'ExportedPath')
+    || readString(source, 'localPath', 'LocalPath')
+    || readString(source, 'fullPath', 'FullPath')
+    || readString(source, 'path', 'Path')
   return {
     mailId: readString(source, 'mailId', 'MailId'),
-    attachmentId: readString(source, 'attachmentId', 'AttachmentId'),
-    name: readString(source, 'name', 'Name'),
+    id: readString(source, 'id', 'Id') || attachmentId,
+    attachmentId,
+    index: readNumber(source, 'index', 'Index'),
+    fileName: readString(source, 'fileName', 'FileName') || name,
+    displayName: readString(source, 'displayName', 'DisplayName') || name,
+    name,
     contentType: readString(source, 'contentType', 'ContentType'),
     size: readNumber(source, 'size', 'Size'),
     isExported: readBoolean(source, 'isExported', 'IsExported'),
     exportedAttachmentId: readString(source, 'exportedAttachmentId', 'ExportedAttachmentId'),
-    exportedPath: readString(source, 'exportedPath', 'ExportedPath'),
+    path: readString(source, 'path', 'Path') || exportedPath,
+    localPath: readString(source, 'localPath', 'LocalPath') || exportedPath,
+    fullPath: readString(source, 'fullPath', 'FullPath') || exportedPath,
+    exportedPath,
   }
 }
 
@@ -132,15 +145,28 @@ export function normalizeMailAttachments(item: unknown): MailAttachmentsDto {
 
 export function normalizeExportedMailAttachment(item: unknown): ExportedMailAttachmentDto {
   const source = (item ?? {}) as LooseRecord
+  const attachmentId = readString(source, 'attachmentId', 'AttachmentId') || readString(source, 'id', 'Id') || readString(source, 'index', 'Index')
+  const name = readString(source, 'name', 'Name') || readString(source, 'fileName', 'FileName') || readString(source, 'displayName', 'DisplayName')
+  const exportedPath = readString(source, 'exportedPath', 'ExportedPath')
+    || readString(source, 'localPath', 'LocalPath')
+    || readString(source, 'fullPath', 'FullPath')
+    || readString(source, 'path', 'Path')
   return {
     mailId: readString(source, 'mailId', 'MailId'),
     folderPath: readString(source, 'folderPath', 'FolderPath'),
-    attachmentId: readString(source, 'attachmentId', 'AttachmentId'),
+    id: readString(source, 'id', 'Id') || attachmentId,
+    attachmentId,
+    index: readNumber(source, 'index', 'Index'),
     exportedAttachmentId: readString(source, 'exportedAttachmentId', 'ExportedAttachmentId'),
-    name: readString(source, 'name', 'Name'),
+    fileName: readString(source, 'fileName', 'FileName') || name,
+    displayName: readString(source, 'displayName', 'DisplayName') || name,
+    name,
     contentType: readString(source, 'contentType', 'ContentType'),
     size: readNumber(source, 'size', 'Size'),
-    exportedPath: readString(source, 'exportedPath', 'ExportedPath'),
+    path: readString(source, 'path', 'Path') || exportedPath,
+    localPath: readString(source, 'localPath', 'LocalPath') || exportedPath,
+    fullPath: readString(source, 'fullPath', 'FullPath') || exportedPath,
+    exportedPath,
     exportedAt: readString(source, 'exportedAt', 'ExportedAt'),
   }
 }

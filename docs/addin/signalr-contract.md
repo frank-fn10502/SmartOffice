@@ -538,6 +538,38 @@ AI / MCP client 可用下列 endpoint 查詢 command 執行狀態：
 - `importance`: string，預設 `normal`
 - `sensitivity`: string，預設 `normal`
 
+### MailAttachmentDto
+
+AddIn 處理 `fetch_mail_attachments` 時，請從 Outlook `MailItem.Attachments` 逐筆建立 metadata；依 Microsoft Outlook Interop 文件，附件名稱應優先使用 `Attachment.FileName`，沒有檔名時再用 `Attachment.DisplayName`，大小使用 `Attachment.Size`。附件識別請使用同一封 mail 內穩定可 round-trip 的值；Office COM collection 為 1-based，因此可用 `Attachment.Index.ToString()` 作為 `attachmentId`，export 時再用此值取回 `Attachments.Item(index)`。
+
+- `mailId`: string，必須等於 request 的 `mailId`。
+- `attachmentId`: string，必填；建議使用 Outlook `Attachment.Index` 的字串值，或 AddIn 自己能在同一封 mail 內穩定查回的 id。
+- `index`: number，可填 Outlook `Attachment.Index`，Hub 會在 `attachmentId` 空白時以此補值。
+- `name`: string，Web UI 顯示名稱；建議填 `Attachment.FileName`，沒有時填 `Attachment.DisplayName`。
+- `fileName`: string，可填 Outlook `Attachment.FileName`。
+- `displayName`: string，可填 Outlook `Attachment.DisplayName`。
+- `contentType`: string，可空；Outlook Object Model 沒有直接暴露 MIME type 時不要硬猜。
+- `size`: number，可填 Outlook `Attachment.Size`；Microsoft 文件說部分情況可能拿不到實際大小而回 `0`。
+- `isExported`: boolean，尚未匯出時為 `false`。
+- `exportedAttachmentId`: string，尚未匯出時空白。
+- `exportedPath`: string，尚未匯出時空白。
+
+### ExportedMailAttachmentDto
+
+AddIn 處理 `export_mail_attachment` 時，請用 request 的 `attachmentId` 找回同一個 Outlook `Attachment`，將檔案儲存到 Hub 約定的 attachment root 底下，呼叫 Outlook `Attachment.SaveAsFile(path)` 後再 `PushExportedMailAttachment`。
+
+- `mailId`: string，必須等於 request 的 `mailId`。
+- `folderPath`: string。
+- `attachmentId`: string，必須等於 request 的 `attachmentId`。
+- `exportedAttachmentId`: string，可由 AddIn 產生；空白時 Hub 會補一個 GUID。
+- `name`: string，建議與 metadata 階段相同。
+- `fileName`: string，可填 Outlook `Attachment.FileName`。
+- `displayName`: string，可填 Outlook `Attachment.DisplayName`。
+- `contentType`: string，可空。
+- `size`: number，建議填實際輸出檔案長度；拿不到時可用 Outlook `Attachment.Size`。
+- `exportedPath`: string，必填；必須是 `SaveAsFile(path)` 實際輸出的完整本機路徑，Hub 之後會用這個路徑開檔。
+- `exportedAt`: DateTime。
+
 ### FolderDto
 
 - `name`: string

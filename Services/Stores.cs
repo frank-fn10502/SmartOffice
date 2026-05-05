@@ -50,6 +50,8 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
+                NormalizeMailAttachments(attachments);
+
                 var exported = attachments.Attachments
                     .Select(item => _exportedAttachments.Values.FirstOrDefault(exported =>
                         exported.MailId == item.MailId && exported.AttachmentId == item.AttachmentId))
@@ -82,6 +84,8 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
+                NormalizeExportedAttachment(attachment);
+
                 _exportedAttachments[attachment.ExportedAttachmentId] = CloneExportedAttachment(attachment);
 
                 if (!_attachments.TryGetValue(attachment.MailId, out var attachments)) return;
@@ -321,12 +325,19 @@ namespace SmartOffice.Hub.Services
             return new MailAttachmentDto
             {
                 MailId = attachment.MailId,
+                Id = attachment.Id,
                 AttachmentId = attachment.AttachmentId,
+                Index = attachment.Index,
+                FileName = attachment.FileName,
+                DisplayName = attachment.DisplayName,
                 Name = attachment.Name,
                 ContentType = attachment.ContentType,
                 Size = attachment.Size,
                 IsExported = attachment.IsExported,
                 ExportedAttachmentId = attachment.ExportedAttachmentId,
+                Path = attachment.Path,
+                LocalPath = attachment.LocalPath,
+                FullPath = attachment.FullPath,
                 ExportedPath = attachment.ExportedPath,
             };
         }
@@ -337,14 +348,90 @@ namespace SmartOffice.Hub.Services
             {
                 MailId = attachment.MailId,
                 FolderPath = attachment.FolderPath,
+                Id = attachment.Id,
                 AttachmentId = attachment.AttachmentId,
+                Index = attachment.Index,
                 ExportedAttachmentId = attachment.ExportedAttachmentId,
+                FileName = attachment.FileName,
+                DisplayName = attachment.DisplayName,
                 Name = attachment.Name,
                 ContentType = attachment.ContentType,
                 Size = attachment.Size,
+                Path = attachment.Path,
+                LocalPath = attachment.LocalPath,
+                FullPath = attachment.FullPath,
                 ExportedPath = attachment.ExportedPath,
                 ExportedAt = attachment.ExportedAt,
             };
+        }
+
+        private static void NormalizeMailAttachments(MailAttachmentsDto attachments)
+        {
+            foreach (var attachment in attachments.Attachments)
+            {
+                if (string.IsNullOrWhiteSpace(attachment.MailId))
+                    attachment.MailId = attachments.MailId;
+                NormalizeMailAttachment(attachment);
+            }
+        }
+
+        private static void NormalizeMailAttachment(MailAttachmentDto attachment)
+        {
+            if (string.IsNullOrWhiteSpace(attachment.AttachmentId))
+                attachment.AttachmentId = FirstNonBlank(attachment.Id, attachment.Index > 0 ? attachment.Index.ToString() : string.Empty);
+            if (string.IsNullOrWhiteSpace(attachment.Id))
+                attachment.Id = attachment.AttachmentId;
+            if (attachment.Index <= 0 && int.TryParse(attachment.AttachmentId, out var index))
+                attachment.Index = index;
+
+            if (string.IsNullOrWhiteSpace(attachment.Name))
+                attachment.Name = FirstNonBlank(attachment.FileName, attachment.DisplayName);
+            if (string.IsNullOrWhiteSpace(attachment.FileName))
+                attachment.FileName = attachment.Name;
+            if (string.IsNullOrWhiteSpace(attachment.DisplayName))
+                attachment.DisplayName = attachment.Name;
+
+            if (string.IsNullOrWhiteSpace(attachment.ExportedPath))
+                attachment.ExportedPath = FirstNonBlank(attachment.LocalPath, attachment.FullPath, attachment.Path);
+            if (string.IsNullOrWhiteSpace(attachment.LocalPath))
+                attachment.LocalPath = attachment.ExportedPath;
+            if (string.IsNullOrWhiteSpace(attachment.FullPath))
+                attachment.FullPath = attachment.ExportedPath;
+            if (string.IsNullOrWhiteSpace(attachment.Path))
+                attachment.Path = attachment.ExportedPath;
+        }
+
+        private static void NormalizeExportedAttachment(ExportedMailAttachmentDto attachment)
+        {
+            if (string.IsNullOrWhiteSpace(attachment.AttachmentId))
+                attachment.AttachmentId = FirstNonBlank(attachment.Id, attachment.Index > 0 ? attachment.Index.ToString() : string.Empty);
+            if (string.IsNullOrWhiteSpace(attachment.Id))
+                attachment.Id = attachment.AttachmentId;
+            if (attachment.Index <= 0 && int.TryParse(attachment.AttachmentId, out var index))
+                attachment.Index = index;
+            if (string.IsNullOrWhiteSpace(attachment.ExportedAttachmentId))
+                attachment.ExportedAttachmentId = Guid.NewGuid().ToString();
+
+            if (string.IsNullOrWhiteSpace(attachment.Name))
+                attachment.Name = FirstNonBlank(attachment.FileName, attachment.DisplayName);
+            if (string.IsNullOrWhiteSpace(attachment.FileName))
+                attachment.FileName = attachment.Name;
+            if (string.IsNullOrWhiteSpace(attachment.DisplayName))
+                attachment.DisplayName = attachment.Name;
+
+            if (string.IsNullOrWhiteSpace(attachment.ExportedPath))
+                attachment.ExportedPath = FirstNonBlank(attachment.LocalPath, attachment.FullPath, attachment.Path);
+            if (string.IsNullOrWhiteSpace(attachment.LocalPath))
+                attachment.LocalPath = attachment.ExportedPath;
+            if (string.IsNullOrWhiteSpace(attachment.FullPath))
+                attachment.FullPath = attachment.ExportedPath;
+            if (string.IsNullOrWhiteSpace(attachment.Path))
+                attachment.Path = attachment.ExportedPath;
+        }
+
+        private static string FirstNonBlank(params string[] values)
+        {
+            return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
         }
     }
 

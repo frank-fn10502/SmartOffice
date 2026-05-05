@@ -178,12 +178,19 @@ namespace SmartOffice.Hub.Models
     public class MailAttachmentDto
     {
         public string MailId { get; set; } = string.Empty;
+        public string Id { get; set; } = string.Empty;
         public string AttachmentId { get; set; } = string.Empty;
+        public int Index { get; set; }
+        public string FileName { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string ContentType { get; set; } = string.Empty;
         public long Size { get; set; }
         public bool IsExported { get; set; }
         public string ExportedAttachmentId { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
+        public string LocalPath { get; set; } = string.Empty;
+        public string FullPath { get; set; } = string.Empty;
         public string ExportedPath { get; set; } = string.Empty;
     }
 
@@ -198,11 +205,18 @@ namespace SmartOffice.Hub.Models
     {
         public string MailId { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
+        public string Id { get; set; } = string.Empty;
         public string AttachmentId { get; set; } = string.Empty;
+        public int Index { get; set; }
         public string ExportedAttachmentId { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string ContentType { get; set; } = string.Empty;
         public long Size { get; set; }
+        public string Path { get; set; } = string.Empty;
+        public string LocalPath { get; set; } = string.Empty;
+        public string FullPath { get; set; } = string.Empty;
         public string ExportedPath { get; set; } = string.Empty;
         public DateTime ExportedAt { get; set; } = DateTime.Now;
     }

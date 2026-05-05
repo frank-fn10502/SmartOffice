@@ -124,12 +124,19 @@ export interface MailBodyDto {
 
 export interface MailAttachmentDto {
   mailId: string
+  id: string
   attachmentId: string
+  index: number
+  fileName: string
+  displayName: string
   name: string
   contentType: string
   size: number
   isExported: boolean
   exportedAttachmentId: string
+  path: string
+  localPath: string
+  fullPath: string
   exportedPath: string
 }
 
@@ -142,11 +149,18 @@ export interface MailAttachmentsDto {
 export interface ExportedMailAttachmentDto {
   mailId: string
   folderPath: string
+  id: string
   attachmentId: string
+  index: number
   exportedAttachmentId: string
+  fileName: string
+  displayName: string
   name: string
   contentType: string
   size: number
+  path: string
+  localPath: string
+  fullPath: string
   exportedPath: string
   exportedAt: string
 }
