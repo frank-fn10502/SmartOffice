@@ -9,11 +9,13 @@ import {
   Document,
   Folder,
   Monitor,
-  PriceTag,
   Refresh,
   Search,
 } from '@element-plus/icons-vue'
+import CategoryManagerDialog from './components/CategoryManagerDialog.vue'
+import FlagEditorDialog from './components/FlagEditorDialog.vue'
 import FolderNode from './components/FolderNode.vue'
+import MailPropertyPane from './components/MailPropertyPane.vue'
 import { useOutlookDashboard } from './composables/useOutlookDashboard'
 import type { AppView } from './models/outlook'
 import { formatDateTime, formatTime } from './utils/formatters'
@@ -42,6 +44,7 @@ const {
   calendarWeeks,
   cancelCreateFolder,
   categories,
+  categoryManagerVisible,
   categoryColorOptions,
   categoryColorStyle,
   categoryTagStyle,
@@ -65,8 +68,9 @@ const {
   exportMailAttachment,
   fetchMailsFromContext,
   fetchedMailFolderName,
-  flagIntervalLabel,
+  flagDisplayLabel,
   flagIntervalOptions,
+  flagTagType,
   folderContextMenu,
   folderStores,
   isAttachmentExporting,
@@ -78,21 +82,25 @@ const {
   loadingMailSearch,
   loadingMails,
   loadingSignalRPing,
+  flagEditorVisible,
   mailCount,
   mailHtmlSandbox,
   mailListMode,
   mailListNeedsFetch,
   mailHasBody,
   mailPropertiesDraft,
+  mailPropertiesChanged,
   mailRange,
   mailSearchDraft,
   mailSearchProgressText,
   mailStats,
+  masterCategoryListExpanded,
   mails,
   moveDraggedMail,
   openExportedAttachment,
   openFolderContextMenu,
   operationLoading,
+  openCategoryManager,
   outlookBusy,
   outlookBusyText,
   refreshAdminData,
@@ -123,14 +131,20 @@ const {
   sendChat,
   showFolderMails,
   goToCurrentCalendarMonth,
+  addMailCategoryDraft,
+  removeMailCategoryDraft,
   setDragOverFolder,
+  setMailFlagDraft,
   signalRState,
   splitCategories,
   startMailDrag,
   switchView,
   toggleFolder,
+  toggleMasterCategoryList,
   updateCategoryColor,
   visibleFolders,
+  visibleMasterCategories,
+  hiddenMasterCategoryCount,
 } = useOutlookDashboard()
 </script>
 
@@ -266,20 +280,21 @@ const {
                   @dragstart="startMailDrag(mail, index, $event)"
                   @dragend="clearMailDrag"
                 >
-                  <span class="mail-row-main">
-                    <strong>{{ mail.subject }}</strong>
-                    <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
-                    <span v-if="mail.attachmentCount > 0" class="mail-row-attachment-summary" :title="mail.attachmentNames">
-                      {{ mail.attachmentNames }}
+                  <span class="mail-row-head">
+                    <span class="mail-row-main">
+                      <strong>{{ mail.subject }}</strong>
+                      <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                      <span v-if="mail.attachmentCount > 0" class="mail-row-attachment-summary" :title="mail.attachmentNames">
+                        {{ mail.attachmentNames }}
+                      </span>
                     </span>
+                    <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
                   </span>
                   <span class="mail-row-tags">
-                    <el-tag v-if="mail.attachmentCount > 0" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
                     <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
-                    <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
-                      {{ flagIntervalLabel(mail.flagInterval) }}
+                    <el-tag v-if="mail.isMarkedAsTask" :type="flagTagType(mail.flagInterval)" effect="plain">
+                      {{ flagDisplayLabel(mail.flagInterval, mail.flagRequest) }}<span v-if="mail.taskDueDate"> · {{ formatDateTime(mail.taskDueDate) }}</span>
                     </el-tag>
-                    <el-tag v-if="mail.taskDueDate" type="info" effect="plain">到期 {{ formatDateTime(mail.taskDueDate) }}</el-tag>
                     <el-tag
                       v-for="category in splitCategories(mail.categories)"
                       :key="category"
@@ -357,226 +372,25 @@ const {
         </section>
 
         <div class="outlook-inspector-column">
-          <section class="panel outlook-property-pane">
-            <div class="panel-header">
-              <div class="panel-title">
-                <el-icon><PriceTag /></el-icon>
-                <span>新增郵件屬性</span>
-              </div>
-            </div>
-
-            <div class="inspector-panel-body">
-              <div class="library-group">
-                <div class="category-heading-row">
-                  <div class="library-heading">Master Category List</div>
-                  <el-button
-                    :icon="Refresh"
-                    circle
-                    size="small"
-                    :loading="loadingCategories"
-                    :disabled="outlookBusy && !loadingCategories"
-                    @click="requestCategories"
-                  />
-                </div>
-                <div class="category-add-row">
-                  <el-input
-                    v-model="categoryCreateDraft"
-                    :disabled="outlookBusy"
-                    placeholder="新增或更新分類名稱"
-                    @keydown.enter.prevent="addCategoryToMasterList"
-                  />
-                  <el-select v-model="categoryCreateColor" class="category-color-select" :disabled="outlookBusy">
-                    <el-option
-                      v-for="option in categoryColorOptions"
-                      :key="option.value"
-                      :label="option.label"
-                      :value="option.value"
-                    >
-                      <span class="category-option">
-                        <span class="category-swatch" :style="categoryColorStyle(option.value)" />
-                        <span>{{ option.label }}</span>
-                      </span>
-                    </el-option>
-                  </el-select>
-                  <el-button :loading="operationLoading" :disabled="outlookBusy || !categoryCreateDraft.trim()" @click="addCategoryToMasterList">
-                    儲存
-                  </el-button>
-                </div>
-              </div>
-
-              <div class="category-list">
-                <div v-if="categories.length === 0 && !loadingCategories" class="hint">尚未取得 Outlook master category list。</div>
-                <div v-for="category in categories" :key="category.name" class="category-row">
-                  <span class="category-name">
-                    <span class="category-swatch" :style="categoryColorStyle(category.color)" />
-                    <span>{{ category.name }}</span>
-                  </span>
-                  <el-select
-                    :model-value="category.color || 'olCategoryColorNone'"
-                    class="category-row-select"
-                    :disabled="outlookBusy"
-                    @change="(value: string | number | boolean) => updateCategoryColor(category, String(value))"
-                  >
-                    <el-option
-                      v-for="option in categoryColorOptions"
-                      :key="option.value"
-                      :label="option.label"
-                      :value="option.value"
-                    >
-                      <span class="category-option">
-                        <span class="category-swatch" :style="categoryColorStyle(option.value)" />
-                        <span>{{ option.label }}</span>
-                      </span>
-                    </el-option>
-                  </el-select>
-                </div>
-                <div v-if="loadingCategories" class="pane-loading">
-                  <span>Outlook category 同步中...</span>
-                </div>
-              </div>
-
-              <div class="inspector-note">Flag、日期、已讀狀態與套用哪些 category 都是單封郵件屬性；這裡只管理 Outlook 全域分類名稱與顏色。</div>
-            </div>
-          </section>
-
-          <section class="panel outlook-property-pane">
-            <div class="panel-header">
-              <div class="panel-title">
-                <el-icon><PriceTag /></el-icon>
-                <span>修改郵件屬性</span>
-              </div>
-            </div>
-
-            <div class="inspector-panel-body">
-              <div v-if="selectedMail" class="mail-inspector">
-                <div class="inspector-subject">{{ selectedMail.subject }}</div>
-                <div class="inspector-meta">
-                  <span>{{ selectedMail.senderName }} &lt;{{ selectedMail.senderEmail }}&gt;</span>
-                  <span>{{ formatDateTime(selectedMail.receivedTime) }}</span>
-                  <span>來源：{{ selectedMailFolderName }}</span>
-                </div>
-                <div v-if="!selectedMailHasIdentity" class="identity-warning">
-                  這封郵件缺少 id，Add-in 需在 PushMails 回傳 Outlook EntryID 或穩定識別後才能修改或移動。
-                </div>
-
-                <div class="marker-tags">
-                  <el-tag
-                    class="clickable-marker-tag"
-                    :class="{ disabled: outlookBusy }"
-                    :type="mailPropertiesDraft.isRead ? 'info' : 'warning'"
-                    effect="plain"
-                    role="button"
-                    tabindex="0"
-                    :aria-disabled="outlookBusy"
-                    @click="!outlookBusy && (mailPropertiesDraft.isRead = !mailPropertiesDraft.isRead)"
-                    @keydown.enter.prevent="!outlookBusy && (mailPropertiesDraft.isRead = !mailPropertiesDraft.isRead)"
-                    @keydown.space.prevent="!outlookBusy && (mailPropertiesDraft.isRead = !mailPropertiesDraft.isRead)"
-                  >
-                    {{ mailPropertiesDraft.isRead ? '已讀' : '未讀' }}
-                  </el-tag>
-                  <el-tag v-if="selectedMail.isMarkedAsTask" type="danger" effect="plain">
-                    {{ flagIntervalLabel(selectedMail.flagInterval) }}
-                  </el-tag>
-                  <el-tag v-if="selectedMail.taskDueDate" type="info" effect="plain">
-                    到期 {{ formatDateTime(selectedMail.taskDueDate) }}
-                  </el-tag>
-                  <el-tag v-if="selectedMail.importance === 'high'" type="danger" effect="plain">高重要性</el-tag>
-                  <el-tag
-                    v-for="category in selectedMailCategories"
-                    :key="category"
-                    effect="dark"
-                    :style="categoryTagStyle(category)"
-                  >
-                    {{ category }}
-                  </el-tag>
-                </div>
-
-                <div class="mail-property-form">
-                  <div class="inspector-field">
-                    <span>旗標種類</span>
-                    <el-select v-model="mailPropertiesDraft.flagInterval" :disabled="outlookBusy">
-                      <el-option
-                        v-for="option in flagIntervalOptions"
-                        :key="option.value"
-                        :label="option.label"
-                        :value="option.value"
-                      />
-                    </el-select>
-                  </div>
-
-                  <div class="inspector-field">
-                    <span>旗標文字</span>
-                    <el-input v-model="mailPropertiesDraft.flagRequest" :disabled="outlookBusy || mailPropertiesDraft.flagInterval === 'none'" placeholder="例如：今天" />
-                  </div>
-
-                  <div class="date-grid">
-                    <div class="inspector-field">
-                      <span>自訂開始日</span>
-                      <el-date-picker
-                        v-model="mailPropertiesDraft.taskStartDate"
-                        type="date"
-                        value-format="YYYY-MM-DD"
-                        :disabled="outlookBusy || mailPropertiesDraft.flagInterval !== 'custom'"
-                        placeholder="選擇日期"
-                      />
-                    </div>
-                    <div class="inspector-field">
-                      <span>自訂到期日</span>
-                      <el-date-picker
-                        v-model="mailPropertiesDraft.taskDueDate"
-                        type="date"
-                        value-format="YYYY-MM-DD"
-                        :disabled="outlookBusy || mailPropertiesDraft.flagInterval !== 'custom'"
-                        placeholder="選擇日期"
-                      />
-                    </div>
-                  </div>
-                  <div v-if="mailPropertiesDraft.flagInterval !== 'custom'" class="field-hint">
-                    選擇「自訂日期」後即可設定自訂開始日與到期日。
-                  </div>
-
-                  <div class="inspector-field">
-                    <span>套用分類</span>
-                    <el-select
-                      v-model="mailPropertiesDraft.categories"
-                      multiple
-                      filterable
-                      collapse-tags
-                      :disabled="outlookBusy"
-                      placeholder="選擇分類"
-                    >
-                      <el-option
-                        v-for="category in categories"
-                        :key="category.name"
-                        :label="category.name"
-                        :value="category.name"
-                      />
-                    </el-select>
-                  </div>
-
-                  <div class="inspector-actions commit-actions">
-                    <el-button @click="resetMailPropertiesDraft(selectedMail)">重設</el-button>
-                    <el-button
-                      type="primary"
-                      size="large"
-                      class="commit-button"
-                      :loading="operationLoading"
-                      :disabled="!selectedMailHasIdentity || (outlookBusy && !operationLoading)"
-                      @click="applyMailProperties(selectedMail)"
-                    >
-                      送出並更新 Outlook
-                    </el-button>
-                  </div>
-                </div>
-
-                <div class="inspector-note">郵件屬性會一次送到 Outlook；移動郵件請拖曳中央郵件到左側 folder。等待 Add-in 回推前會鎖住操作。</div>
-              </div>
-
-              <div v-else class="empty-inspector">
-                請先選取中央郵件，這裡會顯示該郵件目前的屬性與可修改欄位。
-              </div>
-            </div>
-          </section>
+          <MailPropertyPane
+            v-model:draft="mailPropertiesDraft"
+            :categories="categories"
+            :category-tag-style="categoryTagStyle"
+            :flag-interval-options="flagIntervalOptions"
+            :loading-categories="loadingCategories"
+            :mail-properties-changed="mailPropertiesChanged"
+            :operation-loading="operationLoading"
+            :outlook-busy="outlookBusy"
+            :selected-mail="selectedMail"
+            :selected-mail-folder-name="selectedMailFolderName"
+            :selected-mail-has-identity="selectedMailHasIdentity"
+            @add-category="addMailCategoryDraft"
+            @apply="applyMailProperties"
+            @open-category-manager="openCategoryManager"
+            @remove-category="removeMailCategoryDraft"
+            @reset="resetMailPropertiesDraft"
+            @set-flag="setMailFlagDraft"
+          />
         </div>
 
       </main>
@@ -692,14 +506,17 @@ const {
               :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
             >
               <button class="mail-row" type="button" @click="selectMail(index)">
-                <span class="mail-row-main">
-                  <strong>{{ mail.subject }}</strong>
-                  <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }} · {{ mail.folderPath }}</span>
+                <span class="mail-row-head">
+                  <span class="mail-row-main">
+                    <strong>{{ mail.subject }}</strong>
+                    <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }} · {{ mail.folderPath }}</span>
+                  </span>
+                  <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
                 </span>
                 <span class="mail-row-tags">
                   <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
-                  <el-tag v-if="mail.isMarkedAsTask" type="danger" effect="plain">
-                    {{ flagIntervalLabel(mail.flagInterval) }}
+                  <el-tag v-if="mail.isMarkedAsTask" :type="flagTagType(mail.flagInterval)" effect="plain">
+                    {{ flagDisplayLabel(mail.flagInterval, mail.flagRequest) }}<span v-if="mail.taskDueDate"> · {{ formatDateTime(mail.taskDueDate) }}</span>
                   </el-tag>
                   <el-tag
                     v-for="category in splitCategories(mail.categories)"
@@ -939,6 +756,31 @@ const {
         <button type="button" :disabled="outlookBusy" @click="createFolderFromContext">新增子資料夾</button>
         <button class="danger" type="button" :disabled="outlookBusy" @click="deleteFolderFromContext">刪除此資料夾</button>
       </div>
+
+      <CategoryManagerDialog
+        v-model="categoryManagerVisible"
+        v-model:category-create-color="categoryCreateColor"
+        v-model:category-create-draft="categoryCreateDraft"
+        :categories="categories"
+        :category-color-options="categoryColorOptions"
+        :category-color-style="categoryColorStyle"
+        :hidden-master-category-count="hiddenMasterCategoryCount"
+        :loading-categories="loadingCategories"
+        :master-category-list-expanded="masterCategoryListExpanded"
+        :operation-loading="operationLoading"
+        :outlook-busy="outlookBusy"
+        :visible-master-categories="visibleMasterCategories"
+        @add-category="addCategoryToMasterList"
+        @request-categories="requestCategories"
+        @toggle-master-category-list="toggleMasterCategoryList"
+        @update-category-color="updateCategoryColor"
+      />
+
+      <FlagEditorDialog
+        v-model="flagEditorVisible"
+        v-model:draft="mailPropertiesDraft"
+        :outlook-busy="outlookBusy"
+      />
     </div>
   </el-config-provider>
 </template>

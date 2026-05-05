@@ -19,6 +19,18 @@ export function flagIntervalLabel(value?: string) {
   return flagIntervalOptions.find((option) => option.value === value)?.label ?? '旗標'
 }
 
+export function flagDisplayLabel(interval?: string, request?: string) {
+  const label = flagIntervalLabel(interval)
+  const trimmed = request?.trim() ?? ''
+  if (interval !== 'custom') return label
+  return trimmed && trimmed !== label ? `${label}(${trimmed})` : label
+}
+
+export function flagTagType(interval?: string, active = true) {
+  if (!active || interval === 'none') return 'info'
+  return interval === 'complete' ? 'success' : 'danger'
+}
+
 export function isDefaultFlagRequest(value: string, previousInterval = '') {
   const normalized = value.trim()
   return (

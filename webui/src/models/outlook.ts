@@ -212,6 +212,16 @@ export interface MailPropertiesCommandRequest {
   newCategories: OutlookCategoryDto[]
 }
 
+export interface MailPropertiesDraft {
+  isRead: boolean
+  flagInterval: string
+  flagRequest: string
+  taskStartDate: string
+  taskDueDate: string
+  taskCompletedDate: string
+  categories: string[]
+}
+
 export interface CategoryCommandRequest {
   name: string
   color: string

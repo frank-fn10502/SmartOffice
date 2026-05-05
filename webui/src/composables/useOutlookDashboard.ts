@@ -27,6 +27,7 @@ import type {
   MailAttachmentsDto,
   MailBodyDto,
   MailItemDto,
+  MailPropertiesDraft,
   MailSearchCompleteDto,
   MailSearchProgressDto,
   MailPropertiesCommandRequest,
@@ -48,8 +49,9 @@ import {
   addMonths,
   dateInputToIso,
   defaultFlagRequest,
-  flagIntervalLabel,
+  flagDisplayLabel,
   flagIntervalOptions,
+  flagTagType,
   isDefaultFlagRequest,
   mergeStores,
   monthEndExclusive,
@@ -97,7 +99,6 @@ export function useOutlookDashboard() {
   const pendingMailFolderPath = ref('')
   const selectedMailIndex = ref<number | null>(null)
   const selectedMailHtml = ref(false)
-  const activePropertyLibrarySections = ref(['property-library'])
   const activeMailPropertySections = ref(['set-mail-properties'])
   const expandedFolders = ref<Set<string>>(new Set())
   const openMailIndexes = ref<Set<number>>(new Set())
@@ -128,7 +129,7 @@ export function useOutlookDashboard() {
   const loadingCalendar = ref(false)
   const loadingSignalRPing = ref(false)
   const operationLoading = ref(false)
-  const mailPropertiesDraft = ref({
+  const mailPropertiesDraft = ref<MailPropertiesDraft>({
     isRead: false,
     flagInterval: 'none',
     flagRequest: '',
@@ -137,6 +138,9 @@ export function useOutlookDashboard() {
     taskCompletedDate: '',
     categories: [] as string[],
   })
+  const categoryManagerVisible = ref(false)
+  const flagEditorVisible = ref(false)
+  const masterCategoryListExpanded = ref(false)
   const categoryCreateDraft = ref('')
   const categoryCreateColor = ref('olCategoryColorNone')
   const creatingFolderParentPath = ref('')
@@ -175,6 +179,10 @@ export function useOutlookDashboard() {
     highImportance: mails.value.filter((mail) => mail.importance === 'high').length,
     categorized: mails.value.filter((mail) => Boolean(mail.categories)).length,
   }))
+  const visibleMasterCategories = computed(() => (
+    masterCategoryListExpanded.value ? categories.value : categories.value.slice(0, 5)
+  ))
+  const hiddenMasterCategoryCount = computed(() => Math.max(0, categories.value.length - visibleMasterCategories.value.length))
 
   const outlookBusy = computed(() => {
     return loadingFolders.value || loadingMails.value || loadingRules.value || loadingCategories.value || loadingCalendar.value || operationLoading.value
@@ -292,6 +300,12 @@ export function useOutlookDashboard() {
     return selectedMail.value?.id ? mailAttachmentsByMailId.value[selectedMail.value.id] ?? [] : []
   })
 
+  const mailPropertiesChanged = computed(() => {
+    if (!selectedMail.value) return false
+    return JSON.stringify(buildMailPropertiesPayload(selectedMail.value, buildMailPropertiesDraft(selectedMail.value)))
+      !== JSON.stringify(buildMailPropertiesPayload(selectedMail.value, mailPropertiesDraft.value))
+  })
+
   function folderNameForPath(path: string) {
     if (!path) return '未選擇'
     return folderOptions.value.find((folder) => folder.folderPath === path)?.label.trim() ?? path
@@ -344,10 +358,9 @@ function categoryTagStyle(name: string) {
   }
 }
 
-  function resetMailPropertiesDraft(mail: MailItemDto | null) {
-    if (!mail) return
+  function buildMailPropertiesDraft(mail: MailItemDto) {
     const flagInterval = mail.flagInterval || (mail.isMarkedAsTask ? 'today' : 'none')
-    mailPropertiesDraft.value = {
+    return {
       isRead: mail.isRead,
       flagInterval,
       flagRequest: isDefaultFlagRequest(mail.flagRequest) ? defaultFlagRequest(flagInterval) : mail.flagRequest,
@@ -356,6 +369,40 @@ function categoryTagStyle(name: string) {
       taskCompletedDate: toDateInput(mail.taskCompletedDate),
       categories: splitCategories(mail.categories),
     }
+  }
+
+  function normalizeMailPropertiesDraft(draft: typeof mailPropertiesDraft.value) {
+    return {
+      isRead: draft.isRead,
+      flagInterval: draft.flagInterval || 'none',
+      flagRequest: draft.flagInterval === 'none' ? '' : (draft.flagRequest || defaultFlagRequest(draft.flagInterval)).trim(),
+      taskStartDate: draft.taskStartDate || '',
+      taskDueDate: draft.taskDueDate || '',
+      taskCompletedDate: draft.taskCompletedDate || '',
+      categories: [...new Set(draft.categories.map((category) => category.trim()).filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' })),
+    }
+  }
+
+  function buildMailPropertiesPayload(mail: MailItemDto, draft: typeof mailPropertiesDraft.value) {
+    const normalized = normalizeMailPropertiesDraft(draft)
+    const isCustomFlag = normalized.flagInterval === 'custom'
+    return {
+      mailId: mail.id,
+      folderPath: mail.folderPath,
+      isRead: normalized.isRead,
+      flagInterval: normalized.flagInterval,
+      flagRequest: normalized.flagRequest,
+      taskStartDate: isCustomFlag ? dateInputToIso(normalized.taskStartDate) : undefined,
+      taskDueDate: isCustomFlag ? dateInputToIso(normalized.taskDueDate) : undefined,
+      taskCompletedDate: normalized.flagInterval === 'complete' ? dateInputToIso(normalized.taskCompletedDate) : undefined,
+      categories: normalized.categories,
+    }
+  }
+
+  function resetMailPropertiesDraft(mail: MailItemDto | null) {
+    if (!mail) return
+    mailPropertiesDraft.value = buildMailPropertiesDraft(mail)
   }
 
   function setMails(items: MailItemDto[], preferredMailId = selectedMail.value?.id ?? '') {
@@ -992,25 +1039,50 @@ function categoryTagStyle(name: string) {
 
   async function applyMailProperties(mail: MailItemDto) {
     if (!mail.id?.trim()) return
-    const selectedCategories = [...new Set(mailPropertiesDraft.value.categories.map((category) => category.trim()).filter(Boolean))]
+    const payload = buildMailPropertiesPayload(mail, mailPropertiesDraft.value)
     const existingCategoryNames = new Set(categories.value.map((category) => category.name.toLowerCase()))
-    const newCategories = selectedCategories
+    const newCategories = payload.categories
       .filter((category) => !existingCategoryNames.has(category.toLowerCase()))
       .map((name) => ({ name, color: 'olCategoryColorNone', colorValue: 0, shortcutKey: '' }))
-    const isCustomFlag = mailPropertiesDraft.value.flagInterval === 'custom'
     const body: MailPropertiesCommandRequest = {
-      mailId: mail.id,
-      folderPath: mail.folderPath,
-      isRead: mailPropertiesDraft.value.isRead,
-      flagInterval: mailPropertiesDraft.value.flagInterval,
-      flagRequest: mailPropertiesDraft.value.flagRequest || defaultFlagRequest(mailPropertiesDraft.value.flagInterval),
-      taskStartDate: isCustomFlag ? dateInputToIso(mailPropertiesDraft.value.taskStartDate) : undefined,
-      taskDueDate: isCustomFlag ? dateInputToIso(mailPropertiesDraft.value.taskDueDate) : undefined,
-      taskCompletedDate: mailPropertiesDraft.value.flagInterval === 'complete' ? dateInputToIso(mailPropertiesDraft.value.taskCompletedDate) : undefined,
-      categories: selectedCategories,
+      ...payload,
       newCategories,
     }
     await runMailOperation(() => outlookApi.requestUpdateMailProperties(body))
+  }
+
+  function setMailFlagDraft(interval: string) {
+    if (outlookBusy.value) return
+    mailPropertiesDraft.value.flagInterval = interval
+    if (interval === 'custom') openFlagEditor()
+  }
+
+  function addMailCategoryDraft(categoryName: string) {
+    const name = categoryName.trim()
+    if (!name || outlookBusy.value) return
+    const selected = mailPropertiesDraft.value.categories
+    const exists = selected.some((category) => category.toLowerCase() === name.toLowerCase())
+    if (!exists) mailPropertiesDraft.value.categories = [...selected, name]
+  }
+
+  function removeMailCategoryDraft(categoryName: string) {
+    if (outlookBusy.value) return
+    const name = categoryName.trim().toLowerCase()
+    mailPropertiesDraft.value.categories = mailPropertiesDraft.value.categories
+      .filter((category) => category.toLowerCase() !== name)
+  }
+
+  function toggleMasterCategoryList() {
+    masterCategoryListExpanded.value = !masterCategoryListExpanded.value
+  }
+
+  function openCategoryManager() {
+    categoryManagerVisible.value = true
+  }
+
+  function openFlagEditor() {
+    if (outlookBusy.value || mailPropertiesDraft.value.flagInterval !== 'custom') return
+    flagEditorVisible.value = true
   }
 
   async function upsertCategory(name: string, color: string, shortcutKey = '') {
@@ -1396,6 +1468,8 @@ function categoryTagStyle(name: string) {
         const today = todayInputValue()
         mailPropertiesDraft.value.taskStartDate ||= today
         mailPropertiesDraft.value.taskDueDate ||= today
+      } else {
+        flagEditorVisible.value = false
       }
     },
   )
@@ -1430,12 +1504,12 @@ function categoryTagStyle(name: string) {
   return {
     activeView,
     activeMailPropertySections,
-    activePropertyLibrarySections,
     addCategoryToMasterList,
     addinLogs,
     addinStatus,
     attachmentExportRootDraft,
     attachmentExportSettings,
+    addMailCategoryDraft,
     applyMailProperties,
     calendarEvents,
     calendarMonthLabel,
@@ -1443,6 +1517,7 @@ function categoryTagStyle(name: string) {
     calendarWeeks,
     cancelCreateFolder,
     categories,
+    categoryManagerVisible,
     categoryColorOptions,
     categoryColorStyle,
     categoryTagStyle,
@@ -1465,8 +1540,9 @@ function categoryTagStyle(name: string) {
     expandedFolders,
     exportMailAttachment,
     fetchMailsFromContext,
-    flagIntervalLabel,
+    flagDisplayLabel,
     flagIntervalOptions,
+    flagTagType,
     folderContextMenu,
     folderStores,
     htmlMailIndexes,
@@ -1488,8 +1564,10 @@ function categoryTagStyle(name: string) {
     isMailBodyLoading,
     mailHasBody,
     mailPropertiesDraft,
+    mailPropertiesChanged,
     mailRange,
     mailStats,
+    masterCategoryListExpanded,
     mails,
     moveDraggedMail,
     openFolderContextMenu,
@@ -1498,6 +1576,7 @@ function categoryTagStyle(name: string) {
     operationLoading,
     outlookBusy,
     outlookBusyText,
+    openCategoryManager,
     refreshAdminData,
     requestCalendar,
     requestCategories,
@@ -1507,6 +1586,7 @@ function categoryTagStyle(name: string) {
     requestMailSearch,
     resetMailPropertiesDraft,
     resetAttachmentExportRoot,
+    removeMailCategoryDraft,
     saveAttachmentExportSettings,
     savingAttachmentExportSettings,
     fetchedMailFolderName,
@@ -1529,6 +1609,7 @@ function categoryTagStyle(name: string) {
     showFolderMails,
     goToCurrentCalendarMonth,
     setDragOverFolder,
+    setMailFlagDraft,
     signalRState,
     splitCategories,
     startMailDrag,
@@ -1538,5 +1619,9 @@ function categoryTagStyle(name: string) {
     toggleMailFormat,
     updateCategoryColor,
     visibleFolders,
+    visibleMasterCategories,
+    hiddenMasterCategoryCount,
+    toggleMasterCategoryList,
+    flagEditorVisible,
   }
 }
