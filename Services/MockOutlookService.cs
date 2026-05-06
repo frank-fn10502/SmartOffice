@@ -60,7 +60,7 @@ namespace SmartOffice.Hub.Services
             if (!IsEnabled) return false;
 
             FolderSyncBatchDto? folderBatch = null;
-            MailSearchSliceResultDto? mailSearchSliceResult = null;
+            List<MailSearchSliceResultDto>? mailSearchSliceResults = null;
             MailSearchCompleteDto? mailSearchComplete = null;
             List<MailItemDto>? mails = null;
             MailItemDto? mail = null;
@@ -97,33 +97,21 @@ namespace SmartOffice.Hub.Services
                     case "fetch_mail_search_slice":
                         var request = command.MailSearchSliceRequest ?? new MailSearchSliceRequest();
                         var searchResults = MockOutlookMailSearch.FetchMailSearchSlice(_mockMails, request);
-                        mailSearchSliceResult = new MailSearchSliceResultDto
-                        {
-                            SearchId = request.SearchId,
-                            CommandId = command.Id,
-                            ParentCommandId = request.ParentCommandId,
-                            Sequence = request.SliceIndex + 1,
-                            SliceIndex = request.SliceIndex,
-                            SliceCount = request.SliceCount,
-                            Reset = request.ResetSearchResults,
-                            IsFinal = request.CompleteSearchOnSlice,
-                            IsSliceComplete = true,
-                            Mails = searchResults,
-                            Message = "Mock mail search completed",
-                        };
-                        _mailStore.BeginMailSearch(mailSearchSliceResult.Reset);
-                        _mailStore.ApplyMailSearchSliceResult(mailSearchSliceResult);
+                        mailSearchSliceResults = BuildMailSearchResultBatches(command.Id, request, searchResults);
+                        _mailStore.BeginMailSearch(request.ResetSearchResults);
+                        foreach (var batch in mailSearchSliceResults)
+                            _mailStore.ApplyMailSearchSliceResult(batch);
                         if (request.CompleteSearchOnSlice)
                         {
                             mailSearchComplete = new MailSearchCompleteDto
                             {
-                                SearchId = mailSearchSliceResult.SearchId,
+                                SearchId = request.SearchId,
                                 CommandId = command.Id,
                                 ParentCommandId = request.ParentCommandId,
                                 TotalCount = _mailStore.GetMailSearchResults().Count,
                                 Message = "Mock mail search completed",
-                            Timestamp = DateTime.Now,
-                        };
+                                Timestamp = DateTime.Now,
+                            };
                         }
                         break;
                     case "fetch_mail_body":
@@ -269,15 +257,17 @@ namespace SmartOffice.Hub.Services
                 }, ct);
             }
             if (mails is not null) await _notifications.Clients.All.SendAsync("MailsUpdated", mails, ct);
-            if (mailSearchSliceResult is not null)
+            if (mailSearchSliceResults is not null)
             {
+                var firstBatch = mailSearchSliceResults.FirstOrDefault();
                 await _notifications.Clients.All.SendAsync("MailSearchStarted", new MailSearchSliceResultDto
                 {
-                    SearchId = mailSearchSliceResult.SearchId,
-                    Reset = mailSearchSliceResult.Reset,
-                    Sequence = mailSearchSliceResult.Sequence,
+                    SearchId = firstBatch?.SearchId ?? string.Empty,
+                    Reset = firstBatch?.Reset ?? false,
+                    Sequence = firstBatch?.Sequence ?? 0,
                 }, ct);
-                await _notifications.Clients.All.SendAsync("MailSearchPatched", mailSearchSliceResult, ct);
+                foreach (var batch in mailSearchSliceResults)
+                    await _notifications.Clients.All.SendAsync("MailSearchPatched", batch, ct);
             }
             if (mailSearchComplete is not null) await _notifications.Clients.All.SendAsync("MailSearchCompleted", mailSearchComplete, ct);
             if (mail is not null) await _notifications.Clients.All.SendAsync("MailUpdated", mail, ct);
@@ -297,6 +287,34 @@ namespace SmartOffice.Hub.Services
                 Timestamp = DateTime.Now,
             }, ct);
             return true;
+        }
+
+        private static List<MailSearchSliceResultDto> BuildMailSearchResultBatches(
+            string commandId,
+            MailSearchSliceRequest request,
+            List<MailItemDto> searchResults)
+        {
+            var batchSize = Math.Clamp(request.ResultBatchSize <= 0 ? 5 : request.ResultBatchSize, 3, 5);
+            var chunks = searchResults
+                .Chunk(batchSize)
+                .Select(chunk => chunk.ToList())
+                .ToList();
+            if (chunks.Count == 0) chunks.Add(new List<MailItemDto>());
+
+            return chunks.Select((chunk, index) => new MailSearchSliceResultDto
+            {
+                SearchId = request.SearchId,
+                CommandId = commandId,
+                ParentCommandId = request.ParentCommandId,
+                Sequence = (request.SliceIndex * 100000) + index + 1,
+                SliceIndex = request.SliceIndex,
+                SliceCount = request.SliceCount,
+                Reset = request.ResetSearchResults && index == 0,
+                IsFinal = request.CompleteSearchOnSlice && index == chunks.Count - 1,
+                IsSliceComplete = index == chunks.Count - 1,
+                Mails = chunk,
+                Message = index == chunks.Count - 1 ? "Mock mail search slice completed" : "Mock mail search batch",
+            }).ToList();
         }
 
         public async Task<bool> TryReplyToChatAsync(ChatMessageDto message, CancellationToken ct = default)

@@ -149,7 +149,9 @@ AddIn 收到的是 Hub 已規劃好的單一 Outlook folder search slice；AddIn
 - [ ] AddIn 使用 Outlook 內建搜尋在單一 folder 內套用 `keyword`、`textFields`、分類、附件、旗標、已讀狀態與時間；不要實作 typo-tolerant fuzzy search，也不要套用掃描數量限制。
 - [ ] search result 只回 metadata，`body` / `bodyHtml` 留空。
 - [ ] 使用 `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice` 回傳搜尋結果；不要用 `PushMails` 覆蓋目前 folder list。
-- [ ] `PushMailSearchSliceResult` 必須帶回 `commandId`、`parentCommandId`、`sliceIndex`、`sliceCount` 與 `isSliceComplete=true`，讓 Hub 自行推算 slice 完成與整體進度。
+- [ ] `PushMailSearchSliceResult` 必須帶回 `commandId`、`parentCommandId`、`sliceIndex` 與 `sliceCount`。
+- [ ] 同一個 folder slice 的搜尋結果必須分段回推，每批約 `3` 到 `5` 封 mail metadata；前面批次 `isSliceComplete=false`，最後一批才設為 `true`。
+- [ ] 大量結果不得一次把整個 folder 的符合郵件塞進單一 SignalR payload。
 - [ ] AddIn 不需要自行做跨 folder 排程；單一 folder 搜尋仍應避免 blocking Outlook UI。
 - [ ] 發生 Outlook busy、search timeout 或使用者取消時，使用 `CompleteMailSearchSlice(success=false)` 並以匿名化 message 說明。
 

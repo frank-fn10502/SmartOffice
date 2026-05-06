@@ -173,6 +173,7 @@ namespace SmartOffice.Hub.Models
         public DateTime? ReceivedTo { get; set; }
         public int SliceIndex { get; set; }
         public int SliceCount { get; set; }
+        public int ResultBatchSize { get; set; } = 5;
         public bool ResetSearchResults { get; set; } = true;
         public bool CompleteSearchOnSlice { get; set; } = true;
     }

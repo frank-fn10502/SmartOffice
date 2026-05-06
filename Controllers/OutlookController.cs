@@ -189,6 +189,7 @@ namespace SmartOffice.Hub.Controllers
                     ReceivedTo = req.ReceivedTo,
                     SliceIndex = index,
                     SliceCount = plannedFolders.Count,
+                    ResultBatchSize = 5,
                     ResetSearchResults = index == 0,
                     CompleteSearchOnSlice = index == plannedFolders.Count - 1,
                 })

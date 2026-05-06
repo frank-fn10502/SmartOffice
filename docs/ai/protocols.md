@@ -91,6 +91,7 @@ Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 fol
 
 - Hub 把 `keyword`、`textFields` 與分類、附件、旗標、已讀狀態、時間等篩選條件傳給每個 `MailSearchSliceRequest`。
 - AddIn 在單一 folder 內依 Microsoft Outlook `AdvancedSearch` / DASL 這類內建搜尋流程組合 filter，再回傳符合條件的 metadata。
+- AddIn 必須在同一個 folder slice 內以多次 `PushMailSearchSliceResult` 分段回推結果，每批約 `3` 到 `5` 封 mail metadata，最後一批才標 `isSliceComplete=true`。
 - `keyword` 預設只套用在 `subject`，使用者可在 Web UI 選擇 `sender` 或 `body`。這不是 typo-tolerant fuzzy search。
 
 原始 request scope 展開規則：

@@ -54,6 +54,7 @@ const {
   chatMessages,
   chatPanelRef,
   chatText,
+  closeSearchMailDialog,
   clearMailDrag,
   contextFolderName,
   createFolder,
@@ -98,15 +99,22 @@ const {
   searchResultGroups,
   searchResultRows,
   searchResultViewMode,
+  searchDialogMail,
+  searchDialogMailAttachments,
+  searchDialogLoading,
+  searchMailDialogHtml,
+  searchMailDialogVisible,
   masterCategoryListExpanded,
   mails,
   moveDraggedMail,
+  navOptions,
   openExportedAttachment,
   openFolderContextMenu,
   operationLoading,
   openCategoryManager,
   outlookBusy,
   outlookBusyText,
+  openSearchMailDialog,
   refreshAdminData,
   requestCalendar,
   requestCategories,
@@ -169,14 +177,7 @@ const {
         <nav class="nav-actions">
           <el-segmented
             :model-value="activeView"
-            :options="[
-              { label: 'Outlook', value: 'outlook' },
-              { label: 'Search', value: 'search' },
-              { label: 'Chat', value: 'chat' },
-              { label: 'Calendar', value: 'calendar' },
-              { label: 'Admin', value: 'admin' },
-              { label: 'Swagger', value: 'swagger' },
-            ]"
+            :options="navOptions"
             @update:model-value="(value: string | number | boolean) => switchView(value as AppView)"
           />
         </nav>
@@ -566,7 +567,7 @@ const {
               class="mail-card-row"
               :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
             >
-              <button class="mail-row" type="button" @click="selectMail(index)">
+              <button class="mail-row" type="button" draggable="false" @click="openSearchMailDialog(index)">
                 <span class="mail-row-head">
                   <span class="mail-row-main">
                     <strong>{{ mail.subject }}</strong>
@@ -591,23 +592,6 @@ const {
                 </span>
               </button>
 
-              <div v-if="selectedMailIndex === index && selectedMailIsOpen" class="mail-inline-detail">
-                <div v-if="isMailBodyLoading(mail)" class="pane-loading">
-                  <span>郵件內容載入中...</span>
-                </div>
-                <el-button v-else-if="mailHasBody(mail)" size="small" @click="selectedMailHtml = !selectedMailHtml">
-                  {{ selectedMailHtml ? '切到文字' : '切到 HTML' }}
-                </el-button>
-                <iframe
-                  v-if="mailHasBody(mail) && selectedMailHtml"
-                  class="mail-html"
-                  :sandbox="mailHtmlSandbox"
-                  referrerpolicy="no-referrer"
-                  :srcdoc="mail.bodyHtml || mail.body"
-                />
-                <pre v-else-if="mailHasBody(mail)" class="mail-text">{{ mail.body }}</pre>
-                <p v-else class="hint">點開郵件後才會載入內容；目前沒有可顯示的 body。</p>
-              </div>
             </article>
             <div v-for="store in searchResultViewMode === 'tree' ? searchResultGroups : []" :key="store.key" class="search-result-store">
               <button class="search-result-tree-node store" type="button" @click="toggleSearchResultStore(store.key)">
@@ -632,7 +616,7 @@ const {
                       class="mail-card-row search-result-tree-row"
                       :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
                     >
-                      <button class="mail-row" type="button" @click="selectMail(index)">
+                      <button class="mail-row" type="button" draggable="false" @click="openSearchMailDialog(index)">
                         <span class="mail-row-head">
                           <span class="mail-row-main">
                             <strong>{{ mail.subject }}</strong>
@@ -656,23 +640,6 @@ const {
                         </span>
                       </button>
 
-                      <div v-if="selectedMailIndex === index && selectedMailIsOpen" class="mail-inline-detail">
-                        <div v-if="isMailBodyLoading(mail)" class="pane-loading">
-                          <span>郵件內容載入中...</span>
-                        </div>
-                        <el-button v-else-if="mailHasBody(mail)" size="small" @click="selectedMailHtml = !selectedMailHtml">
-                          {{ selectedMailHtml ? '切到文字' : '切到 HTML' }}
-                        </el-button>
-                        <iframe
-                          v-if="mailHasBody(mail) && selectedMailHtml"
-                          class="mail-html"
-                          :sandbox="mailHtmlSandbox"
-                          referrerpolicy="no-referrer"
-                          :srcdoc="mail.bodyHtml || mail.body"
-                        />
-                        <pre v-else-if="mailHasBody(mail)" class="mail-text">{{ mail.body }}</pre>
-                        <p v-else class="hint">點開郵件後才會載入內容；目前沒有可顯示的 body。</p>
-                      </div>
                     </article>
                   </div>
                 </div>
@@ -683,6 +650,109 @@ const {
             </div>
           </div>
         </section>
+
+        <el-dialog
+          v-model="searchMailDialogVisible"
+          class="search-mail-dialog"
+          width="min(860px, calc(100vw - 28px))"
+          destroy-on-close
+          @closed="closeSearchMailDialog"
+        >
+          <template #header>
+            <div v-if="searchDialogMail" class="dialog-mail-title">
+              <strong>{{ searchDialogMail.subject || '(No subject)' }}</strong>
+              <span>
+                {{ searchDialogMail.senderName || searchDialogMail.senderEmail || 'Unknown sender' }} · {{ formatDateTime(searchDialogMail.receivedTime) }}
+                <el-tag v-if="searchDialogLoading" size="small" type="info" effect="plain">載入中</el-tag>
+              </span>
+            </div>
+          </template>
+
+          <div v-if="searchDialogMail" class="dialog-mail-content">
+            <div class="dialog-mail-summary">
+              <div class="dialog-mail-meta">
+                <span>寄件者</span>
+                <strong>{{ searchDialogMail.senderName || searchDialogMail.senderEmail || 'Unknown sender' }}</strong>
+                <small v-if="searchDialogMail.senderEmail">{{ searchDialogMail.senderEmail }}</small>
+              </div>
+              <div class="dialog-mail-meta">
+                <span>Folder</span>
+                <strong>{{ searchDialogMail.folderPath }}</strong>
+              </div>
+            </div>
+            <div class="mail-row-tags dialog-mail-tags">
+              <el-tag v-if="!searchDialogMail.isRead" type="warning" effect="plain">未讀</el-tag>
+              <el-tag v-if="searchDialogMail.isMarkedAsTask" :type="flagTagType(searchDialogMail.flagInterval)" effect="plain">
+                {{ flagDisplayLabel(searchDialogMail.flagInterval, searchDialogMail.flagRequest) }}
+              </el-tag>
+              <el-tag
+                v-for="category in splitCategories(searchDialogMail.categories)"
+                :key="category"
+                effect="dark"
+                :style="categoryTagStyle(category)"
+              >
+                {{ category }}
+              </el-tag>
+            </div>
+
+            <div class="dialog-mail-section-head">
+              <strong>內容</strong>
+              <el-button v-if="mailHasBody(searchDialogMail)" size="small" @click="searchMailDialogHtml = !searchMailDialogHtml">
+                {{ searchMailDialogHtml ? '切到文字' : '切到 HTML' }}
+              </el-button>
+            </div>
+            <div v-if="isMailBodyLoading(searchDialogMail)" class="dialog-loading-block">
+              <el-skeleton animated :rows="6" />
+            </div>
+            <iframe
+              v-else-if="mailHasBody(searchDialogMail) && searchMailDialogHtml"
+              class="mail-html dialog-mail-body"
+              :sandbox="mailHtmlSandbox"
+              referrerpolicy="no-referrer"
+              :srcdoc="searchDialogMail.bodyHtml || searchDialogMail.body"
+            />
+            <pre v-else-if="mailHasBody(searchDialogMail)" class="mail-text dialog-mail-body">{{ searchDialogMail.body }}</pre>
+            <p v-else class="hint">目前沒有可顯示的 body。</p>
+
+            <div class="dialog-mail-attachments">
+              <div class="attachment-header">
+                <span class="attachment-header-title">
+                  <span>附件</span>
+                  <el-tag effect="plain">{{ searchDialogMailAttachments.length }}</el-tag>
+                </span>
+              </div>
+              <div v-if="isAttachmentListLoading(searchDialogMail)" class="dialog-loading-block compact">
+                <el-skeleton animated :rows="2" />
+              </div>
+              <p v-else-if="searchDialogMailAttachments.length === 0" class="hint">這封郵件沒有附件。</p>
+              <div v-else class="attachment-list">
+                <div v-for="attachment in searchDialogMailAttachments" :key="attachment.attachmentId" class="attachment-row">
+                  <span class="attachment-main">
+                    <strong>{{ attachment.name }}</strong>
+                    <span>{{ formatAttachmentMeta(attachment.contentType, attachment.size) }}</span>
+                  </span>
+                  <span class="attachment-actions">
+                    <el-button
+                      size="small"
+                      :loading="isAttachmentExporting(searchDialogMail, attachment)"
+                      :disabled="isAttachmentExporting(searchDialogMail, attachment)"
+                      @click="exportMailAttachment(searchDialogMail, attachment)"
+                    >
+                      {{ attachment.isExported ? '重新匯出' : 'Export' }}
+                    </el-button>
+                    <el-button
+                      size="small"
+                      :disabled="!attachment.exportedAttachmentId"
+                      @click="openExportedAttachment(attachment)"
+                    >
+                      開啟
+                    </el-button>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-dialog>
       </main>
 
       <main v-else-if="activeView === 'chat'" class="chat-layout">

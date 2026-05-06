@@ -99,6 +99,10 @@ export function useOutlookDashboard() {
   const pendingMailFolderPath = ref('')
   const selectedMailIndex = ref<number | null>(null)
   const selectedMailHtml = ref(false)
+  const searchMailDialogVisible = ref(false)
+  const searchMailDialogIndex = ref<number | null>(null)
+  const searchMailDialogMailId = ref('')
+  const searchMailDialogHtml = ref(false)
   const activeMailPropertySections = ref(['set-mail-properties'])
   const expandedFolders = ref<Set<string>>(new Set())
   const openMailIndexes = ref<Set<number>>(new Set())
@@ -135,6 +139,7 @@ export function useOutlookDashboard() {
   const loadingCalendar = ref(false)
   const loadingSignalRPing = ref(false)
   const operationLoading = ref(false)
+  const outlookFirstLoadCompleted = ref(false)
   const mailPropertiesDraft = ref<MailPropertiesDraft>({
     isRead: false,
     flagInterval: 'none',
@@ -257,6 +262,16 @@ export function useOutlookDashboard() {
     return ''
   })
 
+  const outlookDependentViewsLocked = computed(() => !outlookFirstLoadCompleted.value)
+  const navOptions = computed(() => [
+    { label: 'Outlook', value: 'outlook' },
+    { label: 'Search', value: 'search', disabled: outlookDependentViewsLocked.value },
+    { label: 'Chat', value: 'chat', disabled: outlookDependentViewsLocked.value },
+    { label: 'Calendar', value: 'calendar', disabled: outlookDependentViewsLocked.value },
+    { label: 'Admin', value: 'admin' },
+    { label: 'Swagger', value: 'swagger' },
+  ])
+
   const folderOptions = computed(() => collectFolderOptions(visibleFolders.value))
 
   const calendarWeekdays = ['日', '一', '二', '三', '四', '五', '六']
@@ -359,6 +374,24 @@ export function useOutlookDashboard() {
 
   const selectedMailAttachments = computed(() => {
     return selectedMail.value?.id ? mailAttachmentsByMailId.value[selectedMail.value.id] ?? [] : []
+  })
+
+  const searchDialogMail = computed(() => {
+    if (searchMailDialogMailId.value) {
+      const mail = mailSearchResults.value.find((item) => item.id === searchMailDialogMailId.value)
+      if (mail) return mail
+    }
+    if (searchMailDialogIndex.value === null) return null
+    return mailSearchResults.value[searchMailDialogIndex.value] ?? null
+  })
+
+  const searchDialogMailAttachments = computed(() => {
+    return searchDialogMail.value?.id ? mailAttachmentsByMailId.value[searchDialogMail.value.id] ?? [] : []
+  })
+
+  const searchDialogLoading = computed(() => {
+    const mail = searchDialogMail.value
+    return Boolean(mail && (isMailBodyLoading(mail) || isAttachmentListLoading(mail)))
   })
 
   const mailPropertiesChanged = computed(() => {
@@ -526,6 +559,12 @@ function categoryTagStyle(name: string) {
     mailPropertiesDraft.value = buildMailPropertiesDraft(mail)
   }
 
+  function updateOutlookFirstLoadCompleted() {
+    outlookFirstLoadCompleted.value = initialFoldersFetchCompleted
+      && initialMailsFetchCompleted
+      && initialCategoriesFetchCompleted
+  }
+
   function setMails(items: MailItemDto[], preferredMailId = selectedMail.value?.id ?? '') {
     const wasOpen = selectedMailIndex.value !== null && openMailIndexes.value.has(selectedMailIndex.value)
     clearMailBodyLoads()
@@ -641,10 +680,12 @@ function categoryTagStyle(name: string) {
       await outlookApi.requestFolders()
       await loadCachedFolders()
       initialFoldersFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingFolders.value = false
       operationLoading.value = false
     } catch {
       initialFoldersFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingFolders.value = false
     }
   }
@@ -811,6 +852,7 @@ function categoryTagStyle(name: string) {
     if ((outlookBusy.value && !force) || !selectedFolderPath.value) {
       if (!selectedFolderPath.value && !initialMailsFetchCompleted) {
         initialMailsFetchCompleted = true
+        updateOutlookFirstLoadCompleted()
         loadingMails.value = false
       }
       return
@@ -831,10 +873,12 @@ function categoryTagStyle(name: string) {
       await loadCachedMails()
       pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingMails.value = false
     } catch {
       pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingMails.value = false
     }
   }
@@ -960,6 +1004,24 @@ function categoryTagStyle(name: string) {
     if (batch.isFinal) loadingMailSearch.value = false
   }
 
+  function openSearchMailDialog(index: number) {
+    const mail = mailSearchResults.value[index]
+    if (!mail) return
+    selectedMailIndex.value = index
+    searchMailDialogIndex.value = index
+    searchMailDialogMailId.value = mail.id
+    searchMailDialogHtml.value = false
+    searchMailDialogVisible.value = true
+    void requestMailBody(mail)
+    void requestMailAttachments(mail)
+  }
+
+  function closeSearchMailDialog() {
+    searchMailDialogVisible.value = false
+    searchMailDialogMailId.value = ''
+    searchMailDialogHtml.value = false
+  }
+
   async function requestRules() {
     if (outlookBusy.value) return
     loadingRules.value = true
@@ -979,10 +1041,12 @@ function categoryTagStyle(name: string) {
       await outlookApi.requestCategories()
       await loadCachedCategories()
       initialCategoriesFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingCategories.value = false
       operationLoading.value = false
     } catch {
       initialCategoriesFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingCategories.value = false
     }
   }
@@ -1013,6 +1077,7 @@ function categoryTagStyle(name: string) {
     await requestFolders(true)
     if (!initialFoldersFetchCompleted) {
       initialFoldersFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingFolders.value = false
     }
     if (unmounted) return
@@ -1174,6 +1239,12 @@ function categoryTagStyle(name: string) {
     return Boolean(mail.body || mail.bodyHtml)
   }
 
+  function currentMailById(mailId: string) {
+    return folderMails.value.find((mail) => mail.id === mailId)
+      ?? mailSearchResults.value.find((mail) => mail.id === mailId)
+      ?? null
+  }
+
   function isAttachmentListLoading(mail: MailItemDto) {
     return Boolean(mail.id && loadingAttachmentMailIds.value.has(mail.id))
   }
@@ -1190,8 +1261,8 @@ function categoryTagStyle(name: string) {
         mailId: mail.id,
         folderPath: mail.folderPath,
       })
-      if (response.status === 'completed' || response.status === 'mocked') {
-        await loadCachedMails()
+      const currentMail = currentMailById(mail.id)
+      if (currentMail && mailHasBody(currentMail)) {
         completeMailBodyLoad(mail.id)
         return
       }
@@ -1380,6 +1451,13 @@ function categoryTagStyle(name: string) {
   }
 
   function selectMail(index: number) {
+    if (mailListMode.value === 'search') {
+      selectedMailIndex.value = index
+      selectedMailHtml.value = false
+      openMailIndexes.value = new Set()
+      return
+    }
+
     if (selectedMailIndex.value === index) {
       const next = new Set(openMailIndexes.value)
       if (next.has(index)) next.delete(index)
@@ -1518,6 +1596,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function switchView(view: AppView) {
+    if (outlookDependentViewsLocked.value && ['search', 'chat', 'calendar'].includes(view)) return
     activeView.value = view
     if (view === 'search') {
       mailListMode.value = 'search'
@@ -1573,6 +1652,7 @@ function categoryTagStyle(name: string) {
     })
     connection.on('FolderSyncCompleted', (_info: FolderSyncCompleteDto) => {
       initialFoldersFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingFolders.value = false
       completeOperation()
     })
@@ -1582,6 +1662,7 @@ function categoryTagStyle(name: string) {
       fetchedMailFolderPath.value = pendingMailFolderPath.value || inferMailFolderPath(nextMails, fetchedMailFolderPath.value)
       pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingMails.value = false
       completeOperation()
     })
@@ -1631,6 +1712,7 @@ function categoryTagStyle(name: string) {
     connection.on('CategoriesUpdated', (items: unknown) => {
       categories.value = normalizeOutlookCategories(items)
       initialCategoriesFetchCompleted = true
+      updateOutlookFirstLoadCompleted()
       loadingCategories.value = false
       completeOperation()
     })
@@ -1643,7 +1725,6 @@ function categoryTagStyle(name: string) {
       const mailId = mailBodyCommandIds.get(result.commandId)
       if (mailId) completeMailBodyLoad(mailId)
       const attachmentCommand = attachmentCommandIds.get(result.commandId)
-      if (attachmentCommand?.type === 'fetch') completeAttachmentLoad(attachmentCommand.mailId)
       if (attachmentCommand?.type === 'export' && attachmentCommand.attachmentId) {
         completeAttachmentExport(attachmentCommand.mailId, attachmentCommand.attachmentId)
       }
@@ -1788,6 +1869,11 @@ function categoryTagStyle(name: string) {
     isAttachmentListLoading,
     isMailBodyLoading,
     mailHasBody,
+    searchDialogMail,
+    searchDialogMailAttachments,
+    searchDialogLoading,
+    searchMailDialogHtml,
+    searchMailDialogVisible,
     mailPropertiesDraft,
     mailPropertiesChanged,
     mailRange,
@@ -1795,8 +1881,11 @@ function categoryTagStyle(name: string) {
     masterCategoryListExpanded,
     mails,
     moveDraggedMail,
+    navOptions,
     openFolderContextMenu,
     openExportedAttachment,
+    openSearchMailDialog,
+    closeSearchMailDialog,
     openMailIndexes,
     operationLoading,
     outlookBusy,

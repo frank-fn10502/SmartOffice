@@ -229,6 +229,7 @@ AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-a
   "receivedTo": "2026-05-04T23:59:59+08:00",
   "sliceIndex": 0,
   "sliceCount": 30,
+  "resultBatchSize": 5,
   "resetSearchResults": true,
   "completeSearchOnSlice": false
 }
@@ -247,6 +248,7 @@ AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-a
 - `readState`: 已讀篩選；`any`、`unread` 或 `read`。
 - `receivedFrom` / `receivedTo`: 收到時間區段，兩者可獨立使用。
 - `sliceIndex` / `sliceCount`: folder slice 序號與總數，可用於 progress message。
+- `resultBatchSize`: 搜尋結果每批回推筆數；AddIn 應 clamp 在 `3` 到 `5` 之間，預設 `5`。
 - `resetSearchResults`: 只有第一個 slice 是 `true`；AddIn 呼叫 `BeginMailSearch` 或第一批 `PushMailSearchSliceResult` 時應沿用。
 - `completeSearchOnSlice`: 只有最後一個 slice 是 `true`；AddIn 只有最後一個 slice 才應呼叫 `CompleteMailSearchSlice` 或送 `isFinal=true`。
 
@@ -266,11 +268,26 @@ Mail search slice result sample：
   "sliceCount": 30,
   "reset": true,
   "isFinal": false,
-  "isSliceComplete": true,
-  "mails": [],
+  "isSliceComplete": false,
+  "mails": [
+    {
+      "id": "[redacted Outlook EntryID or stable id]",
+      "subject": "Sample mail",
+      "senderName": "Sender",
+      "senderEmail": "sender@example.invalid",
+      "receivedTime": "2026-05-04T09:30:00+08:00",
+      "body": "",
+      "bodyHtml": "",
+      "folderPath": "\\\\主要信箱 - User\\Inbox",
+      "attachmentCount": 1,
+      "attachmentNames": "sample.pdf"
+    }
+  ],
   "message": ""
 }
 ```
+
+同一個 folder slice 可能找到大量郵件，AddIn 必須用多次 `PushMailSearchSliceResult` 分段回推。每批約 `3` 到 `5` 封 mail metadata，前面批次使用 `isSliceComplete=false`；該 folder 的最後一批才使用 `isSliceComplete=true`。只有整個 search 的最後一個 folder slice 最後一批可以使用 `isFinal=true`，或另外呼叫 `CompleteMailSearchSlice`。
 
 AddIn 不需要回報 search progress。整體進度由 Hub 依照 dispatch 的 slice、收到的 `PushMailSearchSliceResult` / `CompleteMailSearchSlice` 與 timeout 推算。
 
