@@ -1,6 +1,9 @@
 ---
 name: smartoffice-hub-outlook
 description: Use when an AI agent needs to operate Outlook through SmartOffice.Hub HTTP APIs, including reading folders, mails, mail body, attachments, calendar, categories, rules, mail search, and safe mail or folder mutations. Use this skill for SmartOffice.Hub client workflows; do not use it for implementing the Outlook AddIn SignalR automation itself.
+metadata:
+  owner: "SmartOffice.Hub"
+  skill_id: "smartoffice-hub-outlook.skill.smartoffice-hub.2026-05"
 ---
 
 # SmartOffice Hub Outlook
@@ -14,15 +17,17 @@ description: Use when an AI agent needs to operate Outlook through SmartOffice.H
 - 修改郵件前必須先從 Hub snapshot 取得 `MailItemDto.id`，不可只用 subject、sender 或 folder name 猜目標。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
 - `request-delete-mail` 的語意是移到 Deleted Items，不是永久刪除；仍需先確認 `mailId` 與 `folderPath` 來自 snapshot。
+- 使用者沒有指定 folder 時，以目前主要 mailbox 的 Inbox 作為起點，並預設 `includeSubFolders=true`。
 
 ## 操作流程
 
 1. 讀 `GET /api/outlook/admin/status` 確認 AddIn 是否 connected。
 2. 若需要 folder scope，先 `POST /api/outlook/request-folders`，等待 command 完成，再讀 `GET /api/outlook/folders`。
-3. 發出任務所需的 `request-*` endpoint。
-4. 輪詢 `command-results/{commandId}`；mail search 可同時查 progress endpoint。
-5. 依 command 類型讀取 cache：`mails`、`mail-attachments`、`mail-search`、`folders`、`calendar`、`categories` 或 `rules`。
-6. 對 mutation 類操作，在回覆使用者前重新讀 snapshot，確認變更結果。
+3. 使用者未指定 folder 時，從 folder snapshot 選擇主要 store 的 Inbox；若有多個 Inbox 且無法判斷主要 mailbox，回報候選並請使用者指定。
+4. 發出任務所需的 `request-*` endpoint。
+5. 輪詢 `command-results/{commandId}`；mail search 可同時查 progress endpoint。
+6. 依 command 類型讀取 cache：`mails`、`mail-attachments`、`mail-search`、`folders`、`calendar`、`categories` 或 `rules`。
+7. 對 mutation 類操作，在回覆使用者前重新讀 snapshot，確認變更結果。
 
 ## 何時讀 references
 

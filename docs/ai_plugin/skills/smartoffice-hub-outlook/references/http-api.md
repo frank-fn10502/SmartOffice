@@ -197,10 +197,11 @@ Request:
 ```
 
 - `scopeFolderPaths` 空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders。
+- 使用者未指定 folder 時，建議先從 `GET /api/outlook/folders` 選擇主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值。
 - `textFields`: `subject`、`sender`、`body`；Hub 會 normalize，不合法時回到 `subject`。
 - `flagState`: `any`、`flagged`、`unflagged`。
 - `readState`: `any`、`unread`、`read`。
-- `hasAttachments`: true / false / null。
+- `hasAttachments`: true / false / null。若只想用「存在附件」搜尋，設定 `hasAttachments=true` 並讓 `keyword` 保持空字串。
 
 Progress：
 

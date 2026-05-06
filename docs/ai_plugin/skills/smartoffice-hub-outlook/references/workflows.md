@@ -113,6 +113,18 @@ curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
 curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mail-search"
 ```
 
+若使用者只說「收件夾」或沒有指定 folder，先用 folder snapshot 找主要 mailbox 的 Inbox，作為 `scopeFolderPaths`；通常同時設定 `includeSubFolders=true`。
+
+只依照「存在附件」搜尋時，`keyword` 可以是空字串：
+
+```bash
+curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-mail-search" \
+  -H "Content-Type: application/json" \
+  -d '{"scopeFolderPaths":["\\\\Mailbox - User\\Inbox"],"includeSubFolders":true,"keyword":"","textFields":["subject"],"categoryNames":[],"hasAttachments":true,"flagState":"any","readState":"any","receivedFrom":"2026-05-01T00:00:00+08:00","receivedTo":"2026-06-01T00:00:00+08:00"}'
+```
+
+`hasAttachments=false` 可搜尋沒有附件的信；`hasAttachments=null` 代表不限附件。
+
 ## Update Mail Properties
 
 先取得 `mailId` 與 `folderPath`，並向使用者確認會修改哪一封 mail。
