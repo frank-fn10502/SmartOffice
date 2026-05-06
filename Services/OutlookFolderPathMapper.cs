@@ -69,6 +69,16 @@ namespace SmartOffice.Hub.Services
                 command.MoveMailRequest.SourceFolderPath = ToAddinPath(command.MoveMailRequest.SourceFolderPath);
                 command.MoveMailRequest.DestinationFolderPath = ToAddinPath(command.MoveMailRequest.DestinationFolderPath);
             }
+            if (command.MoveMailsRequest is not null)
+            {
+                command.MoveMailsRequest.SourceFolderPath = ToAddinPath(command.MoveMailsRequest.SourceFolderPath);
+                command.MoveMailsRequest.SourceFolderPaths = command.MoveMailsRequest.SourceFolderPaths
+                    .Select(ToAddinPath)
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                command.MoveMailsRequest.DestinationFolderPath = ToAddinPath(command.MoveMailsRequest.DestinationFolderPath);
+            }
             if (command.DeleteMailRequest is not null)
                 command.DeleteMailRequest.FolderPath = ToAddinPath(command.DeleteMailRequest.FolderPath);
         }

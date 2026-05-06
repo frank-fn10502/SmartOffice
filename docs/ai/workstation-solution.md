@@ -31,7 +31,7 @@ Hub：
 
 - 提供 `/api/outlook/request-*` endpoint，讓 Web UI、AI 或 MCP client 發出 request。
 - 提供 `/hub/outlook-addin`，讓工作機 AddIn 透過 SignalR 接收 command 並回報結果。
-- 提供 `/hub/notifications`，讓 Web UI 接收 cached data、status 與 log update。
+- 提供 `/hub/notifications`，讓 client 接收 status、log、progress 與 cache update notification；Web UI 的主要資料路徑仍是 HTTP snapshot。
 - 提供 Web UI 與 admin diagnostics。
 
 工作機 SmartOffice / Outlook AddIn：

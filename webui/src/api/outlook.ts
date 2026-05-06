@@ -15,6 +15,7 @@ import type {
   MailSearchProgressDto,
   MailPropertiesCommandRequest,
   MailItemDto,
+  OutlookCommandResult,
   OutlookCategoryDto,
   OutlookRuleDto,
   SearchMailsRequest,
@@ -239,6 +240,8 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 export const outlookApi = {
   getFolders: () => getJson<FolderSnapshotDto>('/api/outlook/folders'),
   getMails: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mails')),
+  getMailAttachments: async (mailId: string) =>
+    normalizeMailAttachments(await getJson<unknown>(`/api/outlook/mail-attachments?mailId=${encodeURIComponent(mailId)}`)),
   getMailSearchResults: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mail-search')),
   getMailSearchProgress: async (searchId: string) =>
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/${encodeURIComponent(searchId)}`)),
@@ -251,6 +254,8 @@ export const outlookApi = {
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
   getAdminLogs: () => getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),
   getAttachmentExportSettings: () => getJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings'),
+  getCommandResult: (commandId: string) =>
+    getJson<OutlookCommandResult>(`/api/outlook/command-results/${encodeURIComponent(commandId)}`),
 
   requestFolders: () => postJson<CommandDispatchResponse>('/api/outlook/request-folders'),
   requestFolderChildren: (body: {
@@ -282,22 +287,24 @@ export const outlookApi = {
     postJson('/api/outlook/open-exported-attachment', body),
   updateAttachmentExportSettings: (body: { rootPath: string }) =>
     postJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings', body),
-  requestRules: () => postJson('/api/outlook/request-rules'),
+  requestRules: () => postJson<CommandDispatchResponse>('/api/outlook/request-rules'),
   requestCategories: () => postJson<CommandDispatchResponse>('/api/outlook/request-categories'),
-  requestSignalRPing: () => postJson('/api/outlook/request-signalr-ping'),
+  requestSignalRPing: () => postJson<CommandDispatchResponse>('/api/outlook/request-signalr-ping'),
   requestCalendar: (body: { daysForward: number; startDate?: string; endDate?: string }) =>
-    postJson('/api/outlook/request-calendar', body),
+    postJson<CommandDispatchResponse>('/api/outlook/request-calendar', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
 
   requestUpdateMailProperties: (body: MailPropertiesCommandRequest) =>
-    postJson('/api/outlook/request-update-mail-properties', body),
+    postJson<CommandDispatchResponse>('/api/outlook/request-update-mail-properties', body),
   requestUpsertCategory: (body: CategoryCommandRequest) =>
-    postJson('/api/outlook/request-upsert-category', body),
+    postJson<CommandDispatchResponse>('/api/outlook/request-upsert-category', body),
   requestCreateFolder: (body: { parentFolderPath: string; name: string }) =>
-    postJson('/api/outlook/request-create-folder', body),
-  requestDeleteFolder: (body: { folderPath: string }) => postJson('/api/outlook/request-delete-folder', body),
+    postJson<CommandDispatchResponse>('/api/outlook/request-create-folder', body),
+  requestDeleteFolder: (body: { folderPath: string }) => postJson<CommandDispatchResponse>('/api/outlook/request-delete-folder', body),
   requestMoveMail: (body: { mailId: string; sourceFolderPath: string; destinationFolderPath: string }) =>
-    postJson('/api/outlook/request-move-mail', body),
+    postJson<CommandDispatchResponse>('/api/outlook/request-move-mail', body),
+  requestMoveMails: (body: { mailIds: string[]; sourceFolderPath: string; sourceFolderPaths: string[]; destinationFolderPath: string; continueOnError: boolean }) =>
+    postJson<CommandDispatchResponse>('/api/outlook/request-move-mails', body),
   requestDeleteMail: (body: { mailId: string; folderPath: string }) =>
-    postJson('/api/outlook/request-delete-mail', body),
+    postJson<CommandDispatchResponse>('/api/outlook/request-delete-mail', body),
 }

@@ -23,17 +23,37 @@ const hiddenFolderNames = [
   'ffentliche ordner',
 ]
 
+const allowedMailFolderTypes = new Set([
+  'Mail',
+  'Inbox',
+  'Sent',
+  'Drafts',
+  'Deleted',
+  'Junk',
+  'Archive',
+  'Outbox',
+])
+
 export function isHiddenFolder(name: string) {
   const lowerName = name.toLowerCase()
   return hiddenFolderNames.some((hidden) => lowerName.includes(hidden))
 }
 
+export function isOperableFolder(folder: FolderDto) {
+  if (folder.isStoreRoot) return !folder.isHidden && !folder.isSystem && !isHiddenFolder(folder.name)
+  return folder.defaultItemType === 0
+    && !folder.isHidden
+    && !folder.isSystem
+    && allowedMailFolderTypes.has(folder.folderType)
+    && !isHiddenFolder(folder.name)
+}
+
 export function visibleChildren(folder: FolderTreeNode) {
-  return (folder.subFolders ?? []).filter((child) => !isHiddenFolder(child.name))
+  return (folder.subFolders ?? []).filter(isOperableFolder)
 }
 
 export function visibleRootFolders(folders: FolderTreeNode[]) {
-  return folders.filter((root) => !isHiddenFolder(root.name))
+  return folders.filter(isOperableFolder)
 }
 
 export function collectFolderOptions(items: FolderTreeNode[], level = 0): Array<FolderTreeNode & { label: string }> {
@@ -91,7 +111,7 @@ export function applyFolderBatch(current: FolderTreeNode[], stores: OutlookStore
 
   index(roots)
 
-  for (const folder of batch.folders) {
+  for (const folder of batch.folders.filter(isOperableFolder)) {
     const next: FolderTreeNode = {
       ...folder,
       subFolders: byPath.get(folder.folderPath)?.subFolders ?? [],

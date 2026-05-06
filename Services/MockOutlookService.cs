@@ -79,11 +79,11 @@ namespace SmartOffice.Hub.Services
                 {
                     case "fetch_folder_roots":
                         folderBatch = BuildFolderRootsBatch(command.FolderDiscoveryRequest?.Reset ?? true);
-                        _mailStore.ApplyFolderBatch(folderBatch);
+                        folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
                         break;
                     case "fetch_folder_children":
                         folderBatch = BuildFolderChildrenBatch(command.FolderDiscoveryRequest);
-                        _mailStore.ApplyFolderBatch(folderBatch);
+                        folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
                         break;
                     case "fetch_mails":
                         mails = MockOutlookMailSearch.FilterMails(
@@ -156,7 +156,7 @@ namespace SmartOffice.Hub.Services
                             StoreId = FindFolder(command.CreateFolderRequest?.ParentFolderPath ?? string.Empty)?.StoreId ?? string.Empty,
                             ParentFolderPath = command.CreateFolderRequest?.ParentFolderPath ?? string.Empty,
                         });
-                        _mailStore.ApplyFolderBatch(folderBatch);
+                        folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
                         break;
                     case "delete_folder":
                         var deletedParentPath = FindFolder(command.DeleteFolderRequest?.FolderPath ?? string.Empty)?.ParentFolderPath ?? string.Empty;
@@ -167,21 +167,28 @@ namespace SmartOffice.Hub.Services
                             StoreId = deletedStoreId,
                             ParentFolderPath = deletedParentPath,
                         });
-                        _mailStore.ApplyFolderBatch(folderBatch);
+                        folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
                         break;
                     case "move_mail":
                         MoveMail(command.MoveMailRequest);
                         mails = SyncVisibleMails(command.MoveMailRequest?.MailId);
                         _mailStore.SetMails(mails);
                         folderBatch = BuildFolderCountsBatch(command.MoveMailRequest?.SourceFolderPath, command.MoveMailRequest?.DestinationFolderPath);
-                        _mailStore.ApplyFolderBatch(folderBatch);
+                        folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
+                        break;
+                    case "move_mails":
+                        MoveMails(command.MoveMailsRequest);
+                        mails = SyncVisibleMails(command.MoveMailsRequest?.MailIds.FirstOrDefault());
+                        _mailStore.SetMails(mails);
+                        folderBatch = BuildFolderCountsBatch(MoveMailsCountPaths(command.MoveMailsRequest).ToArray());
+                        folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
                         break;
                     case "delete_mail":
                         DeleteMail(command.DeleteMailRequest);
                         mails = SyncVisibleMails(command.DeleteMailRequest?.MailId);
                         _mailStore.SetMails(mails);
                         folderBatch = BuildFolderCountsBatch(command.DeleteMailRequest?.FolderPath);
-                        _mailStore.ApplyFolderBatch(folderBatch);
+                        folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
                         break;
                     case "ping":
                         break;
@@ -478,6 +485,28 @@ namespace SmartOffice.Hub.Services
             RefreshFolderCounts();
         }
 
+        private void MoveMails(MoveMailsRequest? request)
+        {
+            if (request is null || request.MailIds.Count == 0 || string.IsNullOrWhiteSpace(request.DestinationFolderPath)) return;
+            var mailIds = request.MailIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var mail in _mockMails.Where(item => mailIds.Contains(item.Id)))
+            {
+                if (mail.FolderPath == request.DestinationFolderPath) continue;
+                mail.FolderPath = request.DestinationFolderPath;
+            }
+            RefreshFolderCounts();
+        }
+
+        private static IEnumerable<string?> MoveMailsCountPaths(MoveMailsRequest? request)
+        {
+            if (request is null) yield break;
+            yield return request.SourceFolderPath;
+            foreach (var path in request.SourceFolderPaths) yield return path;
+            yield return request.DestinationFolderPath;
+        }
+
         private void DeleteMail(DeleteMailRequest? request)
         {
             if (request is null || string.IsNullOrWhiteSpace(request.MailId)) return;
@@ -689,6 +718,19 @@ namespace SmartOffice.Hub.Services
                 IsFinal = true,
                 Stores = new List<OutlookStoreDto>(),
                 Folders = CloneFolders(_mockFolders.Where(folder => requested.Contains(folder.FolderPath)).ToList()),
+            };
+        }
+
+        private static FolderSyncBatchDto ToFullFolderBatch(FolderSyncBatchDto source, FolderSnapshotDto snapshot)
+        {
+            return new FolderSyncBatchDto
+            {
+                SyncId = source.SyncId,
+                Sequence = source.Sequence,
+                Reset = true,
+                IsFinal = source.IsFinal,
+                Stores = snapshot.Stores,
+                Folders = snapshot.Folders,
             };
         }
 

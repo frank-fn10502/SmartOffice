@@ -65,9 +65,17 @@ namespace SmartOffice.Hub.Hubs
                 return;
             }
 
-            _mailStore.ApplyFolderBatch(batch);
+            var snapshot = _mailStore.ApplyFolderBatch(batch);
             _addinStatus.RecordPush("folder batch", batch.Stores.Count + batch.Folders.Count);
-            await _notifications.Clients.All.SendAsync("FoldersPatched", batch);
+            await _notifications.Clients.All.SendAsync("FoldersPatched", new FolderSyncBatchDto
+            {
+                SyncId = batch.SyncId,
+                Sequence = batch.Sequence,
+                Reset = true,
+                IsFinal = batch.IsFinal,
+                Stores = snapshot.Stores,
+                Folders = snapshot.Folders,
+            });
 
             if (batch.IsFinal)
             {

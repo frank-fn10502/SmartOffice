@@ -196,6 +196,15 @@ namespace SmartOffice.Hub.Models
         public string DestinationFolderPath { get; set; } = string.Empty;
     }
 
+    public class MoveMailsRequest
+    {
+        public List<string> MailIds { get; set; } = new();
+        public string SourceFolderPath { get; set; } = string.Empty;
+        public List<string> SourceFolderPaths { get; set; } = new();
+        public string DestinationFolderPath { get; set; } = string.Empty;
+        public bool ContinueOnError { get; set; } = true;
+    }
+
     public class DeleteMailRequest
     {
         public string MailId { get; set; } = string.Empty;
@@ -222,6 +231,7 @@ namespace SmartOffice.Hub.Models
         public CreateFolderRequest? CreateFolderRequest { get; set; }
         public DeleteFolderRequest? DeleteFolderRequest { get; set; }
         public MoveMailRequest? MoveMailRequest { get; set; }
+        public MoveMailsRequest? MoveMailsRequest { get; set; }
         public DeleteMailRequest? DeleteMailRequest { get; set; }
     }
 

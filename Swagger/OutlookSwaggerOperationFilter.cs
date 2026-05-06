@@ -117,6 +117,12 @@ namespace SmartOffice.Hub.Swagger
                 "將單封 mail 從 source folder 移到 destination folder。完成後讀取 `GET /api/outlook/mails` 與 `GET /api/outlook/folders`。",
                 typeof(CommandDispatchResponse),
                 MoveMailExample()),
+            ["POST api/outlook/request-move-mails"] = new(
+                "Outlook Commands",
+                "移動多封郵件",
+                "將多封 mail 移到 destination folder。`mailIds` 必須來自目前 `mails` 或 `mail-search` snapshot；完成後讀取 `GET /api/outlook/mails` 與 `GET /api/outlook/folders`。",
+                typeof(CommandDispatchResponse),
+                MoveMailsExample()),
             ["POST api/outlook/request-delete-mail"] = new(
                 "Outlook Commands",
                 "刪除單封郵件",
@@ -353,6 +359,22 @@ namespace SmartOffice.Hub.Swagger
             ["mailId"] = new OpenApiString("mail-20260506-001"),
             ["sourceFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
             ["destinationFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox/客戶追蹤"),
+        };
+
+        private static OpenApiObject MoveMailsExample() => new()
+        {
+            ["mailIds"] = new OpenApiArray
+            {
+                new OpenApiString("mail-20260506-001"),
+                new OpenApiString("mail-20260506-002"),
+            },
+            ["sourceFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["sourceFolderPaths"] = new OpenApiArray
+            {
+                new OpenApiString("/主要信箱 - User/Inbox"),
+            },
+            ["destinationFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox/客戶追蹤"),
+            ["continueOnError"] = new OpenApiBoolean(true),
         };
 
         private static OpenApiObject DeleteMailExample() => new()

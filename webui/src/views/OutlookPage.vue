@@ -7,6 +7,7 @@ import {
   Delete,
   Document,
   Folder,
+  Rank,
   Refresh,
   Search,
 } from '@element-plus/icons-vue'
@@ -139,6 +140,7 @@ const {
   selectedMailHtml,
   selectedMailIndex,
   selectedMailIsOpen,
+  selectedMailIds,
   selectFolder,
   selectCalendarEvent,
   selectMail,
@@ -265,7 +267,7 @@ const {
               v-for="(mail, index) in mails"
               :key="mail.id || `${mail.receivedTime}-${index}`"
               class="mail-card-row"
-              :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
+              :class="{ selected: selectedMailIds.has(mail.id) || selectedMailIndex === index, unread: !mail.isRead }"
             >
               <div class="mail-row-shell">
                 <el-button
@@ -279,12 +281,21 @@ const {
                   @click.stop="deleteMail(mail)"
                 />
                 <button
-                  class="mail-row"
+                  class="mail-drag-handle"
                   type="button"
                   draggable="true"
-                  @click="selectMail(index)"
+                  :disabled="!mail.id?.trim() || outlookBusy"
+                  title="拖曳移動郵件"
+                  @click.stop
                   @dragstart="startMailDrag(mail, index, $event)"
                   @dragend="clearMailDrag"
+                >
+                  <el-icon><Rank /></el-icon>
+                </button>
+                <button
+                  class="mail-row"
+                  type="button"
+                  @click="selectMail(index, $event)"
                 >
                   <span class="mail-row-head">
                     <span class="mail-row-main">
@@ -424,7 +435,7 @@ const {
               :creating-folder-parent-path="creatingFolderParentPath"
               :creating-folder-name="creatingFolderName"
               :folder-busy="outlookBusy"
-              :can-drop-mail="false"
+              :can-drop-mail="Boolean(draggedMailId) && !outlookBusy"
               :active-drop-folder-path="dragOverFolderPath"
               @toggle="toggleFolder"
               @select="selectFolder"
@@ -567,33 +578,51 @@ const {
               v-for="{ mail, index, sourceLabel } in searchResultViewMode === 'flat' ? searchResultRows : []"
               :key="mail.id || `${mail.receivedTime}-${index}`"
               class="mail-card-row"
-              :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
+              :class="{ selected: selectedMailIds.has(mail.id) || selectedMailIndex === index, unread: !mail.isRead }"
             >
-              <button class="mail-row" type="button" draggable="false" @click="openSearchMailDialog(index)">
-                <span class="mail-row-head">
-                  <span class="mail-row-main">
-                    <strong>{{ mail.subject }}</strong>
-                    <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
-                    <span class="mail-source-label">{{ sourceLabel }}</span>
+              <div class="mail-row-shell">
+                <button
+                  class="mail-drag-handle"
+                  type="button"
+                  draggable="true"
+                  :disabled="!mail.id?.trim() || outlookBusy"
+                  title="拖曳移動郵件"
+                  @click.stop
+                  @dragstart="startMailDrag(mail, index, $event)"
+                  @dragend="clearMailDrag"
+                >
+                  <el-icon><Rank /></el-icon>
+                </button>
+                <button
+                  class="mail-row"
+                  type="button"
+                  @click="selectMail(index, $event)"
+                  @dblclick="openSearchMailDialog(index)"
+                >
+                  <span class="mail-row-head">
+                    <span class="mail-row-main">
+                      <strong>{{ mail.subject }}</strong>
+                      <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                      <span class="mail-source-label">{{ sourceLabel }}</span>
+                    </span>
+                    <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
                   </span>
-                  <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
-                </span>
-                <span class="mail-row-tags">
-                  <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
-                  <el-tag v-if="mail.isMarkedAsTask" :type="flagTagType(mail.flagInterval)" effect="plain">
-                    {{ flagDisplayLabel(mail.flagInterval, mail.flagRequest) }}<span v-if="mail.taskDueDate"> · {{ formatDateTime(mail.taskDueDate) }}</span>
-                  </el-tag>
-                  <el-tag
-                    v-for="category in splitCategories(mail.categories)"
-                    :key="category"
-                    effect="dark"
-                    :style="categoryTagStyle(category)"
-                  >
-                    {{ category }}
-                  </el-tag>
-                </span>
-              </button>
-
+                  <span class="mail-row-tags">
+                    <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
+                    <el-tag v-if="mail.isMarkedAsTask" :type="flagTagType(mail.flagInterval)" effect="plain">
+                      {{ flagDisplayLabel(mail.flagInterval, mail.flagRequest) }}<span v-if="mail.taskDueDate"> · {{ formatDateTime(mail.taskDueDate) }}</span>
+                    </el-tag>
+                    <el-tag
+                      v-for="category in splitCategories(mail.categories)"
+                      :key="category"
+                      effect="dark"
+                      :style="categoryTagStyle(category)"
+                    >
+                      {{ category }}
+                    </el-tag>
+                  </span>
+                </button>
+              </div>
             </article>
             <div v-for="store in searchResultViewMode === 'tree' ? searchResultGroups : []" :key="store.key" class="search-result-store">
               <button class="search-result-tree-node store" type="button" @click="toggleSearchResultStore(store.key)">
@@ -616,32 +645,50 @@ const {
                       v-for="{ mail, index } in folderGroup.rows"
                       :key="mail.id || `${mail.receivedTime}-${index}`"
                       class="mail-card-row search-result-tree-row"
-                      :class="{ selected: selectedMailIndex === index, unread: !mail.isRead }"
+                      :class="{ selected: selectedMailIds.has(mail.id) || selectedMailIndex === index, unread: !mail.isRead }"
                     >
-                      <button class="mail-row" type="button" draggable="false" @click="openSearchMailDialog(index)">
-                        <span class="mail-row-head">
-                          <span class="mail-row-main">
-                            <strong>{{ mail.subject }}</strong>
-                            <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                      <div class="mail-row-shell">
+                        <button
+                          class="mail-drag-handle"
+                          type="button"
+                          draggable="true"
+                          :disabled="!mail.id?.trim() || outlookBusy"
+                          title="拖曳移動郵件"
+                          @click.stop
+                          @dragstart="startMailDrag(mail, index, $event)"
+                          @dragend="clearMailDrag"
+                        >
+                          <el-icon><Rank /></el-icon>
+                        </button>
+                        <button
+                          class="mail-row"
+                          type="button"
+                          @click="selectMail(index, $event)"
+                          @dblclick="openSearchMailDialog(index)"
+                        >
+                          <span class="mail-row-head">
+                            <span class="mail-row-main">
+                              <strong>{{ mail.subject }}</strong>
+                              <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                            </span>
+                            <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
                           </span>
-                          <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
-                        </span>
-                        <span class="mail-row-tags">
-                          <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
-                          <el-tag v-if="mail.isMarkedAsTask" :type="flagTagType(mail.flagInterval)" effect="plain">
-                            {{ flagDisplayLabel(mail.flagInterval, mail.flagRequest) }}<span v-if="mail.taskDueDate"> · {{ formatDateTime(mail.taskDueDate) }}</span>
-                          </el-tag>
-                          <el-tag
-                            v-for="category in splitCategories(mail.categories)"
-                            :key="category"
-                            effect="dark"
-                            :style="categoryTagStyle(category)"
-                          >
-                            {{ category }}
-                          </el-tag>
-                        </span>
-                      </button>
-
+                          <span class="mail-row-tags">
+                            <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
+                            <el-tag v-if="mail.isMarkedAsTask" :type="flagTagType(mail.flagInterval)" effect="plain">
+                              {{ flagDisplayLabel(mail.flagInterval, mail.flagRequest) }}<span v-if="mail.taskDueDate"> · {{ formatDateTime(mail.taskDueDate) }}</span>
+                            </el-tag>
+                            <el-tag
+                              v-for="category in splitCategories(mail.categories)"
+                              :key="category"
+                              effect="dark"
+                              :style="categoryTagStyle(category)"
+                            >
+                              {{ category }}
+                            </el-tag>
+                          </span>
+                        </button>
+                      </div>
                     </article>
                   </div>
                 </div>

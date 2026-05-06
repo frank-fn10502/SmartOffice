@@ -12,7 +12,7 @@ Outlook AddIn 正式 protocol 已改為 SignalR-only：
 4. Hub 透過 SignalR client event `OutlookCommand` 即時 dispatch command 給 AddIn。
 5. AddIn 在本機執行 Outlook automation。
 6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushMail`、`PushMailBody`、`PushMailAttachments`、`PushExportedMailAttachment`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果；mail search progress 由 Hub 自行推算。
-7. Hub 更新 cache，並透過 `/hub/notifications` broadcast 給 Web UI。
+7. Hub 更新 cache，並透過 `/hub/notifications` broadcast diagnostic / progress notification。Web UI 的主要資料驗證路徑必須仍是 HTTP：送出 request endpoint、查 command result、再用 `GET /api/outlook/*` snapshot 讀回資料。
 
 目前不保留舊 AddIn HTTP long-poll / push channel；工作機 AddIn 不應再呼叫 `/api/outlook/poll` 或 `/api/outlook/push-*`。
 
@@ -29,6 +29,8 @@ Web UI notification channel：
 ```text
 /hub/notifications
 ```
+
+Web UI 的定位是 Hub HTTP API 的手動測試與檢視工具。除 AddIn status、log 與非資料面的 progress/diagnostic 顯示外，不應依賴 `/hub/notifications` 直接修改 folders、mails、mail search results、rules、categories、calendar、chat 或 attachment snapshot；這些資料應由 HTTP GET snapshot 更新。
 
 ## Web UI / AI Request Endpoint
 
@@ -49,6 +51,7 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `POST /api/outlook/request-create-folder`：dispatch 建立 folder command。
 - `POST /api/outlook/request-delete-folder`：dispatch 刪除 folder command。
 - `POST /api/outlook/request-move-mail`：dispatch 移動單封郵件 command。
+- `POST /api/outlook/request-move-mails`：dispatch 移動多封郵件 command；`mailIds` 必須來自目前 Hub snapshot，AddIn 逐封移動並回報結果。
 - `POST /api/outlook/request-delete-mail`：dispatch `delete_mail` command；AddIn 必須實作為移到 Deleted Items，不可永久刪除。
 - `GET /api/outlook/folders`：讀取 cached folder snapshot，格式是 `FolderSnapshotDto`。
   Hub folder cache 只保留 store root 與可操作 mail folder；hidden/system/non-mail folder 不會出現在此 snapshot。
@@ -139,9 +142,9 @@ Payload 是 `PendingCommand`，command type 與 request object 請看 `docs/addi
 - `GET /api/outlook/admin/logs`
 - `POST /api/outlook/admin/log`
 
-## Web UI SignalR Event
+## Notification SignalR Event
 
-Web UI notification endpoint 是 `/hub/notifications`。
+Notification endpoint 是 `/hub/notifications`。這些事件可供 diagnostics 或外部 client 使用；Web UI 不應把它們當成主要資料來源。
 
 目前事件：
 

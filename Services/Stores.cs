@@ -105,13 +105,8 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
-                var index = _mails.FindIndex(item => item.Id == mail.Id);
-                if (index < 0) return;
-                if (string.IsNullOrEmpty(mail.Body) && !string.IsNullOrEmpty(_mails[index].Body))
-                    mail.Body = _mails[index].Body;
-                if (string.IsNullOrEmpty(mail.BodyHtml) && !string.IsNullOrEmpty(_mails[index].BodyHtml))
-                    mail.BodyHtml = _mails[index].BodyHtml;
-                _mails[index] = mail;
+                UpsertKnownMail(_mails, mail);
+                UpsertKnownMail(_mailSearchResults, mail);
             }
         }
 
@@ -119,10 +114,8 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
-                var mail = _mails.FirstOrDefault(item => item.Id == body.MailId);
-                if (mail is null) return;
-                mail.Body = body.Body;
-                mail.BodyHtml = body.BodyHtml;
+                UpdateMailBody(_mails, body);
+                UpdateMailBody(_mailSearchResults, body);
             }
         }
 
@@ -453,6 +446,26 @@ namespace SmartOffice.Hub.Services
             var index = mails.FindIndex(mail => mail.Id == next.Id);
             if (index < 0) mails.Add(next);
             else mails[index] = next;
+        }
+
+        private static void UpsertKnownMail(List<MailItemDto> mails, MailItemDto next)
+        {
+            var index = mails.FindIndex(mail => mail.Id == next.Id);
+            if (index < 0) return;
+            var merged = CloneMail(next);
+            if (string.IsNullOrEmpty(merged.Body) && !string.IsNullOrEmpty(mails[index].Body))
+                merged.Body = mails[index].Body;
+            if (string.IsNullOrEmpty(merged.BodyHtml) && !string.IsNullOrEmpty(mails[index].BodyHtml))
+                merged.BodyHtml = mails[index].BodyHtml;
+            mails[index] = merged;
+        }
+
+        private static void UpdateMailBody(List<MailItemDto> mails, MailBodyDto body)
+        {
+            var mail = mails.FirstOrDefault(item => item.Id == body.MailId);
+            if (mail is null) return;
+            mail.Body = body.Body;
+            mail.BodyHtml = body.BodyHtml;
         }
 
         private static int CountFolders(List<FolderDto> folders)

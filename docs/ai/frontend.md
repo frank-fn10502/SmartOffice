@@ -69,6 +69,7 @@ wwwroot/
 - `webui/node_modules/` 可留在 workspace 作為 Docker 內 npm install/cache 的結果，但必須由 `.gitignore` 排除，不可 commit。
 - 使用 npm lockfile 固定 dependency resolution。
 - SignalR client 不再從 CDN 載入；改使用 npm dependency 並 bundle 進本機 build output。
+- Web UI 是 Hub HTTP API 的手動測試工具。SignalR notification 只能用於 AddIn status、log、progress 或 diagnostics 顯示；folders、mails、mail body、attachments、search results、rules、categories、calendar 與 chat 等資料必須透過 HTTP request / command result / snapshot endpoint 更新。
 - API 使用原生 `fetch`，不要預設加入 Axios 或 data fetching framework。
 - 優先使用 Vue built-in Composition API 管理 local state，不要預設加入 Pinia。
 - 優先使用 project-local components，不要因單一畫面需求引入大型附加套件。

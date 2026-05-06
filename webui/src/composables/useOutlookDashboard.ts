@@ -1,12 +1,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as signalR from '@microsoft/signalr'
 import {
-  normalizeExportedMailAttachment,
   normalizeMailAttachments,
-  normalizeMailBody,
-  normalizeMailItem,
-  normalizeMailSearchSliceResult,
-  normalizeMailSearchProgress,
   normalizeMailItems,
   normalizeOutlookCategories,
   outlookApi,
@@ -18,20 +13,13 @@ import type {
   AppView,
   CalendarEventDto,
   ChatMessageDto,
-  FolderSyncBatchDto,
-  FolderSyncBeginDto,
-  FolderSyncCompleteDto,
   FolderTreeNode,
-  ExportedMailAttachmentDto,
   MailAttachmentDto,
   MailAttachmentsDto,
-  MailBodyDto,
   MailItemDto,
   MailPropertiesDraft,
-  MailSearchCompleteDto,
   MailSearchProgressDto,
   MailPropertiesCommandRequest,
-  OutlookCommandResult,
   OutlookStoreDto,
   OutlookCategoryDto,
   OutlookRuleDto,
@@ -44,7 +32,7 @@ import {
   categoryOptionColor,
   categoryTextColor,
 } from '../utils/categoryColors'
-import { applyFolderBatch, buildFolderTree, collectFolderOptions, findFolderByPath, folderType, visibleRootFolders } from '../utils/folders'
+import { buildFolderTree, collectFolderOptions, findFolderByPath, folderType, visibleRootFolders } from '../utils/folders'
 import {
   addMonths,
   dateInputToIso,
@@ -53,7 +41,6 @@ import {
   flagIntervalOptions,
   flagTagType,
   isDefaultFlagRequest,
-  mergeStores,
   monthEndExclusive,
   monthStart,
   splitCategories,
@@ -98,6 +85,7 @@ export function useOutlookDashboard() {
   const fetchedMailFolderPath = ref('')
   const pendingMailFolderPath = ref('')
   const selectedMailIndex = ref<number | null>(null)
+  const selectedMailIds = ref<Set<string>>(new Set())
   const selectedMailHtml = ref(false)
   const searchMailDialogVisible = ref(false)
   const searchMailDialogIndex = ref<number | null>(null)
@@ -117,7 +105,6 @@ export function useOutlookDashboard() {
   const searchResultViewMode = ref<'flat' | 'tree'>('tree')
   const collapsedSearchResultStores = ref<Set<string>>(new Set())
   const collapsedSearchResultFolders = ref<Set<string>>(new Set())
-  const activeMailSearchId = ref('')
   const mailSearchProgress = ref<MailSearchProgressDto | null>(null)
   const mailSearchDraft = ref({
     keyword: '',
@@ -174,11 +161,8 @@ export function useOutlookDashboard() {
   let startupSyncStarted = false
   let activeOperationCommandId = ''
   let operationTimeoutId = 0
-  let activeMailSearchCommandId = ''
-  let mailSearchTimeoutId = 0
-  const mailBodyCommandIds = new Map<string, string>()
+  let lastSelectedMailIndex = -1
   const mailBodyTimeoutIds = new Map<string, number>()
-  const attachmentCommandIds = new Map<string, { type: 'fetch' | 'export'; mailId: string; attachmentId?: string }>()
   const attachmentTimeoutIds = new Map<string, number>()
 
   const visibleFolders = computed(() => visibleRootFolders(folders.value))
@@ -447,6 +431,7 @@ export function useOutlookDashboard() {
 
   function setMailSearchResults(items: MailItemDto[]) {
     mailSearchResults.value = [...items].sort(compareMailSearchResults)
+    if (mailListMode.value === 'search') pruneSelectedMailIds(mailSearchResults.value)
   }
 
   function toggleSearchResultStore(key: string) {
@@ -570,9 +555,11 @@ function categoryTagStyle(name: string) {
     mailAttachmentsByMailId.value = {}
     folderMails.value = items
     mailListMode.value = 'folder'
+    pruneSelectedMailIds(items)
 
     if (items.length === 0) {
       selectedMailIndex.value = null
+      lastSelectedMailIndex = -1
       openMailIndexes.value = new Set()
       htmlMailIndexes.value = new Set()
       return
@@ -586,42 +573,61 @@ function categoryTagStyle(name: string) {
     }
   }
 
-  function patchMail(nextMail: MailItemDto) {
-    if (!nextMail.id) return
-    patchMailInList(folderMails, nextMail)
-    patchMailInList(mailSearchResults, nextMail)
+  function pruneSelectedMailIds(items = mails.value) {
+    const visibleIds = new Set(items.map((mail) => mail.id).filter(Boolean))
+    selectedMailIds.value = new Set([...selectedMailIds.value].filter((id) => visibleIds.has(id)))
+    if (lastSelectedMailIndex >= items.length) lastSelectedMailIndex = -1
   }
 
-  function patchMailBody(body: MailBodyDto) {
-    if (!body.mailId) return
-    patchMailBodyInList(folderMails, body)
-    patchMailBodyInList(mailSearchResults, body)
-    completeMailBodyLoad(body.mailId)
+  function selectedBulkMoveMails() {
+    return mails.value.filter((mail) => mail.id && selectedMailIds.value.has(mail.id))
   }
 
-  function patchMailInList(target: typeof folderMails, nextMail: MailItemDto) {
-    const index = target.value.findIndex((mail) => mail.id === nextMail.id)
-    if (index < 0) return
-    const items = [...target.value]
-    items[index] = {
-      ...nextMail,
-      body: nextMail.body || items[index].body,
-      bodyHtml: nextMail.bodyHtml || items[index].bodyHtml,
+  function selectedBulkMoveSourcePaths() {
+    return new Set(selectedBulkMoveMails().map((mail) => mail.folderPath).filter(Boolean))
+  }
+
+  function selectOnlyMail(index: number) {
+    const mail = mails.value[index]
+    if (!mail?.id?.trim()) return
+    selectedMailIds.value = new Set([mail.id])
+    selectedMailIndex.value = index
+    lastSelectedMailIndex = index
+  }
+
+  function applyExplorerMailSelection(index: number, event?: MouseEvent) {
+    const mail = mails.value[index]
+    if (!mail?.id?.trim()) return 'none'
+    const next = new Set(selectedMailIds.value)
+
+    if (event?.shiftKey && lastSelectedMailIndex >= 0) {
+      const start = Math.min(lastSelectedMailIndex, index)
+      const end = Math.max(lastSelectedMailIndex, index)
+      for (let nextIndex = start; nextIndex <= end; nextIndex += 1) {
+        const id = mails.value[nextIndex]?.id
+        if (id) next.add(id)
+      }
+      selectedMailIds.value = next
+      selectedMailIndex.value = index
+      return 'range'
     }
-    target.value = items
+
+    if (event?.ctrlKey || event?.metaKey) {
+      if (next.has(mail.id)) next.delete(mail.id)
+      else next.add(mail.id)
+      selectedMailIds.value = next
+      selectedMailIndex.value = index
+      lastSelectedMailIndex = index
+      return 'toggle'
+    }
+
+    selectOnlyMail(index)
+    return 'single'
   }
 
-  function patchMailBodyInList(target: typeof folderMails, body: MailBodyDto) {
-    const index = target.value.findIndex((mail) => mail.id === body.mailId)
-    if (index < 0) return
-    const items = [...target.value]
-    items[index] = {
-      ...items[index],
-      body: body.body,
-      bodyHtml: body.bodyHtml,
-      folderPath: body.folderPath || items[index].folderPath,
-    }
-    target.value = items
+  function clearSelectedMails() {
+    selectedMailIds.value = new Set()
+    lastSelectedMailIndex = -1
   }
 
   function patchMailAttachments(payload: MailAttachmentsDto) {
@@ -631,37 +637,6 @@ function categoryTagStyle(name: string) {
       [payload.mailId]: payload.attachments,
     }
     completeAttachmentLoad(payload.mailId)
-  }
-
-  function patchExportedAttachment(payload: ExportedMailAttachmentDto) {
-    if (!payload.mailId || !payload.attachmentId) return
-    const attachments = mailAttachmentsByMailId.value[payload.mailId] ?? []
-    const matchedAttachment = attachments.find((attachment) => isSameAttachment(attachment, payload))
-    mailAttachmentsByMailId.value = {
-      ...mailAttachmentsByMailId.value,
-      [payload.mailId]: attachments.map((attachment) =>
-        isSameAttachment(attachment, payload)
-          ? {
-              ...attachment,
-              isExported: true,
-              exportedAttachmentId: payload.exportedAttachmentId,
-              exportedPath: payload.exportedPath,
-              size: payload.size || attachment.size,
-            }
-          : attachment,
-      ),
-    }
-    if (matchedAttachment) completeAttachmentExport(payload.mailId, matchedAttachment.attachmentId)
-    completeAttachmentExport(payload.mailId, payload.attachmentId)
-  }
-
-  function isSameAttachment(attachment: MailAttachmentDto, exported: ExportedMailAttachmentDto) {
-    return (
-      attachment.attachmentId === exported.attachmentId
-      || Boolean(attachment.id && attachment.id === exported.id)
-      || Boolean(attachment.index > 0 && attachment.index === exported.index)
-      || Boolean(attachment.name && attachment.name === exported.name)
-    )
   }
 
   async function loadCachedFolders() {
@@ -675,7 +650,8 @@ function categoryTagStyle(name: string) {
     if (outlookBusy.value && !force) return
     loadingFolders.value = true
     try {
-      await outlookApi.requestFolders()
+      const response = await outlookApi.requestFolders()
+      await waitForCommandResult(response.commandId)
       await loadCachedFolders()
       initialFoldersFetchCompleted = true
       updateOutlookFirstLoadCompleted()
@@ -722,13 +698,14 @@ function categoryTagStyle(name: string) {
 
     loadingFolders.value = true
     try {
-      await outlookApi.requestFolderChildren({
+      const response = await outlookApi.requestFolderChildren({
         storeId: root.storeId,
         parentEntryId: root.entryId,
         parentFolderPath: root.folderPath,
         maxDepth: 1,
         maxChildren: 50,
       })
+      await waitForCommandResult(response.commandId)
       await loadCachedFolders()
     } finally {
       loadingFolders.value = false
@@ -770,13 +747,15 @@ function categoryTagStyle(name: string) {
       if (folder?.hasChildren && !folder.childrenLoaded) {
         loadingFolders.value = true
         try {
-          await outlookApi.requestFolderChildren({
+          const response = await outlookApi.requestFolderChildren({
             storeId: folder.storeId,
             parentEntryId: folder.entryId,
             parentFolderPath: folder.folderPath,
             maxDepth: 1,
             maxChildren: 50,
           })
+          await waitForCommandResult(response.commandId)
+          await loadCachedFolders()
         } finally {
           loadingFolders.value = false
         }
@@ -862,12 +841,14 @@ function categoryTagStyle(name: string) {
     htmlMailIndexes.value = new Set()
     selectedMailIndex.value = null
     selectedMailHtml.value = false
+    clearSelectedMails()
     try {
-      await outlookApi.requestMails({
+      const response = await outlookApi.requestMails({
         folderPath: selectedFolderPath.value,
         range: mailRange.value,
         maxCount: mailCount.value,
       })
+      await waitForCommandResult(response.commandId)
       await loadCachedMails()
       pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
@@ -941,7 +922,6 @@ function categoryTagStyle(name: string) {
     const storeId = mailSearchDraft.value.scopeMode === 'global' ? '' : selectedStoreIdForSearch()
     activeMailSearchSummary.value = buildMailSearchSummary(storeId, scopeFolderPaths)
     loadingMailSearch.value = true
-    activeMailSearchId.value = searchId
     mailSearchProgress.value = null
     mailListMode.value = 'search'
     mailSearchResults.value = []
@@ -951,6 +931,7 @@ function categoryTagStyle(name: string) {
     openMailIndexes.value = new Set()
     htmlMailIndexes.value = new Set()
     selectedMailHtml.value = false
+    clearSelectedMails()
     try {
       const response = await outlookApi.requestMailSearch({
         searchId,
@@ -966,17 +947,14 @@ function categoryTagStyle(name: string) {
         receivedFrom: localDateTimeToIso(mailSearchDraft.value.receivedFrom),
         receivedTo: localDateTimeToIso(mailSearchDraft.value.receivedTo),
       })
-      activeMailSearchCommandId = response.commandId
+      await waitForCommandResult(response.commandId)
       try {
         mailSearchProgress.value = await outlookApi.getMailSearchProgressByCommandId(response.commandId)
       } catch {
-        // SignalR progress may arrive before this HTTP lookup is available.
+        // Search progress 不是每個失敗路徑都一定會留下 snapshot。
       }
-      window.clearTimeout(mailSearchTimeoutId)
-      mailSearchTimeoutId = window.setTimeout(() => {
-        loadingMailSearch.value = false
-        activeMailSearchCommandId = ''
-      }, 120000)
+      await loadCachedMailSearchResults()
+      loadingMailSearch.value = false
     } catch {
       loadingMailSearch.value = false
     }
@@ -985,21 +963,9 @@ function categoryTagStyle(name: string) {
   function showFolderMails() {
     mailListMode.value = 'folder'
     selectedMailIndex.value = null
+    lastSelectedMailIndex = -1
     openMailIndexes.value = new Set()
     htmlMailIndexes.value = new Set()
-  }
-
-  function applyMailSearchSliceResult(item: unknown) {
-    const batch = normalizeMailSearchSliceResult(item)
-    if (activeMailSearchId.value && batch.searchId && batch.searchId !== activeMailSearchId.value) return
-    if (batch.searchId) activeMailSearchId.value = batch.searchId
-    const current = batch.reset ? [] : mailSearchResults.value
-    const byId = new Map(current.map((mail) => [mail.id, mail]))
-    for (const mail of batch.mails) byId.set(mail.id, mail)
-    setMailSearchResults([...byId.values()])
-    mailListMode.value = 'search'
-    if (selectedMailIndex.value === null && mailSearchResults.value.length > 0) selectedMailIndex.value = 0
-    if (batch.isFinal) loadingMailSearch.value = false
   }
 
   function openSearchMailDialog(index: number) {
@@ -1024,7 +990,8 @@ function categoryTagStyle(name: string) {
     if (outlookBusy.value) return
     loadingRules.value = true
     try {
-      await outlookApi.requestRules()
+      const response = await outlookApi.requestRules()
+      await waitForCommandResult(response.commandId)
       await loadCachedRules()
       loadingRules.value = false
     } catch {
@@ -1036,7 +1003,8 @@ function categoryTagStyle(name: string) {
     if (outlookBusy.value && !force) return
     loadingCategories.value = true
     try {
-      await outlookApi.requestCategories()
+      const response = await outlookApi.requestCategories()
+      await waitForCommandResult(response.commandId)
       await loadCachedCategories()
       initialCategoriesFetchCompleted = true
       updateOutlookFirstLoadCompleted()
@@ -1053,24 +1021,16 @@ function categoryTagStyle(name: string) {
     if (loadingSignalRPing.value) return
     loadingSignalRPing.value = true
     try {
-      await outlookApi.requestSignalRPing()
+      const response = await outlookApi.requestSignalRPing()
+      await waitForCommandResult(response.commandId)
     } finally {
       loadingSignalRPing.value = false
     }
   }
 
-  async function waitForNotificationSignalRConnected(timeoutMs = 12000) {
-    const started = Date.now()
-    while (!unmounted && signalRState.value !== 'connected' && Date.now() - started < timeoutMs) {
-      await new Promise((resolve) => window.setTimeout(resolve, 100))
-    }
-    return signalRState.value === 'connected'
-  }
-
   async function runStartupOutlookSync() {
     if (startupSyncStarted) return
-    const connected = await waitForNotificationSignalRConnected()
-    if (!connected || unmounted) return
+    if (unmounted) return
     startupSyncStarted = true
     await requestFolders(true)
     if (!initialFoldersFetchCompleted) {
@@ -1098,11 +1058,12 @@ function categoryTagStyle(name: string) {
     try {
       const start = monthStart(calendarMonthDate.value)
       const end = monthEndExclusive(calendarMonthDate.value)
-      await outlookApi.requestCalendar({
+      const response = await outlookApi.requestCalendar({
         daysForward: Math.ceil((end.getTime() - start.getTime()) / 86400000),
         startDate: toDateKey(start),
         endDate: toDateKey(end),
       })
+      await waitForCommandResult(response.commandId)
       await loadCachedCalendar()
       loadingCalendar.value = false
     } catch {
@@ -1128,30 +1089,24 @@ function categoryTagStyle(name: string) {
     selectedCalendarEvent.value = event
   }
 
-  async function runMailOperation(action: () => Promise<unknown>) {
+  async function runMailOperation(action: () => Promise<unknown>, afterSuccess?: () => Promise<void>) {
     if (outlookBusy.value) return
     window.clearTimeout(operationTimeoutId)
     activeOperationCommandId = ''
     operationLoading.value = true
     try {
       const response = await action()
-      if (!operationLoading.value) return
       if (isCommandDispatchResponse(response)) {
         activeOperationCommandId = response.commandId
-        if (response.status === 'completed' || response.status === 'mocked') {
-          completeOperation(response.commandId)
-          return
-        }
-        if (response.status !== 'dispatched' && response.status !== 'mocked') {
+        if (!['completed', 'mocked', 'dispatched'].includes(response.status)) {
           operationLoading.value = false
           activeOperationCommandId = ''
           return
         }
+        await waitForCommandResult(response.commandId)
       }
-      operationTimeoutId = window.setTimeout(() => {
-        operationLoading.value = false
-        activeOperationCommandId = ''
-      }, 30000)
+      if (afterSuccess) await afterSuccess()
+      completeOperation(activeOperationCommandId)
     } catch {
       operationLoading.value = false
       activeOperationCommandId = ''
@@ -1162,6 +1117,22 @@ function categoryTagStyle(name: string) {
   function isCommandDispatchResponse(value: unknown): value is { commandId: string; status: string } {
     const response = value as { commandId?: unknown; status?: unknown }
     return typeof response?.commandId === 'string' && typeof response?.status === 'string'
+  }
+
+  async function waitForCommandResult(commandId: string, timeoutMs = 120000) {
+    if (!commandId) return
+    const started = Date.now()
+    while (!unmounted && Date.now() - started < timeoutMs) {
+      try {
+        const result = await outlookApi.getCommandResult(commandId)
+        if (result.success) return
+        if (result.message || result.timestamp) throw new Error(result.message || 'Outlook command failed')
+      } catch (error) {
+        if (error instanceof Error && error.message !== 'Request failed: 404') throw error
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 300))
+    }
+    throw new Error('Outlook command timed out')
   }
 
   function completeOperation(commandId = '') {
@@ -1178,16 +1149,12 @@ function categoryTagStyle(name: string) {
     const timeoutId = mailBodyTimeoutIds.get(mailId)
     if (timeoutId) window.clearTimeout(timeoutId)
     mailBodyTimeoutIds.delete(mailId)
-    for (const [commandId, trackedMailId] of mailBodyCommandIds) {
-      if (trackedMailId === mailId) mailBodyCommandIds.delete(commandId)
-    }
   }
 
   function clearMailBodyLoads() {
     loadingMailBodyIds.value = new Set()
     for (const timeoutId of mailBodyTimeoutIds.values()) window.clearTimeout(timeoutId)
     mailBodyTimeoutIds.clear()
-    mailBodyCommandIds.clear()
   }
 
   function attachmentKey(mailId: string, attachmentId: string) {
@@ -1201,9 +1168,6 @@ function categoryTagStyle(name: string) {
     const timeoutId = attachmentTimeoutIds.get(mailId)
     if (timeoutId) window.clearTimeout(timeoutId)
     attachmentTimeoutIds.delete(mailId)
-    for (const [commandId, tracked] of attachmentCommandIds) {
-      if (tracked.type === 'fetch' && tracked.mailId === mailId) attachmentCommandIds.delete(commandId)
-    }
   }
 
   function completeAttachmentExport(mailId: string, attachmentId: string) {
@@ -1214,11 +1178,6 @@ function categoryTagStyle(name: string) {
     const timeoutId = attachmentTimeoutIds.get(key)
     if (timeoutId) window.clearTimeout(timeoutId)
     attachmentTimeoutIds.delete(key)
-    for (const [commandId, tracked] of attachmentCommandIds) {
-      if (tracked.type === 'export' && tracked.mailId === mailId && tracked.attachmentId === attachmentId) {
-        attachmentCommandIds.delete(commandId)
-      }
-    }
   }
 
   function clearAttachmentLoads() {
@@ -1226,7 +1185,6 @@ function categoryTagStyle(name: string) {
     exportingAttachmentIds.value = new Set()
     for (const timeoutId of attachmentTimeoutIds.values()) window.clearTimeout(timeoutId)
     attachmentTimeoutIds.clear()
-    attachmentCommandIds.clear()
   }
 
   function isMailBodyLoading(mail: MailItemDto) {
@@ -1235,12 +1193,6 @@ function categoryTagStyle(name: string) {
 
   function mailHasBody(mail: MailItemDto) {
     return Boolean(mail.body || mail.bodyHtml)
-  }
-
-  function currentMailById(mailId: string) {
-    return folderMails.value.find((mail) => mail.id === mailId)
-      ?? mailSearchResults.value.find((mail) => mail.id === mailId)
-      ?? null
   }
 
   function isAttachmentListLoading(mail: MailItemDto) {
@@ -1259,14 +1211,9 @@ function categoryTagStyle(name: string) {
         mailId: mail.id,
         folderPath: mail.folderPath,
       })
-      const currentMail = currentMailById(mail.id)
-      if (currentMail && mailHasBody(currentMail)) {
-        completeMailBodyLoad(mail.id)
-        return
-      }
-      mailBodyCommandIds.set(response.commandId, mail.id)
-      const timeoutId = window.setTimeout(() => completeMailBodyLoad(mail.id), 30000)
-      mailBodyTimeoutIds.set(mail.id, timeoutId)
+      await waitForCommandResult(response.commandId)
+      await Promise.allSettled([loadCachedMails(), loadCachedMailSearchResults()])
+      completeMailBodyLoad(mail.id)
     } catch {
       completeMailBodyLoad(mail.id)
     }
@@ -1280,13 +1227,8 @@ function categoryTagStyle(name: string) {
         mailId: mail.id,
         folderPath: mail.folderPath,
       })
-      if (mailAttachmentsByMailId.value[mail.id]) {
-        completeAttachmentLoad(mail.id)
-        return
-      }
-      attachmentCommandIds.set(response.commandId, { type: 'fetch', mailId: mail.id })
-      const timeoutId = window.setTimeout(() => completeAttachmentLoad(mail.id), 30000)
-      attachmentTimeoutIds.set(mail.id, timeoutId)
+      await waitForCommandResult(response.commandId)
+      patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
     } catch {
       completeAttachmentLoad(mail.id)
     }
@@ -1307,14 +1249,9 @@ function categoryTagStyle(name: string) {
         fileName: attachment.fileName,
         displayName: attachment.displayName,
       })
-      const current = mailAttachmentsByMailId.value[mail.id]?.find((item) => item.attachmentId === attachment.attachmentId)
-      if (current?.isExported) {
-        completeAttachmentExport(mail.id, attachment.attachmentId)
-        return
-      }
-      attachmentCommandIds.set(response.commandId, { type: 'export', mailId: mail.id, attachmentId: attachment.attachmentId })
-      const timeoutId = window.setTimeout(() => completeAttachmentExport(mail.id, attachment.attachmentId), 30000)
-      attachmentTimeoutIds.set(key, timeoutId)
+      await waitForCommandResult(response.commandId)
+      patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
+      completeAttachmentExport(mail.id, attachment.attachmentId)
     } catch {
       completeAttachmentExport(mail.id, attachment.attachmentId)
     }
@@ -1336,7 +1273,12 @@ function categoryTagStyle(name: string) {
       ...payload,
       newCategories,
     }
-    await runMailOperation(() => outlookApi.requestUpdateMailProperties(body))
+    await runMailOperation(
+      () => outlookApi.requestUpdateMailProperties(body),
+      async () => {
+        await Promise.allSettled([loadCachedMails(), loadCachedMailSearchResults(), loadCachedCategories()])
+      },
+    )
   }
 
   function setMailFlagDraft(interval: string) {
@@ -1378,12 +1320,15 @@ function categoryTagStyle(name: string) {
     if (!categoryName || outlookBusy.value) return
     operationLoading.value = true
     try {
-      await outlookApi.requestUpsertCategory({
+      const response = await outlookApi.requestUpsertCategory({
         name: categoryName,
         color: color || 'olCategoryColorNone',
         colorValue: categoryColorValue(color || 'olCategoryColorNone'),
         shortcutKey,
       })
+      await waitForCommandResult(response.commandId)
+      await loadCachedCategories()
+      operationLoading.value = false
     } catch {
       operationLoading.value = false
     }
@@ -1420,11 +1365,14 @@ function categoryTagStyle(name: string) {
     if (!parentPath || !folderName || outlookBusy.value) return
     operationLoading.value = true
     try {
-      await outlookApi.requestCreateFolder({
+      const response = await outlookApi.requestCreateFolder({
         parentFolderPath: parentPath,
         name: folderName,
       })
+      await waitForCommandResult(response.commandId)
+      await loadCachedFolders()
       cancelCreateFolder()
+      operationLoading.value = false
     } catch {
       operationLoading.value = false
     }
@@ -1437,26 +1385,34 @@ function categoryTagStyle(name: string) {
     if (!confirmed) return
     operationLoading.value = true
     try {
-      await outlookApi.requestDeleteFolder({
+      const response = await outlookApi.requestDeleteFolder({
         folderPath: targetPath,
       })
+      await waitForCommandResult(response.commandId)
+      await loadCachedFolders()
       if (selectedFolderPath.value === targetPath) {
         selectedFolderPath.value = folderOptions.value[0]?.folderPath ?? ''
       }
+      operationLoading.value = false
     } catch {
       operationLoading.value = false
     }
   }
 
-  function selectMail(index: number) {
+  function selectMail(index: number, event?: MouseEvent) {
+    const wasSelectedMail = selectedMailIndex.value === index
+    const selectionMode = applyExplorerMailSelection(index, event)
+    if (selectionMode === 'none') return
+
     if (mailListMode.value === 'search') {
-      selectedMailIndex.value = index
       selectedMailHtml.value = false
       openMailIndexes.value = new Set()
       return
     }
 
-    if (selectedMailIndex.value === index) {
+    if (selectionMode !== 'single') return
+
+    if (wasSelectedMail) {
       const next = new Set(openMailIndexes.value)
       if (next.has(index)) next.delete(index)
       else {
@@ -1468,7 +1424,6 @@ function categoryTagStyle(name: string) {
       return
     }
 
-    selectedMailIndex.value = index
     selectedMailHtml.value = false
     const next = new Set<number>()
     next.add(index)
@@ -1479,13 +1434,53 @@ function categoryTagStyle(name: string) {
 
   async function moveMailToFolder(mail: MailItemDto, destinationFolderPath: string) {
     if (!mail.id?.trim() || !destinationFolderPath || destinationFolderPath === mail.folderPath) return
-    await runMailOperation(() =>
-      outlookApi.requestMoveMail({
-        mailId: mail.id,
-        sourceFolderPath: mail.folderPath,
-        destinationFolderPath,
-      }),
+    await runMailOperation(
+      () =>
+        outlookApi.requestMoveMail({
+          mailId: mail.id,
+          sourceFolderPath: mail.folderPath,
+          destinationFolderPath,
+        }),
+      async () => {
+        await Promise.allSettled([loadCachedMails(), loadCachedMailSearchResults(), loadCachedFolders()])
+      },
     )
+  }
+
+  async function moveSelectedMailsToFolder(destinationFolderPath: string) {
+    const selected = selectedBulkMoveMails()
+    if (selected.length === 0 || !destinationFolderPath || outlookBusy.value) return
+    const sourceFolderPaths = [...new Set(selected.map((mail) => mail.folderPath).filter(Boolean))]
+    await runMailOperation(
+      () =>
+        outlookApi.requestMoveMails({
+          mailIds: selected.map((mail) => mail.id),
+          sourceFolderPath: sourceFolderPaths.length === 1 ? sourceFolderPaths[0] : '',
+          sourceFolderPaths,
+          destinationFolderPath,
+          continueOnError: true,
+        }),
+      async () => {
+        await Promise.allSettled([loadCachedMails(), loadCachedMailSearchResults(), loadCachedFolders()])
+      },
+    )
+    clearSelectedMails()
+  }
+
+  function currentDragMailCount(mailId: string) {
+    return selectedMailIds.value.has(mailId) && selectedMailIds.value.size > 1
+      ? selectedMailIds.value.size
+      : 1
+  }
+
+  function setMailDragPreview(event: DragEvent, count: number) {
+    if (!event.dataTransfer) return
+    const preview = document.createElement('div')
+    preview.className = 'mail-drag-preview'
+    preview.textContent = `移動 ${count} 封郵件`
+    document.body.appendChild(preview)
+    event.dataTransfer.setDragImage(preview, 18, 18)
+    window.setTimeout(() => preview.remove(), 0)
   }
 
   async function deleteMail(mail: MailItemDto) {
@@ -1494,11 +1489,15 @@ function categoryTagStyle(name: string) {
     const targetName = deletedFolder?.label.trim() || '刪除的郵件 / Deleted Items'
     const confirmed = window.confirm(`將郵件「${mail.subject || mail.id}」移到「${targetName}」？`)
     if (!confirmed) return
-    await runMailOperation(() =>
-      outlookApi.requestDeleteMail({
-        mailId: mail.id,
-        folderPath: mail.folderPath,
-      }),
+    await runMailOperation(
+      () =>
+        outlookApi.requestDeleteMail({
+          mailId: mail.id,
+          folderPath: mail.folderPath,
+        }),
+      async () => {
+        await Promise.allSettled([loadCachedMails(), loadCachedMailSearchResults(), loadCachedFolders()])
+      },
     )
   }
 
@@ -1508,10 +1507,15 @@ function categoryTagStyle(name: string) {
       return
     }
     if (outlookBusy.value) return
-    selectMail(index)
+    if (!selectedMailIds.value.has(mail.id)) selectOnlyMail(index)
     draggedMailId.value = mail.id
     event.dataTransfer?.setData('text/plain', mail.id)
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+    if (event.dataTransfer) {
+      const count = currentDragMailCount(mail.id)
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/x-smartoffice-mail-count', String(count))
+      setMailDragPreview(event, count)
+    }
   }
 
   function clearMailDrag() {
@@ -1530,6 +1534,10 @@ function categoryTagStyle(name: string) {
     if (!mailId || outlookBusy.value) return
     const mail = mails.value.find((item) => item.id === mailId)
     if (!mail) return
+    if (selectedMailIds.value.has(mailId) && selectedMailIds.value.size > 1) {
+      await moveSelectedMailsToFolder(destinationFolderPath)
+      return
+    }
     await moveMailToFolder(mail, destinationFolderPath)
   }
 
@@ -1557,6 +1565,7 @@ function categoryTagStyle(name: string) {
     if (!text) return
     chatText.value = ''
     await outlookApi.sendChat({ source: 'web', text })
+    await loadChat()
   }
 
   async function refreshAdminData() {
@@ -1599,6 +1608,7 @@ function categoryTagStyle(name: string) {
     if (view === 'search') {
       mailListMode.value = 'search'
       selectedMailIndex.value = null
+      lastSelectedMailIndex = -1
       openMailIndexes.value = new Set()
       htmlMailIndexes.value = new Set()
       selectedMailHtml.value = false
@@ -1621,115 +1631,10 @@ function categoryTagStyle(name: string) {
     })
     connection.onreconnected(() => {
       signalRState.value = 'connected'
-      void runStartupOutlookSync()
+      void refreshAdminData()
     })
     connection.onclose(() => {
       signalRState.value = 'disconnected'
-    })
-    connection.on('FolderSyncStarted', (_info: FolderSyncBeginDto) => {
-      loadingFolders.value = true
-    })
-    connection.on('FoldersPatched', (batch: FolderSyncBatchDto) => {
-      if (batch.reset && batch.isFinal && batch.stores.length === 0 && batch.folders.length === 0 && folderOptions.value.length > 0) {
-        loadingFolders.value = false
-        completeOperation()
-        return
-      }
-
-      folderStores.value = mergeStores(batch.reset ? [] : folderStores.value, batch.stores)
-      folders.value = applyFolderBatch(folders.value, folderStores.value, batch)
-      selectDefaultFolder()
-      loadingFolders.value = !batch.isFinal
-      if (batch.isFinal) completeOperation()
-    })
-    connection.on('FolderSyncCompleted', (_info: FolderSyncCompleteDto) => {
-      initialFoldersFetchCompleted = true
-      updateOutlookFirstLoadCompleted()
-      loadingFolders.value = false
-      completeOperation()
-    })
-    connection.on('MailsUpdated', (items: unknown) => {
-      const nextMails = normalizeMailItems(items)
-      setMails(nextMails)
-      fetchedMailFolderPath.value = pendingMailFolderPath.value || inferMailFolderPath(nextMails, fetchedMailFolderPath.value)
-      pendingMailFolderPath.value = ''
-      initialMailsFetchCompleted = true
-      updateOutlookFirstLoadCompleted()
-      loadingMails.value = false
-      completeOperation()
-    })
-    connection.on('MailSearchStarted', (item: unknown) => {
-      const batch = normalizeMailSearchSliceResult(item)
-      if (batch.searchId) activeMailSearchId.value = batch.searchId
-      if (batch.reset) mailSearchResults.value = []
-      mailListMode.value = 'search'
-      loadingMailSearch.value = true
-    })
-    connection.on('MailSearchPatched', (item: unknown) => {
-      applyMailSearchSliceResult(item)
-    })
-    connection.on('MailSearchProgress', (item: unknown) => {
-      const progress = normalizeMailSearchProgress(item)
-      if (activeMailSearchId.value && progress.searchId && progress.searchId !== activeMailSearchId.value) return
-      mailSearchProgress.value = progress
-      if (progress.status === 'running') loadingMailSearch.value = true
-      if (['completed', 'failed', 'addin_unavailable'].includes(progress.status)) loadingMailSearch.value = false
-    })
-    connection.on('MailSearchCompleted', (info: MailSearchCompleteDto) => {
-      if (activeMailSearchId.value && info.searchId && info.searchId !== activeMailSearchId.value) return
-      loadingMailSearch.value = false
-      activeMailSearchCommandId = ''
-      window.clearTimeout(mailSearchTimeoutId)
-    })
-    connection.on('MailUpdated', (item: unknown) => {
-      const mail = normalizeMailItem(item)
-      patchMail(mail)
-      if (mailHasBody(mail)) completeMailBodyLoad(mail.id)
-      completeOperation()
-    })
-    connection.on('MailBodyUpdated', (item: unknown) => {
-      patchMailBody(normalizeMailBody(item))
-    })
-    connection.on('MailAttachmentsUpdated', (item: unknown) => {
-      patchMailAttachments(normalizeMailAttachments(item))
-    })
-    connection.on('MailAttachmentExported', (item: unknown) => {
-      patchExportedAttachment(normalizeExportedMailAttachment(item))
-    })
-    connection.on('RulesUpdated', (items: OutlookRuleDto[]) => {
-      rules.value = items
-      loadingRules.value = false
-      completeOperation()
-    })
-    connection.on('CategoriesUpdated', (items: unknown) => {
-      categories.value = normalizeOutlookCategories(items)
-      initialCategoriesFetchCompleted = true
-      updateOutlookFirstLoadCompleted()
-      loadingCategories.value = false
-      completeOperation()
-    })
-    connection.on('CalendarUpdated', (items: CalendarEventDto[]) => {
-      calendarEvents.value = items
-      loadingCalendar.value = false
-      completeOperation()
-    })
-    connection.on('CommandResult', (result: OutlookCommandResult) => {
-      const mailId = mailBodyCommandIds.get(result.commandId)
-      if (mailId) completeMailBodyLoad(mailId)
-      const attachmentCommand = attachmentCommandIds.get(result.commandId)
-      if (attachmentCommand?.type === 'export' && attachmentCommand.attachmentId) {
-        completeAttachmentExport(attachmentCommand.mailId, attachmentCommand.attachmentId)
-      }
-      completeOperation(result.commandId)
-      if (activeMailSearchCommandId && result.commandId === activeMailSearchCommandId && !result.success) {
-        loadingMailSearch.value = false
-        activeMailSearchCommandId = ''
-        window.clearTimeout(mailSearchTimeoutId)
-      }
-    })
-    connection.on('NewChatMessage', async (message: ChatMessageDto) => {
-      chatMessages.value = [...chatMessages.value, message]
-      await scrollChatToBottom()
     })
     connection.on('AddinStatus', (status: AddinStatusDto) => {
       addinStatus.value = status
@@ -1741,7 +1646,6 @@ function categoryTagStyle(name: string) {
     try {
       await connection.start()
       signalRState.value = 'connected'
-      void runStartupOutlookSync()
     } catch {
       signalRState.value = 'disconnected'
     }
@@ -1783,13 +1687,13 @@ function categoryTagStyle(name: string) {
       refreshAdminData(),
       loadAttachmentExportSettings(),
     ])
+    void runStartupOutlookSync()
   })
 
   onBeforeUnmount(() => {
     unmounted = true
     window.removeEventListener('click', closeFolderContextMenu)
     window.clearTimeout(operationTimeoutId)
-    window.clearTimeout(mailSearchTimeoutId)
     clearMailBodyLoads()
     clearAttachmentLoads()
     void connection?.stop()
@@ -1822,6 +1726,7 @@ function categoryTagStyle(name: string) {
     chatPanelRef,
     chatText,
     clearMailDrag,
+    clearSelectedMails,
     contextFolderName,
     createFolder,
     createFolderFromContext,
@@ -1908,6 +1813,7 @@ function categoryTagStyle(name: string) {
     selectedMailHasIdentity,
     selectedMailHtml,
     selectedMailIndex,
+    selectedMailIds,
     selectedMailIsOpen,
     selectFolder,
     selectCalendarEvent,

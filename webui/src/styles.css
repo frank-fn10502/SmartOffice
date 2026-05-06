@@ -869,6 +869,7 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 8px 14px;
   border-bottom: 1px solid #edf1f5;
@@ -1149,14 +1150,62 @@ select {
 
 .mail-row-shell {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
 }
 
+.search-result-table .mail-row-shell {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .mail-delete-button {
   justify-self: start;
+}
+
+.mail-drag-handle {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #667085;
+  cursor: grab;
+}
+
+.mail-drag-handle:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #1f5f99;
+}
+
+.mail-drag-handle:active {
+  cursor: grabbing;
+}
+
+.mail-drag-handle:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.mail-drag-preview {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  z-index: 9999;
+  padding: 6px 10px;
+  border: 1px solid #9ec5f8;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1f5f99;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgb(31 95 153 / 18%);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .mail-row {
@@ -1170,14 +1219,6 @@ select {
   color: inherit;
   text-align: left;
   cursor: pointer;
-}
-
-.mail-row[draggable="true"] {
-  cursor: grab;
-}
-
-.mail-row[draggable="true"]:active {
-  cursor: grabbing;
 }
 
 .mail-row-shell:hover,

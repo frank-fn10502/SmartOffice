@@ -287,6 +287,17 @@ namespace SmartOffice.Hub.Controllers
             return await DispatchCommandAsync(cmd, ct);
         }
 
+        [HttpPost("request-move-mails")]
+        public async Task<IActionResult> RequestMoveMails([FromBody] MoveMailsRequest req, CancellationToken ct)
+        {
+            var cmd = new PendingCommand
+            {
+                Type = "move_mails",
+                MoveMailsRequest = req
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
         [HttpPost("request-delete-mail")]
         public async Task<IActionResult> RequestDeleteMail([FromBody] DeleteMailRequest req, CancellationToken ct)
         {
@@ -329,6 +340,7 @@ namespace SmartOffice.Hub.Controllers
                 or "create_folder"
                 or "delete_folder"
                 or "move_mail"
+                or "move_mails"
                 or "delete_mail";
         }
 
