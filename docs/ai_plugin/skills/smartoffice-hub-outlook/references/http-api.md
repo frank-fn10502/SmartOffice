@@ -4,9 +4,7 @@
 
 Default: `http://localhost:2805`.
 
-Shell examples use `${SMARTOFFICE_OUTLOOK_URL:-http://localhost:2805}`.
-
-所有 endpoint 都在 `/api/outlook` 底下。外部 AI agent 只呼叫 HTTP API，不需要知道 API 背後的實作細節。
+所有 endpoint 都在 `/api/outlook` 底下。
 
 ## Dispatch Response
 
@@ -33,6 +31,15 @@ Shell examples use `${SMARTOFFICE_OUTLOOK_URL:-http://localhost:2805}`.
 ```
 
 常見 `status`：`completed`、`mocked`、`timeout`、`failed`、`folder_cache_unavailable`、`no_searchable_folder`。遇到其他非完成狀態時，回報原始 `status` 與 `message`。
+
+`request-*` response 不是資料本體。取得 `commandId` 後仍要查 `GET /api/outlook/command-results/{commandId}`；完成後讀對應 snapshot endpoint：
+
+- folder request -> `GET /api/outlook/folders`
+- mail list / body request -> `GET /api/outlook/mails`
+- mail attachment request -> `GET /api/outlook/mail-attachments?mailId={mailId}`
+- mail search request -> `GET /api/outlook/mail-search`
+- calendar request -> `GET /api/outlook/calendar`
+- rules / categories request -> `GET /api/outlook/rules` 或 `GET /api/outlook/categories`
 
 ## Command Results
 
@@ -99,6 +106,14 @@ Request:
 
 API 會 clamp `maxDepth` 到 1-3、`maxChildren` 到 1-200，並設定 `reset=false`。
 若要尋找預設 Inbox，先對主要 store root 呼叫此 endpoint，再從 `GET /api/outlook/folders` 找 `folderType="Inbox"` 或 localized folder name。不要假設 folder path 一定是英文 `\\Mailbox - User\Inbox`。
+
+主要 store root 來自 `GET /api/outlook/folders`：
+
+- 主要 store：預設使用 `stores[0]`。
+- root folder：同 `storeId`、`isStoreRoot=true` 的 `FolderDto`。
+- `request-folder-children.storeId` 使用 root 的 `storeId`。
+- `request-folder-children.parentEntryId` 使用 root 的 `entryId`。
+- `request-folder-children.parentFolderPath` 使用 root 的 `folderPath`。
 
 ## Mail List / Body / Attachment Endpoints
 
@@ -205,6 +220,35 @@ Request:
 - `flagState`: `any`、`flagged`、`unflagged`。
 - `readState`: `any`、`unread`、`read`。
 - `hasAttachments`: true / false / null。若只想用「存在附件」搜尋，設定 `hasAttachments=true` 並讓 `keyword` 保持空字串。
+
+Agent 預設 request 範例應像這樣指定單一 Inbox path：
+
+```json
+{
+  "searchId": "",
+  "storeId": "",
+  "scopeFolderPaths": ["\\\\主要信箱 - User\\收件匣"],
+  "includeSubFolders": true,
+  "keyword": "customer",
+  "textFields": ["subject"],
+  "categoryNames": [],
+  "hasAttachments": null,
+  "flagState": "any",
+  "readState": "any",
+  "receivedFrom": null,
+  "receivedTo": null
+}
+```
+
+只有使用者明確要求全信箱或全部已載入 mail folders 時，才可使用：
+
+```json
+{
+  "scopeFolderPaths": []
+}
+```
+
+使用空 scope 時，回覆使用者必須說明範圍是「目前 Hub folder cache 中已載入的可搜尋 mail folders」，不是保證完整 Outlook mailbox。
 
 Progress：
 
@@ -321,6 +365,14 @@ Chat text 可能含敏感 business data。
 `name`, `entryId`, `folderPath`, `parentEntryId`, `parentFolderPath`, `itemCount`, `storeId`, `isStoreRoot`, `folderType`, `defaultItemType`, `isHidden`, `isSystem`, `hasChildren`, `childrenLoaded`, `discoveryState`。
 
 `folderType`: `Unknown`, `StoreRoot`, `Mail`, `Inbox`, `Sent`, `Drafts`, `Deleted`, `Junk`, `Archive`, `Outbox`, `SyncIssues`, `Conflicts`, `LocalFailures`, `ServerFailures`, `Calendar`, `Contacts`, `Tasks`, `Notes`, `Journal`, `RssFeeds`, `ConversationHistory`, `ConversationActionSettings`, `OtherSystem`。
+
+主要 Inbox 選取規則：
+
+1. 從 `FolderSnapshotDto.stores[0]` 取得主要 `storeId`。
+2. 若主要 store root 的 `childrenLoaded=false`，先用 root `FolderDto` 展開 children。
+3. 在同一個 `storeId` 底下優先選 `folderType="Inbox"`。
+4. 若 `folderType` 不可靠，才 fallback 到 `name="收件匣"` 或 `name="Inbox"`。
+5. 後續 request 使用該 folder 的完整 `folderPath`，不要使用 `name` 或自行組路徑。
 
 ### `OutlookStoreDto`
 

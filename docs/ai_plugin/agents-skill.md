@@ -14,7 +14,7 @@
 
 ## 共用流程
 
-完整呼叫順序、curl 最小流程與資料安全限制請參考：
+完整呼叫順序、HTTP workflow 與資料安全限制請參考：
 
 - `docs/ai_plugin/mcp-agents-skill-integration.md`
 

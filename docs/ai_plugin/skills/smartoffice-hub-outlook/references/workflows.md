@@ -1,257 +1,211 @@
 # SmartOffice Outlook Workflows
 
-## Shell Setup
+本文件描述操作順序與判斷規則，不指定工具。Agent 可使用任何 HTTP client、MCP tool、SDK helper 或 shell，只要能送出 HTTP request 並以結構化方式解析 JSON。
 
-```bash
-export SMARTOFFICE_OUTLOOK_URL="${SMARTOFFICE_OUTLOOK_URL:-http://localhost:2805}"
+## 通用規則
+
+- Base URL 預設為 `http://localhost:2805`；只有使用者明確提供其他 Hub URL 時才改用該 URL。
+- 呼叫任何 `POST /api/outlook/request-*` 後，從 response 取出 `commandId`，查 `GET /api/outlook/command-results/{commandId}` 直到不是 `pending`。
+- `completed` 且 `success=true` 才進入下一步；`failed`、`folder_cache_unavailable`、`timeout` 或其他狀態要回報使用者。
+- HTTP 200 只代表 Hub 已處理 request 流程；真正資料要讀對應 snapshot endpoint。
+- 大型 JSON 可暫存到 skill folder 的 `tmp/<run>/`，但預設只保存 metadata，不保存完整 mail body。
+
+## API Status
+
+讀取：
+
+- `GET /api/outlook/admin/status`
+
+若 `connected=false`，回報 Outlook API 目前無法完成即時 request，並附上可用的簡短診斷。
+
+## Folder Scope
+
+未指定 folder 時，預設範圍是主要 mailbox 的 Inbox，但 `Inbox` 不是穩定 path。必須從 folder snapshot 找實際 `folderPath`：
+
+1. `POST /api/outlook/request-folders`
+2. 等待 command result。
+3. `GET /api/outlook/folders`
+4. 以 `stores[0]` 作為主要 store；使用同 `storeId` 且 `isStoreRoot=true` 的 folder 作為 root。
+5. 若主要 store root 的 `childrenLoaded=false`，用 root folder 的 `storeId`、`entryId`、`folderPath` 呼叫 `POST /api/outlook/request-folder-children`。
+6. 等待 command result。
+7. 再讀 `GET /api/outlook/folders`。
+8. 在主要 store 底下找 `folderType="Inbox"`；若 AddIn 未回報 folder type，再用 localized folder name，例如 `收件匣` 或 `Inbox`。
+
+Folder snapshot 形狀範例：
+
+```json
+{
+  "stores": [
+    {
+      "storeId": "store-primary",
+      "displayName": "主要信箱 - User",
+      "storeKind": "exchange",
+      "storeFilePath": "",
+      "rootFolderPath": "\\\\主要信箱 - User"
+    }
+  ],
+  "folders": [
+    {
+      "name": "主要信箱 - User",
+      "entryId": "root-entry-id",
+      "folderPath": "\\\\主要信箱 - User",
+      "parentEntryId": "",
+      "parentFolderPath": "",
+      "itemCount": 0,
+      "storeId": "store-primary",
+      "isStoreRoot": true,
+      "folderType": "StoreRoot",
+      "defaultItemType": -1,
+      "isHidden": false,
+      "isSystem": true,
+      "hasChildren": true,
+      "childrenLoaded": false,
+      "discoveryState": "partial"
+    }
+  ]
+}
 ```
 
-以下範例使用 `curl`；若環境有 JSON parser，請用結構化 parser 取出 `commandId`，不要用脆弱字串切割。
+展開主要 store root 的 request body：
 
-PowerShell 環境請優先使用 `curl.exe`，並用物件產生 JSON，避免反斜線與 quote escaping 出錯：
-
-```powershell
-$SMARTOFFICE_OUTLOOK_URL = if ($env:SMARTOFFICE_OUTLOOK_URL) { $env:SMARTOFFICE_OUTLOOK_URL } else { "http://localhost:2805" }
-$body = @{
-  folderPath = "\\主要信箱 - User\收件匣"
-  range = "1m"
-  maxCount = 30
-} | ConvertTo-Json -Depth 10
-curl.exe -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mails" -H "Content-Type: application/json" -d $body
+```json
+{
+  "storeId": "store-primary",
+  "parentEntryId": "root-entry-id",
+  "parentFolderPath": "\\\\主要信箱 - User",
+  "maxDepth": 1,
+  "maxChildren": 50
+}
 ```
 
-## Temporary JSON Workspace
+展開後，應從同一個 `storeId` 找 Inbox：
 
-API response 太大時，可在 skill folder 底下建立單次任務暫存資料夾：
-
-```bash
-RUN_DIR="tmp/$(date +%Y%m%d-%H%M%S)-$(uuidgen | cut -c1-6)"
-mkdir -p "$RUN_DIR"
+```json
+{
+  "name": "收件匣",
+  "entryId": "inbox-entry-id",
+  "folderPath": "\\\\主要信箱 - User\\收件匣",
+  "parentEntryId": "root-entry-id",
+  "parentFolderPath": "\\\\主要信箱 - User",
+  "storeId": "store-primary",
+  "isStoreRoot": false,
+  "folderType": "Inbox",
+  "defaultItemType": 0,
+  "hasChildren": true,
+  "childrenLoaded": false,
+  "discoveryState": "partial"
+}
 ```
 
-建議把大型 response 分檔保存，便於後續用 JSON parser 查找：
+後續任何 `folderPath` 都使用這個完整值：`\\主要信箱 - User\收件匣`。如果手寫 JSON，反斜線必須 escape 成 `\\\\主要信箱 - User\\收件匣`。
 
-```bash
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/admin/status" -o "$RUN_DIR/status.json"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails" -o "$RUN_DIR/mails.json"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID" -o "$RUN_DIR/command-$COMMAND_ID.json"
+找不到 Inbox 時，不要改成全域搜尋；回報目前 folder snapshot 無法定位主要 Inbox。
+
+## Recent Mails
+
+用 snapshot 中的實際 Inbox `folderPath` 呼叫：
+
+- `POST /api/outlook/request-mails`
+- `GET /api/outlook/command-results/{commandId}`
+- `GET /api/outlook/mails`
+
+Request body 重點欄位：
+
+```json
+{
+  "folderPath": "\\\\主要信箱 - User\\收件匣",
+  "range": "1m",
+  "maxCount": 30
+}
 ```
 
-暫存 JSON 可能含敏感 business data。預設只保存 metadata；只有任務需要時才保存 mail body 或 attachment metadata。任務完成後刪除該次 `tmp/<run>/`，且不要提交 `tmp/` 內容。
+回覆使用者時摘要 `subject`、`senderName`、`receivedTime`、`categories`、`flagInterval` 等 metadata，並說明「範圍：主要 mailbox 的 Inbox」或實際指定 folder。
 
-## Wait For Command
+## Mail Search
 
-1. 呼叫 `request-*`。
-2. 從 response 取出 `commandId`。
-3. 每 1-2 秒查：
+使用者未指定 folder 時，`scopeFolderPaths` 只放主要 mailbox 的實際 Inbox path。只有使用者明確要求其他 folder、子資料夾或全域搜尋時，才擴大 scope。
 
-```bash
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
+禁止把空陣列當作「預設 Inbox」。`scopeFolderPaths: []` 代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders；這會放大搜尋範圍。
+
+呼叫：
+
+- `POST /api/outlook/request-mail-search`
+- `GET /api/outlook/mail-search/progress/{searchId}` 或 `GET /api/outlook/command-results/{commandId}`
+- `GET /api/outlook/mail-search`
+
+Request body 重點欄位：
+
+```json
+{
+  "searchId": "",
+  "storeId": "",
+  "scopeFolderPaths": ["\\\\主要信箱 - User\\收件匣"],
+  "includeSubFolders": true,
+  "keyword": "",
+  "textFields": ["subject", "sender"],
+  "categoryNames": [],
+  "hasAttachments": null,
+  "flagState": "any",
+  "readState": "any",
+  "receivedFrom": "2026-05-01T00:00:00+08:00",
+  "receivedTo": "2026-06-01T00:00:00+08:00"
+}
 ```
 
-4. `status` 是 `pending` 時繼續等；`completed` 且 `success=true` 才進下一步。
-5. `failed`、`folder_cache_unavailable`、`timeout` 或其他非完成狀態都要回報使用者，不要假裝完成。
+`hasAttachments=true` 代表只找有附件；`false` 代表只找無附件；`null` 代表不限。`keyword` 可為空字串，表示只套用日期、附件、已讀、旗標等條件。
 
-## Check API Status
+若 response status 是 `no_searchable_folder`，先檢查 `scopeFolderPaths` 是否完全等於 snapshot 中的真實 `folderPath`，並在必要時展開 root children；不要用猜測路徑重試，也不要自行改成全域搜尋。
 
-```bash
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/admin/status"
-```
+若使用者明確要求全信箱搜尋，才可以送空 `scopeFolderPaths`；回覆時必須說明本次搜尋範圍是目前 cache 中已載入的可搜尋 mail folders，而不是保證完整 Outlook mailbox。
 
-若 `connected=false`，回報目前 Outlook API 無法完成即時 request，並附上 status response 中可用的簡短診斷資訊。
-
-## Load Folders
-
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-folders"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/folders"
-```
-
-`request-folders` 只載入 stores 與 root folders。若 root folder 的 `childrenLoaded=false`，要展開主要 mailbox root children 後再找 Inbox：
-
-若需要展開某個 folder 的 children：
-
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-folder-children" \
-  -H "Content-Type: application/json" \
-  -d '{"storeId":"store-id","parentEntryId":"root-entry-id","parentFolderPath":"\\\\主要信箱 - User","maxDepth":1,"maxChildren":50}'
-```
-
-展開後從 `GET /api/outlook/folders` 找主要 store 底下 `folderType="Inbox"` 的項目；若 AddIn 尚未回報 folder type，可用 localized folder name，例如中文 Outlook 常見 `收件匣`。取得的 `folderPath` 才能用在 `request-mails` 或 `request-mail-search`。
-
-PowerShell 範例：
-
-```powershell
-$roots = curl.exe -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/folders" | ConvertFrom-Json
-$primaryRoot = $roots.folders | Where-Object { $_.isStoreRoot -eq $true -and $_.storeId -eq $roots.stores[0].storeId } | Select-Object -First 1
-$body = @{
-  storeId = $primaryRoot.storeId
-  parentEntryId = $primaryRoot.entryId
-  parentFolderPath = $primaryRoot.folderPath
-  maxDepth = 1
-  maxChildren = 100
-} | ConvertTo-Json -Depth 10
-curl.exe -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-folder-children" -H "Content-Type: application/json" -d $body
-$snapshot = curl.exe -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/folders" | ConvertFrom-Json
-$inbox = $snapshot.folders | Where-Object { $_.storeId -eq $primaryRoot.storeId -and ($_.folderType -eq "Inbox" -or $_.name -eq "收件匣" -or $_.name -eq "Inbox") } | Select-Object -First 1
-```
-
-## Load Recent Mails
-
-未指定 folder 時預設使用主要 mailbox 的 Inbox；不要主動載入或搜尋其他 folder。`folderPath` 必須取自 folder snapshot，不可硬寫英文 `Inbox`。
-
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mails" \
-  -H "Content-Type: application/json" \
-  -d '{"folderPath":"\\\\Mailbox - User\\Inbox","range":"1m","maxCount":30}'
-
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails"
-```
-
-回覆使用者時優先摘要 `subject`、`senderName`、`receivedTime`、`categories`、`flagInterval` 等 metadata；不要主動輸出完整 body。
-回覆中必須說明 folder 範圍，例如「範圍：主要 mailbox 的 Inbox」。
-
-## Read One Mail Body
+## Read Body Or Attachments
 
 先從 `GET /api/outlook/mails` 或 `GET /api/outlook/mail-search` 找到目標 `id` 與 `folderPath`。
 
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-body" \
-  -H "Content-Type: application/json" \
-  -d '{"mailId":"mail-id","folderPath":"\\\\Mailbox - User\\Inbox"}'
+讀 body：
 
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails"
-```
+- `POST /api/outlook/request-mail-body`
+- `GET /api/outlook/command-results/{commandId}`
+- `GET /api/outlook/mails`
 
-只取任務需要的 body 片段；避免把整封信貼回對話。
+讀 attachment metadata：
 
-## Read Mail Attachments
+- `POST /api/outlook/request-mail-attachments`
+- `GET /api/outlook/command-results/{commandId}`
+- `GET /api/outlook/mail-attachments?mailId={mailId}`
 
-先從 `GET /api/outlook/mails` 或 `GET /api/outlook/mail-search` 找到目標 `id` 與 `folderPath`。
+只取任務需要的內容片段；不要把完整 body、attachment path 或大量敏感資料貼回對話。
 
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-attachments" \
-  -H "Content-Type: application/json" \
-  -d '{"mailId":"mail-id","folderPath":"\\\\Mailbox - User\\Inbox"}'
+## Mutations
 
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-attachments?mailId=mail-id"
-```
+修改、移動或刪除 mail 前，必須使用 snapshot 中的 `mailId` 與 `folderPath`，並確認目標就是使用者指定的 mail。
 
-若要匯出附件，使用回傳的 `attachmentId` 或 `index`，不要用附件顯示名稱猜測。
+若 snapshot 中有多封 mail 符合同一 subject 或 sender，不要任選一封。先向使用者列出必要 metadata，例如 `receivedTime`、`senderName`、短 subject，請使用者確認目標。
 
-## Search Mail
+常用 endpoint：
 
-未指定 folder 時，`scopeFolderPaths` 只放主要 mailbox 的 Inbox。只有使用者明確要求其他 folder、子資料夾或全域搜尋時，才擴大 scope。Inbox path 必須取自 folder snapshot，不可硬寫英文 `Inbox`；中文 Outlook 常見名稱是 `收件匣`。
+- `POST /api/outlook/request-update-mail-properties`
+- `POST /api/outlook/request-move-mail`
+- `POST /api/outlook/request-delete-mail`
 
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" \
-  -H "Content-Type: application/json" \
-  -d '{"scopeFolderPaths":["\\\\Mailbox - User\\Inbox"],"includeSubFolders":true,"keyword":"customer","textFields":["subject","sender"],"categoryNames":[],"hasAttachments":null,"flagState":"any","readState":"any","receivedFrom":null,"receivedTo":null}'
-```
-
-從 response 取得 `commandId` 與 `searchId`。等待時可查：
-
-```bash
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-search/progress/$SEARCH_ID"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
-```
-
-完成或需要檢視累積結果時：
-
-```bash
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-search"
-```
-
-若使用者只說「收件夾」或沒有指定 folder，使用主要 mailbox 的 Inbox 作為 `scopeFolderPaths`。不要為了保險而搜尋所有 folder。
-回覆中必須說明 folder 範圍；若使用 `scopeFolderPaths=["\\\\Mailbox - User\\Inbox"]`，要讓使用者知道結果只來自該 Inbox scope。
-若 response status 是 `no_searchable_folder`，先檢查 `scopeFolderPaths` 是否完全等於 snapshot 中的真實 `folderPath`，並在必要時展開 root children；不要用猜測路徑重試。
-
-只依照「存在附件」搜尋時，`keyword` 可以是空字串：
-
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" \
-  -H "Content-Type: application/json" \
-  -d '{"scopeFolderPaths":["\\\\Mailbox - User\\Inbox"],"includeSubFolders":true,"keyword":"","textFields":["subject"],"categoryNames":[],"hasAttachments":true,"flagState":"any","readState":"any","receivedFrom":"2026-05-01T00:00:00+08:00","receivedTo":"2026-06-01T00:00:00+08:00"}'
-```
-
-`hasAttachments=false` 可搜尋沒有附件的信；`hasAttachments=null` 代表不限附件。
-
-PowerShell 條件搜尋範例：
-
-```powershell
-$searchBody = @{
-  searchId = ""
-  storeId = ""
-  scopeFolderPaths = @($inbox.folderPath)
-  includeSubFolders = $true
-  keyword = ""
-  textFields = @("subject", "sender")
-  categoryNames = @()
-  hasAttachments = $null
-  flagState = "any"
-  readState = "any"
-  receivedFrom = "2026-05-01T00:00:00+08:00"
-  receivedTo = "2026-06-01T00:00:00+08:00"
-} | ConvertTo-Json -Depth 10
-$search = curl.exe -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" -H "Content-Type: application/json" -d $searchBody | ConvertFrom-Json
-curl.exe -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$($search.commandId)"
-curl.exe -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-search"
-```
-
-## Update Mail Properties
-
-先取得 `mailId` 與 `folderPath`，並向使用者確認會修改哪一封 mail。
-
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-update-mail-properties" \
-  -H "Content-Type: application/json" \
-  -d '{"mailId":"mail-id","folderPath":"\\\\Mailbox - User\\Inbox","isRead":true,"flagInterval":"today","flagRequest":"今天","taskStartDate":null,"taskDueDate":null,"taskCompletedDate":null,"categories":["Customer"],"newCategories":[]}'
-
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails"
-```
-
-## Move Or Delete Mail
-
-Move：
-
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-move-mail" \
-  -H "Content-Type: application/json" \
-  -d '{"mailId":"mail-id","sourceFolderPath":"\\\\Mailbox - User\\Inbox","destinationFolderPath":"\\\\Mailbox - User\\Projects"}'
-```
-
-Delete：
-
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-delete-mail" \
-  -H "Content-Type: application/json" \
-  -d '{"mailId":"mail-id","folderPath":"\\\\Mailbox - User\\Inbox"}'
-```
-
-完成後讀 `mails` 與 `folders`，確認 snapshot 已更新。`delete-mail` 只代表移到 Deleted Items。
+`request-delete-mail` 代表移到 Deleted Items，不是永久刪除。mutation 完成後重新讀 `mails` 與必要的 `folders` snapshot，確認結果。
 
 ## Calendar
 
-```bash
-curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-calendar" \
-  -H "Content-Type: application/json" \
-  -d '{"daysForward":31,"startDate":null,"endDate":null}'
+呼叫：
 
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/calendar"
-```
+- `POST /api/outlook/request-calendar`
+- `GET /api/outlook/command-results/{commandId}`
+- `GET /api/outlook/calendar`
+
+Request body 可使用 `daysForward`，或指定 `startDate` / `endDate`。
 
 ## API Contract Reflection Checklist
 
-若實作 workflow 時卡住，優先檢查：
+若 workflow 讓 agent 必須猜測或重複試錯，回報使用者：
 
-- request response 是否包含足夠 correlation id，例如 `commandId`、`searchId`。
-- cache endpoint 是否能取得 mutation 後的新狀態。
-- 欄位是否讓 agent 不必用 display name 猜測目標。
-- sensitive fields 是否有必要回傳；能否只查 metadata。
-- destructive 操作是否可以用 snapshot 中的 id/path 做明確確認。
+- request response 是否足以指出下一個 cache endpoint。
+- mutation endpoint 是否要求穩定 id，而不是只靠顯示名稱。
+- folder scope 是否能從 snapshot 穩定取得。
+- sensitive fields 是否有必要回傳。
+- mail search 的進度、結果與 command result 是否能清楚串接。
