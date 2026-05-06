@@ -12,3 +12,4 @@
 - `docs/ai_plugin/mcp.md`：MCP adapter 與 tool 設計入口。
 - `docs/ai_plugin/agents-skill.md`：Agents SKILL 設計入口。
 - `docs/ai_plugin/mcp-agents-skill-integration.md`：MCP 與 Agents SKILL 共用的 Hub integration 建議流程。
+- `docs/ai_plugin/skills/smartoffice-hub-outlook/`：可安裝的 SmartOffice.Hub Outlook Agents SKILL 資料夾。

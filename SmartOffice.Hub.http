@@ -22,6 +22,10 @@ Content-Type: application/json
 GET {{SmartOffice.Hub_HostAddress}}/api/outlook/mails
 Accept: application/json
 
+### 取得單封郵件的 cached attachment metadata
+GET {{SmartOffice.Hub_HostAddress}}/api/outlook/mail-attachments?mailId=mail-id
+Accept: application/json
+
 ### 送出 chat message
 POST {{SmartOffice.Hub_HostAddress}}/api/outlook/chat
 Content-Type: application/json

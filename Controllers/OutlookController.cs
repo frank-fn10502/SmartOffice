@@ -353,6 +353,19 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
+        /// Web UI、AI 或 MCP client 取得單封 mail 的 cached attachment metadata。
+        /// </summary>
+        [HttpGet("mail-attachments")]
+        public IActionResult GetMailAttachments([FromQuery] string mailId)
+        {
+            if (string.IsNullOrWhiteSpace(mailId))
+                return BadRequest(new { status = "missing_mail_id" });
+
+            var attachments = _mailStore.GetMailAttachments(mailId);
+            return attachments is null ? NotFound(new { status = "not_found" }) : Ok(attachments);
+        }
+
+        /// <summary>
         /// Web UI 取得 cached folders。
         /// </summary>
         [HttpGet("folders")]

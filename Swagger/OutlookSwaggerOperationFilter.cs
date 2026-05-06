@@ -149,6 +149,11 @@ namespace SmartOffice.Hub.Swagger
                 "取得 cached mails",
                 "只讀取 Hub 目前記憶體中的 mail snapshot，不會呼叫 Outlook。若需要刷新，先呼叫 `POST /api/outlook/request-mails` 或 `POST /api/outlook/request-mail-search`。",
                 typeof(List<MailItemDto>)),
+            ["GET api/outlook/mail-attachments"] = new(
+                "Attachments",
+                "取得單封郵件的 cached attachment metadata",
+                "只讀取 Hub 目前記憶體中的 attachment metadata。若需要刷新，先呼叫 `POST /api/outlook/request-mail-attachments`，等待 command 完成後用 query string `mailId` 查詢。",
+                typeof(MailAttachmentsDto)),
             ["GET api/outlook/folders"] = new(
                 "Cached Snapshots",
                 "取得 cached folders",
