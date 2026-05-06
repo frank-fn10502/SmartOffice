@@ -1,9 +1,9 @@
-# SmartOffice.Hub Outlook Workflows
+# SmartOffice Outlook Workflows
 
 ## Shell Setup
 
 ```bash
-export SMARTOFFICE_HUB_URL="${SMARTOFFICE_HUB_URL:-http://localhost:2805}"
+export SMARTOFFICE_OUTLOOK_URL="${SMARTOFFICE_OUTLOOK_URL:-http://localhost:2805}"
 ```
 
 以下範例使用 `curl`；若環境有 JSON parser，請用結構化 parser 取出 `commandId`，不要用脆弱字串切割。
@@ -15,36 +15,32 @@ export SMARTOFFICE_HUB_URL="${SMARTOFFICE_HUB_URL:-http://localhost:2805}"
 3. 每 1-2 秒查：
 
 ```bash
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
 ```
 
 4. `status` 是 `pending` 時繼續等；`completed` 且 `success=true` 才進下一步。
-5. `failed`、`addin_unavailable`、`folder_cache_unavailable`、`timeout` 都要回報使用者，不要假裝完成。
+5. `failed`、`folder_cache_unavailable`、`timeout` 或其他非完成狀態都要回報使用者，不要假裝完成。
 
-## Check AddIn Status
-
-```bash
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/admin/status"
-```
-
-若 `connected=false`，可呼叫 ping 取得更具體 command result：
+## Check API Status
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-signalr-ping"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/admin/status"
 ```
+
+若 `connected=false`，回報目前 Outlook API 無法完成即時 request，並附上 status response 中可用的簡短診斷資訊。
 
 ## Load Folders
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-folders"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/folders"
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-folders"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/folders"
 ```
 
 若需要展開某個 folder 的 children：
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-folder-children" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-folder-children" \
   -H "Content-Type: application/json" \
   -d '{"storeId":"store-id","parentEntryId":"entry-id","parentFolderPath":"\\\\Mailbox - User\\Inbox","maxDepth":1,"maxChildren":50}'
 ```
@@ -52,12 +48,12 @@ curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-folder-children" \
 ## Load Recent Mails
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-mails" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mails" \
   -H "Content-Type: application/json" \
   -d '{"folderPath":"\\\\Mailbox - User\\Inbox","range":"1m","maxCount":30}'
 
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mails"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails"
 ```
 
 回覆使用者時優先摘要 `subject`、`senderName`、`receivedTime`、`categories`、`flagInterval` 等 metadata；不要主動輸出完整 body。
@@ -67,12 +63,12 @@ curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mails"
 先從 `GET /api/outlook/mails` 或 `GET /api/outlook/mail-search` 找到目標 `id` 與 `folderPath`。
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-mail-body" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-body" \
   -H "Content-Type: application/json" \
   -d '{"mailId":"mail-id","folderPath":"\\\\Mailbox - User\\Inbox"}'
 
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mails"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails"
 ```
 
 只取任務需要的 body 片段；避免把整封信貼回對話。
@@ -82,12 +78,12 @@ curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mails"
 先從 `GET /api/outlook/mails` 或 `GET /api/outlook/mail-search` 找到目標 `id` 與 `folderPath`。
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-mail-attachments" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-attachments" \
   -H "Content-Type: application/json" \
   -d '{"mailId":"mail-id","folderPath":"\\\\Mailbox - User\\Inbox"}'
 
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mail-attachments?mailId=mail-id"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-attachments?mailId=mail-id"
 ```
 
 若要匯出附件，使用回傳的 `attachmentId` 或 `index`，不要用附件顯示名稱猜測。
@@ -95,7 +91,7 @@ curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mail-attachments?mailId=mail-id"
 ## Search Mail
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-mail-search" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" \
   -H "Content-Type: application/json" \
   -d '{"scopeFolderPaths":["\\\\Mailbox - User\\Inbox"],"includeSubFolders":true,"keyword":"customer","textFields":["subject","sender"],"categoryNames":[],"hasAttachments":null,"flagState":"any","readState":"any","receivedFrom":null,"receivedTo":null}'
 ```
@@ -103,14 +99,14 @@ curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-mail-search" \
 從 response 取得 `commandId` 與 `searchId`。等待時可查：
 
 ```bash
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mail-search/progress/$SEARCH_ID"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-search/progress/$SEARCH_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
 ```
 
 完成或需要檢視累積結果時：
 
 ```bash
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mail-search"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-search"
 ```
 
 若使用者只說「收件夾」或沒有指定 folder，先用 folder snapshot 找主要 mailbox 的 Inbox，作為 `scopeFolderPaths`；通常同時設定 `includeSubFolders=true`。
@@ -118,7 +114,7 @@ curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mail-search"
 只依照「存在附件」搜尋時，`keyword` 可以是空字串：
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-mail-search" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" \
   -H "Content-Type: application/json" \
   -d '{"scopeFolderPaths":["\\\\Mailbox - User\\Inbox"],"includeSubFolders":true,"keyword":"","textFields":["subject"],"categoryNames":[],"hasAttachments":true,"flagState":"any","readState":"any","receivedFrom":"2026-05-01T00:00:00+08:00","receivedTo":"2026-06-01T00:00:00+08:00"}'
 ```
@@ -130,12 +126,12 @@ curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-mail-search" \
 先取得 `mailId` 與 `folderPath`，並向使用者確認會修改哪一封 mail。
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-update-mail-properties" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-update-mail-properties" \
   -H "Content-Type: application/json" \
   -d '{"mailId":"mail-id","folderPath":"\\\\Mailbox - User\\Inbox","isRead":true,"flagInterval":"today","flagRequest":"今天","taskStartDate":null,"taskDueDate":null,"taskCompletedDate":null,"categories":["Customer"],"newCategories":[]}'
 
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mails"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails"
 ```
 
 ## Move Or Delete Mail
@@ -143,7 +139,7 @@ curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/mails"
 Move：
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-move-mail" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-move-mail" \
   -H "Content-Type: application/json" \
   -d '{"mailId":"mail-id","sourceFolderPath":"\\\\Mailbox - User\\Inbox","destinationFolderPath":"\\\\Mailbox - User\\Projects"}'
 ```
@@ -151,7 +147,7 @@ curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-move-mail" \
 Delete：
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-delete-mail" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-delete-mail" \
   -H "Content-Type: application/json" \
   -d '{"mailId":"mail-id","folderPath":"\\\\Mailbox - User\\Inbox"}'
 ```
@@ -161,12 +157,12 @@ curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-delete-mail" \
 ## Calendar
 
 ```bash
-curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-calendar" \
+curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-calendar" \
   -H "Content-Type: application/json" \
   -d '{"daysForward":31,"startDate":null,"endDate":null}'
 
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/$COMMAND_ID"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/calendar"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/calendar"
 ```
 
 ## API Contract Reflection Checklist

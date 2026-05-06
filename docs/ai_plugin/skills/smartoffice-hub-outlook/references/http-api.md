@@ -1,10 +1,12 @@
-# SmartOffice.Hub Outlook HTTP API Reference
+# SmartOffice Outlook HTTP API Reference
 
 ## Base URL
 
-Use `${SMARTOFFICE_HUB_URL:-http://localhost:2805}`.
+Default: `http://localhost:2805`.
 
-所有 endpoint 都在 `/api/outlook` 底下。外部 AI agent 只呼叫 HTTP API；SignalR `/hub/outlook-addin` 是工作機 Outlook AddIn 的 channel。
+Shell examples use `${SMARTOFFICE_OUTLOOK_URL:-http://localhost:2805}`.
+
+所有 endpoint 都在 `/api/outlook` 底下。外部 AI agent 只呼叫 HTTP API，不需要知道 API 背後的實作細節。
 
 ## Dispatch Response
 
@@ -30,7 +32,7 @@ Use `${SMARTOFFICE_HUB_URL:-http://localhost:2805}`.
 }
 ```
 
-常見 `status`：`completed`、`mocked`、`timeout`、`failed`、`addin_unavailable`、`folder_cache_unavailable`、`no_searchable_folder`。
+常見 `status`：`completed`、`mocked`、`timeout`、`failed`、`folder_cache_unavailable`、`no_searchable_folder`。遇到其他非完成狀態時，回報原始 `status` 與 `message`。
 
 ## Command Results
 
@@ -41,20 +43,19 @@ Use `${SMARTOFFICE_HUB_URL:-http://localhost:2805}`.
 
 - `commandId`: string
 - `type`: string
-- `status`: `pending`、`completed`、`failed`、`addin_unavailable`
+- `status`: `pending`、`completed`、`failed`，也可能出現其他 API 回傳的狀態字串。
 - `success`: boolean 或 null
 - `message`: string
 - `payload`: string；只當簡短診斷，不要期待完整 mail body。
 - `dispatchTimestamp`: DateTime
 - `resultTimestamp`: DateTime 或 null
 
-## Diagnostics
+## API Status
 
-- `GET /api/outlook/admin/status` -> `AddinStatusDto`
-- `GET /api/outlook/admin/logs` -> `AddinLogEntry[]`
-- `POST /api/outlook/request-signalr-ping` -> dispatch `ping`
+- `GET /api/outlook/admin/status`
+- `GET /api/outlook/admin/logs`
 
-`AddinStatusDto`：
+Status fields：
 
 - `connected`: boolean
 - `lastPollTime`: DateTime 或 null
@@ -63,7 +64,7 @@ Use `${SMARTOFFICE_HUB_URL:-http://localhost:2805}`.
 
 ## Cached Snapshot Endpoints
 
-這些 GET 不會觸發 Outlook automation，只讀 Hub memory cache：
+這些 GET 不會送出新 request，只讀 memory cache：
 
 - `GET /api/outlook/folders` -> `FolderSnapshotDto`
 - `GET /api/outlook/mails` -> `MailItemDto[]`
@@ -74,7 +75,7 @@ Use `${SMARTOFFICE_HUB_URL:-http://localhost:2805}`.
 - `GET /api/outlook/calendar` -> `CalendarEventDto[]`
 - `GET /api/outlook/chat` -> `ChatMessageDto[]`
 
-Hub restart 後 cache 會清空，需要重新 request。
+服務 restart 後 cache 會清空，需要重新 request。
 
 ## Folder Endpoints
 
@@ -96,7 +97,7 @@ Request:
 }
 ```
 
-Hub 會 clamp `maxDepth` 到 1-3、`maxChildren` 到 1-200，並設定 `reset=false`。
+API 會 clamp `maxDepth` 到 1-3、`maxChildren` 到 1-200，並設定 `reset=false`。
 
 ## Mail List / Body / Attachment Endpoints
 
@@ -138,7 +139,7 @@ Request:
 }
 ```
 
-完成後 attachment metadata 會進入 Hub state；Web UI 會收到 SignalR 更新。
+完成後 attachment metadata 會進入 server state；Web UI 會收到更新。
 
 讀取 cached attachment metadata：
 
@@ -163,7 +164,7 @@ Request:
 }
 ```
 
-`exportRootPath` 空白時 Hub 會使用目前 attachment export settings。完成後使用 `exportedAttachmentId` 呼叫 open endpoint。
+`exportRootPath` 空白時 API 會使用目前 attachment export settings。完成後使用 `exportedAttachmentId` 呼叫 open endpoint。
 
 ### Attachment Settings / Open
 
@@ -171,7 +172,7 @@ Request:
 - `POST /api/outlook/attachment-export-settings` with `{ "rootPath": "..." }`
 - `POST /api/outlook/open-exported-attachment` with `{ "exportedAttachmentId": "..." }`
 
-只接受 Hub 已記錄的 exported attachment id，不接受任意本機路徑。
+只接受已記錄的 exported attachment id，不接受任意本機路徑。
 
 ## Mail Search
 
@@ -198,7 +199,7 @@ Request:
 
 - `scopeFolderPaths` 空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders。
 - 使用者未指定 folder 時，建議先從 `GET /api/outlook/folders` 選擇主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值。
-- `textFields`: `subject`、`sender`、`body`；Hub 會 normalize，不合法時回到 `subject`。
+- `textFields`: `subject`、`sender`、`body`；API 會 normalize，不合法時回到 `subject`。
 - `flagState`: `any`、`flagged`、`unflagged`。
 - `readState`: `any`、`unread`、`read`。
 - `hasAttachments`: true / false / null。若只想用「存在附件」搜尋，設定 `hasAttachments=true` 並讓 `keyword` 保持空字串。

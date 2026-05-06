@@ -7,7 +7,7 @@ MARKER_FILE=".smartoffice-skill-id"
 
 usage() {
   cat <<'USAGE'
-安裝 SmartOffice.Hub Outlook Agents SKILL。
+安裝 SmartOffice Outlook Agents SKILL。
 
 用法:
   install.sh [options]

@@ -16,7 +16,7 @@ $MarkerFile = ".smartoffice-skill-id"
 
 function Show-Usage {
     @"
-安裝 SmartOffice.Hub Outlook Agents SKILL。
+安裝 SmartOffice Outlook Agents SKILL。
 
 用法:
   pwsh ./scripts/install.ps1 [options]
