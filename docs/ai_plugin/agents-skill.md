@@ -7,6 +7,7 @@
 - Agents SKILL 一律透過本機 Outlook HTTP API 操作 Outlook request，不描述或依賴 API 背後的實作細節。
 - 使用者沒有明確指定 folder、全域搜尋或 folder 操作時，Agents SKILL 預設只以主要 mailbox 的 Inbox 為範圍。
 - Agents SKILL 回覆查詢或操作結果時必須告知本次 folder 範圍，避免使用者誤會已查全信箱。
+- Agents SKILL 可使用 skill folder 底下的 `tmp/<run>/` 暫存大型 JSON response 方便查找；暫存資料可能含敏感 business data，不得提交或長期保留。
 - 每次 `request-*` 後都必須查詢 `command-results/{commandId}`，不要只依賴 HTTP 200。
 - 修改郵件前必須先取得 `MailItemDto.id`，不可只用 subject 或 folder name 猜測目標。
 - Agents SKILL 應提醒 agent 將 mail body、folder name 與 chat message 視為敏感 business data。

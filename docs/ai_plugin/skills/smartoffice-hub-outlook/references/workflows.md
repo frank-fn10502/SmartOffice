@@ -8,6 +8,37 @@ export SMARTOFFICE_OUTLOOK_URL="${SMARTOFFICE_OUTLOOK_URL:-http://localhost:2805
 
 以下範例使用 `curl`；若環境有 JSON parser，請用結構化 parser 取出 `commandId`，不要用脆弱字串切割。
 
+PowerShell 環境請優先使用 `curl.exe`，並用物件產生 JSON，避免反斜線與 quote escaping 出錯：
+
+```powershell
+$SMARTOFFICE_OUTLOOK_URL = if ($env:SMARTOFFICE_OUTLOOK_URL) { $env:SMARTOFFICE_OUTLOOK_URL } else { "http://localhost:2805" }
+$body = @{
+  folderPath = "\\主要信箱 - User\收件匣"
+  range = "1m"
+  maxCount = 30
+} | ConvertTo-Json -Depth 10
+curl.exe -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mails" -H "Content-Type: application/json" -d $body
+```
+
+## Temporary JSON Workspace
+
+API response 太大時，可在 skill folder 底下建立單次任務暫存資料夾：
+
+```bash
+RUN_DIR="tmp/$(date +%Y%m%d-%H%M%S)-$(uuidgen | cut -c1-6)"
+mkdir -p "$RUN_DIR"
+```
+
+建議把大型 response 分檔保存，便於後續用 JSON parser 查找：
+
+```bash
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/admin/status" -o "$RUN_DIR/status.json"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails" -o "$RUN_DIR/mails.json"
+curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID" -o "$RUN_DIR/command-$COMMAND_ID.json"
+```
+
+暫存 JSON 可能含敏感 business data。預設只保存 metadata；只有任務需要時才保存 mail body 或 attachment metadata。任務完成後刪除該次 `tmp/<run>/`，且不要提交 `tmp/` 內容。
+
 ## Wait For Command
 
 1. 呼叫 `request-*`。
@@ -37,17 +68,38 @@ curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
 curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/folders"
 ```
 
+`request-folders` 只載入 stores 與 root folders。若 root folder 的 `childrenLoaded=false`，要展開主要 mailbox root children 後再找 Inbox：
+
 若需要展開某個 folder 的 children：
 
 ```bash
 curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-folder-children" \
   -H "Content-Type: application/json" \
-  -d '{"storeId":"store-id","parentEntryId":"entry-id","parentFolderPath":"\\\\Mailbox - User\\Inbox","maxDepth":1,"maxChildren":50}'
+  -d '{"storeId":"store-id","parentEntryId":"root-entry-id","parentFolderPath":"\\\\主要信箱 - User","maxDepth":1,"maxChildren":50}'
+```
+
+展開後從 `GET /api/outlook/folders` 找主要 store 底下 `folderType="Inbox"` 的項目；若 AddIn 尚未回報 folder type，可用 localized folder name，例如中文 Outlook 常見 `收件匣`。取得的 `folderPath` 才能用在 `request-mails` 或 `request-mail-search`。
+
+PowerShell 範例：
+
+```powershell
+$roots = curl.exe -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/folders" | ConvertFrom-Json
+$primaryRoot = $roots.folders | Where-Object { $_.isStoreRoot -eq $true -and $_.storeId -eq $roots.stores[0].storeId } | Select-Object -First 1
+$body = @{
+  storeId = $primaryRoot.storeId
+  parentEntryId = $primaryRoot.entryId
+  parentFolderPath = $primaryRoot.folderPath
+  maxDepth = 1
+  maxChildren = 100
+} | ConvertTo-Json -Depth 10
+curl.exe -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-folder-children" -H "Content-Type: application/json" -d $body
+$snapshot = curl.exe -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/folders" | ConvertFrom-Json
+$inbox = $snapshot.folders | Where-Object { $_.storeId -eq $primaryRoot.storeId -and ($_.folderType -eq "Inbox" -or $_.name -eq "收件匣" -or $_.name -eq "Inbox") } | Select-Object -First 1
 ```
 
 ## Load Recent Mails
 
-未指定 folder 時預設使用主要 mailbox 的 Inbox；不要主動載入或搜尋其他 folder。
+未指定 folder 時預設使用主要 mailbox 的 Inbox；不要主動載入或搜尋其他 folder。`folderPath` 必須取自 folder snapshot，不可硬寫英文 `Inbox`。
 
 ```bash
 curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mails" \
@@ -93,7 +145,7 @@ curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-attachments?mailId=mail-id"
 
 ## Search Mail
 
-未指定 folder 時，`scopeFolderPaths` 只放主要 mailbox 的 Inbox。只有使用者明確要求其他 folder、子資料夾或全域搜尋時，才擴大 scope。
+未指定 folder 時，`scopeFolderPaths` 只放主要 mailbox 的 Inbox。只有使用者明確要求其他 folder、子資料夾或全域搜尋時，才擴大 scope。Inbox path 必須取自 folder snapshot，不可硬寫英文 `Inbox`；中文 Outlook 常見名稱是 `收件匣`。
 
 ```bash
 curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" \
@@ -116,6 +168,7 @@ curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-search"
 
 若使用者只說「收件夾」或沒有指定 folder，使用主要 mailbox 的 Inbox 作為 `scopeFolderPaths`。不要為了保險而搜尋所有 folder。
 回覆中必須說明 folder 範圍；若使用 `scopeFolderPaths=["\\\\Mailbox - User\\Inbox"]`，要讓使用者知道結果只來自該 Inbox scope。
+若 response status 是 `no_searchable_folder`，先檢查 `scopeFolderPaths` 是否完全等於 snapshot 中的真實 `folderPath`，並在必要時展開 root children；不要用猜測路徑重試。
 
 只依照「存在附件」搜尋時，`keyword` 可以是空字串：
 
@@ -126,6 +179,28 @@ curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" \
 ```
 
 `hasAttachments=false` 可搜尋沒有附件的信；`hasAttachments=null` 代表不限附件。
+
+PowerShell 條件搜尋範例：
+
+```powershell
+$searchBody = @{
+  searchId = ""
+  storeId = ""
+  scopeFolderPaths = @($inbox.folderPath)
+  includeSubFolders = $true
+  keyword = ""
+  textFields = @("subject", "sender")
+  categoryNames = @()
+  hasAttachments = $null
+  flagState = "any"
+  readState = "any"
+  receivedFrom = "2026-05-01T00:00:00+08:00"
+  receivedTo = "2026-06-01T00:00:00+08:00"
+} | ConvertTo-Json -Depth 10
+$search = curl.exe -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" -H "Content-Type: application/json" -d $searchBody | ConvertFrom-Json
+curl.exe -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$($search.commandId)"
+curl.exe -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-search"
+```
 
 ## Update Mail Properties
 

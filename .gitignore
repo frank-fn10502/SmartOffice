@@ -23,3 +23,6 @@ wwwroot/*
 # OS 檔案
 .DS_Store
 Thumbs.db
+
+# AI / Agents SKILL 暫存資料，可能包含敏感郵件內容
+docs/ai_plugin/skills/*/tmp/

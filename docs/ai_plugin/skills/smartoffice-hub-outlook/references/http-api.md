@@ -91,13 +91,14 @@ Request:
 {
   "storeId": "store-id",
   "parentEntryId": "folder-entry-id",
-  "parentFolderPath": "\\\\Mailbox - User\\Inbox",
+  "parentFolderPath": "\\\\主要信箱 - User",
   "maxDepth": 1,
   "maxChildren": 50
 }
 ```
 
 API 會 clamp `maxDepth` 到 1-3、`maxChildren` 到 1-200，並設定 `reset=false`。
+若要尋找預設 Inbox，先對主要 store root 呼叫此 endpoint，再從 `GET /api/outlook/folders` 找 `folderType="Inbox"` 或 localized folder name。不要假設 folder path 一定是英文 `\\Mailbox - User\Inbox`。
 
 ## Mail List / Body / Attachment Endpoints
 
@@ -107,13 +108,13 @@ Request:
 
 ```json
 {
-  "folderPath": "\\\\Mailbox - User\\Inbox",
+  "folderPath": "\\\\主要信箱 - User\\收件匣",
   "range": "1m",
   "maxCount": 30
 }
 ```
 
-`range`: `1d`、`1w`、`1m`。完成後讀 `GET /api/outlook/mails`。mail list 只應包含 metadata，完整 body 需另請求。
+`folderPath` 必須取自 `GET /api/outlook/folders` snapshot。`range`: `1d`、`1w`、`1m`。完成後讀 `GET /api/outlook/mails`。mail list 只應包含 metadata，完整 body 需另請求。
 
 ### `POST /api/outlook/request-mail-body`
 
@@ -184,7 +185,7 @@ Request:
 {
   "searchId": "optional-client-search-id",
   "storeId": "",
-  "scopeFolderPaths": ["\\\\Mailbox - User\\Inbox"],
+  "scopeFolderPaths": ["\\\\主要信箱 - User\\收件匣"],
   "includeSubFolders": true,
   "keyword": "customer",
   "textFields": ["subject"],
@@ -198,7 +199,8 @@ Request:
 ```
 
 - `scopeFolderPaths` 空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders；AI agent 不可在使用者未要求全域搜尋時送空陣列。
-- 使用者未指定 folder 時，使用主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值。
+- 使用者未指定 folder 時，使用主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值；此值必須取自 folder snapshot，不能硬寫英文 `Inbox`。
+- 若回應 `no_searchable_folder`，代表指定 scope 沒有對上目前 cached folders；先重新載入/展開 folders 並改用 snapshot 裡的實際 `folderPath`。
 - `textFields`: `subject`、`sender`、`body`；API 會 normalize，不合法時回到 `subject`。
 - `flagState`: `any`、`flagged`、`unflagged`。
 - `readState`: `any`、`unread`、`read`。
