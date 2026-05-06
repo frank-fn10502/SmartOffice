@@ -10,6 +10,7 @@ import {
   Rank,
   Refresh,
   Search,
+  View,
 } from '@element-plus/icons-vue'
 import CategoryManagerDialog from '../components/CategoryManagerDialog.vue'
 import FlagEditorDialog from '../components/FlagEditorDialog.vue'
@@ -57,7 +58,7 @@ const {
   chatMessages,
   chatPanelRef,
   chatText,
-  closeSearchMailDialog,
+  closeMailDialog,
   clearMailDrag,
   contextFolderName,
   createFolder,
@@ -91,6 +92,7 @@ const {
   mailHtmlSandbox,
   mailListMode,
   mailListNeedsFetch,
+  mailFetchCountdownText,
   mailHasBody,
   mailPropertiesDraft,
   mailPropertiesChanged,
@@ -102,11 +104,13 @@ const {
   searchResultGroups,
   searchResultRows,
   searchResultViewMode,
-  searchDialogMail,
-  searchDialogMailAttachments,
-  searchDialogLoading,
-  searchMailDialogHtml,
-  searchMailDialogVisible,
+  dialogMail,
+  dialogMailAttachments,
+  dialogMailFolderName,
+  dialogMailHasIdentity,
+  dialogLoading,
+  mailDialogHtml,
+  mailDialogVisible,
   masterCategoryListExpanded,
   mails,
   moveDraggedMail,
@@ -117,7 +121,7 @@ const {
   openCategoryManager,
   outlookBusy,
   outlookBusyText,
-  openSearchMailDialog,
+  openMailDialog,
   refreshAdminData,
   requestCalendar,
   requestCategories,
@@ -132,14 +136,7 @@ const {
   selectedFolderName,
   selectedFolderPath,
   selectedCalendarEvent,
-  selectedMail,
-  selectedMailAttachments,
-  selectedMailCategories,
-  selectedMailFolderName,
-  selectedMailHasIdentity,
-  selectedMailHtml,
   selectedMailIndex,
-  selectedMailIsOpen,
   selectedMailIds,
   selectFolder,
   selectCalendarEvent,
@@ -234,7 +231,7 @@ const {
             </div>
 
             <el-button type="primary" :loading="loadingMails" :disabled="outlookBusy && !loadingMails" @click="requestMails">
-              抓取郵件
+              {{ mailFetchCountdownText ? '立即抓取' : '抓取郵件' }}
             </el-button>
           </div>
 
@@ -257,7 +254,10 @@ const {
             </div>
             <el-button v-if="mailListMode === 'search'" size="small" @click="showFolderMails">回到 folder list</el-button>
           </div>
-          <p v-if="mailListNeedsFetch" class="hint">
+          <p v-if="mailFetchCountdownText" class="hint">
+            已選取 {{ selectedFolderName }}，{{ mailFetchCountdownText }}；按「立即抓取」可提早執行。
+          </p>
+          <p v-else-if="mailListNeedsFetch" class="hint">
             目前列表仍是上次抓取的 {{ fetchedMailFolderName }}；已選取 {{ selectedFolderName }}，請按「抓取郵件」更新列表。
           </p>
 
@@ -267,31 +267,45 @@ const {
               v-for="(mail, index) in mails"
               :key="mail.id || `${mail.receivedTime}-${index}`"
               class="mail-card-row"
-              :class="{ selected: selectedMailIds.has(mail.id) || selectedMailIndex === index, unread: !mail.isRead }"
+              :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }"
             >
               <div class="mail-row-shell">
-                <el-button
-                  class="mail-delete-button"
-                  :icon="Delete"
-                  circle
-                  size="small"
-                  type="danger"
-                  plain
-                  :disabled="!mail.id?.trim() || outlookBusy"
-                  @click.stop="deleteMail(mail)"
-                />
-                <button
-                  class="mail-drag-handle"
-                  type="button"
-                  draggable="true"
-                  :disabled="!mail.id?.trim() || outlookBusy"
-                  title="拖曳移動郵件"
-                  @click.stop
-                  @dragstart="startMailDrag(mail, index, $event)"
-                  @dragend="clearMailDrag"
-                >
-                  <el-icon><Rank /></el-icon>
-                </button>
+                <el-tooltip content="刪除郵件" placement="top">
+                  <el-button
+                    class="mail-delete-button"
+                    :icon="Delete"
+                    circle
+                    size="small"
+                    type="danger"
+                    plain
+                    :disabled="!mail.id?.trim() || outlookBusy"
+                    @click.stop="deleteMail(mail)"
+                  />
+                </el-tooltip>
+                <el-tooltip content="拖曳移動郵件" placement="top">
+                  <button
+                    class="mail-drag-handle"
+                    type="button"
+                    draggable="true"
+                    :disabled="!mail.id?.trim() || outlookBusy"
+                    @click.stop
+                    @dragstart="startMailDrag(mail, index, $event)"
+                    @dragend="clearMailDrag"
+                  >
+                    <el-icon><Rank /></el-icon>
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="開啟郵件" placement="top">
+                  <el-button
+                    class="mail-open-button"
+                    :icon="View"
+                    circle
+                    size="small"
+                    plain
+                    :disabled="!mail.id?.trim() || outlookBusy"
+                    @click.stop="openMailDialog(index)"
+                  />
+                </el-tooltip>
                 <button
                   class="mail-row"
                   type="button"
@@ -323,93 +337,12 @@ const {
                   </span>
                 </button>
               </div>
-
-              <div v-if="selectedMailIndex === index && selectedMailIsOpen" class="mail-inline-detail">
-                <div v-if="isMailBodyLoading(mail)" class="pane-loading">
-                  <span>郵件內容載入中...</span>
-                </div>
-                <el-button v-else-if="mailHasBody(mail)" size="small" @click="selectedMailHtml = !selectedMailHtml">
-                  {{ selectedMailHtml ? '切到文字' : '切到 HTML' }}
-                </el-button>
-                <iframe
-                  v-if="mailHasBody(mail) && selectedMailHtml"
-                  class="mail-html"
-                  :sandbox="mailHtmlSandbox"
-                  referrerpolicy="no-referrer"
-                  :srcdoc="mail.bodyHtml || mail.body"
-                />
-                <pre v-else-if="mailHasBody(mail)" class="mail-text">{{ mail.body }}</pre>
-                <p v-else class="hint">點開郵件後才會載入內容；目前沒有可顯示的 body。</p>
-                <div class="mail-attachments">
-                  <div class="attachment-header">
-                    <span class="attachment-header-title">
-                      <span>附件</span>
-                      <el-tag effect="plain">{{ selectedMailAttachments.length }}</el-tag>
-                    </span>
-                  </div>
-                  <div v-if="isAttachmentListLoading(mail)" class="pane-loading">
-                    <span>附件清單載入中...</span>
-                  </div>
-                  <p v-else-if="selectedMailAttachments.length === 0" class="hint">這封郵件沒有附件。</p>
-                  <div v-else class="attachment-list">
-                    <div v-for="attachment in selectedMailAttachments" :key="attachment.attachmentId" class="attachment-row">
-                      <span class="attachment-main">
-                        <strong>{{ attachment.name }}</strong>
-                        <span>{{ formatAttachmentMeta(attachment.contentType, attachment.size) }}</span>
-                      </span>
-                      <span class="attachment-actions">
-                        <el-button
-                          size="small"
-                          :loading="isAttachmentExporting(mail, attachment)"
-                          :disabled="isAttachmentExporting(mail, attachment)"
-                          @click="exportMailAttachment(mail, attachment)"
-                        >
-                          {{ attachment.isExported ? '重新匯出' : 'Export' }}
-                        </el-button>
-                        <el-button
-                          size="small"
-                          :disabled="!attachment.exportedAttachmentId"
-                          @click="openExportedAttachment(attachment)"
-                        >
-                          開啟
-                        </el-button>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </article>
-            <div v-if="mails.length > 0 && !selectedMail" class="hint">
-              選取一封郵件後，內容會展開在 subject 下方。
-            </div>
             <div v-if="loadingMails" class="pane-loading">
               <span>Outlook 郵件抓取中...</span>
             </div>
           </div>
         </section>
-
-        <div class="outlook-inspector-column">
-          <MailPropertyPane
-            v-model:draft="mailPropertiesDraft"
-            :categories="categories"
-            :category-tag-style="categoryTagStyle"
-            :flag-interval-options="flagIntervalOptions"
-            :loading-categories="loadingCategories"
-            :mail-properties-changed="mailPropertiesChanged"
-            :operation-loading="operationLoading"
-            :outlook-busy="outlookBusy"
-            :selected-mail="selectedMail"
-            :selected-mail-folder-name="selectedMailFolderName"
-            :selected-mail-has-identity="selectedMailHasIdentity"
-            @add-category="addMailCategoryDraft"
-            @apply="applyMailProperties"
-            @open-category-manager="openCategoryManager"
-            @remove-category="removeMailCategoryDraft"
-            @reset="resetMailPropertiesDraft"
-            @set-flag="setMailFlagDraft"
-          />
-        </div>
-
       </main>
 
       <main v-else-if="activeView === 'search'" class="search-layout">
@@ -578,26 +511,38 @@ const {
               v-for="{ mail, index, sourceLabel } in searchResultViewMode === 'flat' ? searchResultRows : []"
               :key="mail.id || `${mail.receivedTime}-${index}`"
               class="mail-card-row"
-              :class="{ selected: selectedMailIds.has(mail.id) || selectedMailIndex === index, unread: !mail.isRead }"
+              :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }"
             >
               <div class="mail-row-shell">
-                <button
-                  class="mail-drag-handle"
-                  type="button"
-                  draggable="true"
-                  :disabled="!mail.id?.trim() || outlookBusy"
-                  title="拖曳移動郵件"
-                  @click.stop
-                  @dragstart="startMailDrag(mail, index, $event)"
-                  @dragend="clearMailDrag"
-                >
-                  <el-icon><Rank /></el-icon>
-                </button>
+                <el-tooltip content="拖曳移動郵件" placement="top">
+                  <button
+                    class="mail-drag-handle"
+                    type="button"
+                    draggable="true"
+                    :disabled="!mail.id?.trim() || outlookBusy"
+                    @click.stop
+                    @dragstart="startMailDrag(mail, index, $event)"
+                    @dragend="clearMailDrag"
+                  >
+                    <el-icon><Rank /></el-icon>
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="開啟郵件" placement="top">
+                  <el-button
+                    class="mail-open-button"
+                    :icon="View"
+                    circle
+                    size="small"
+                    plain
+                    :disabled="!mail.id?.trim() || outlookBusy"
+                    @click.stop="openMailDialog(index)"
+                  />
+                </el-tooltip>
                 <button
                   class="mail-row"
                   type="button"
                   @click="selectMail(index, $event)"
-                  @dblclick="openSearchMailDialog(index)"
+                  @dblclick="openMailDialog(index)"
                 >
                   <span class="mail-row-head">
                     <span class="mail-row-main">
@@ -645,26 +590,38 @@ const {
                       v-for="{ mail, index } in folderGroup.rows"
                       :key="mail.id || `${mail.receivedTime}-${index}`"
                       class="mail-card-row search-result-tree-row"
-                      :class="{ selected: selectedMailIds.has(mail.id) || selectedMailIndex === index, unread: !mail.isRead }"
+                      :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }"
                     >
                       <div class="mail-row-shell">
-                        <button
-                          class="mail-drag-handle"
-                          type="button"
-                          draggable="true"
-                          :disabled="!mail.id?.trim() || outlookBusy"
-                          title="拖曳移動郵件"
-                          @click.stop
-                          @dragstart="startMailDrag(mail, index, $event)"
-                          @dragend="clearMailDrag"
-                        >
-                          <el-icon><Rank /></el-icon>
-                        </button>
+                        <el-tooltip content="拖曳移動郵件" placement="top">
+                          <button
+                            class="mail-drag-handle"
+                            type="button"
+                            draggable="true"
+                            :disabled="!mail.id?.trim() || outlookBusy"
+                            @click.stop
+                            @dragstart="startMailDrag(mail, index, $event)"
+                            @dragend="clearMailDrag"
+                          >
+                            <el-icon><Rank /></el-icon>
+                          </button>
+                        </el-tooltip>
+                        <el-tooltip content="開啟郵件" placement="top">
+                          <el-button
+                            class="mail-open-button"
+                            :icon="View"
+                            circle
+                            size="small"
+                            plain
+                            :disabled="!mail.id?.trim() || outlookBusy"
+                            @click.stop="openMailDialog(index)"
+                          />
+                        </el-tooltip>
                         <button
                           class="mail-row"
                           type="button"
                           @click="selectMail(index, $event)"
-                          @dblclick="openSearchMailDialog(index)"
+                          @dblclick="openMailDialog(index)"
                         >
                           <span class="mail-row-head">
                             <span class="mail-row-main">
@@ -696,112 +653,136 @@ const {
             </div>
           </div>
         </section>
+      </main>
 
         <el-dialog
-          v-model="searchMailDialogVisible"
-          class="search-mail-dialog"
-          width="min(860px, calc(100vw - 28px))"
+          v-model="mailDialogVisible"
+          class="mail-detail-dialog"
+          width="min(1160px, calc(100vw - 28px))"
           destroy-on-close
-          @closed="closeSearchMailDialog"
+          @closed="closeMailDialog"
         >
           <template #header>
-            <div v-if="searchDialogMail" class="dialog-mail-title">
-              <strong>{{ searchDialogMail.subject || '(No subject)' }}</strong>
+            <div v-if="dialogMail" class="dialog-mail-title">
+              <strong>{{ dialogMail.subject || '(No subject)' }}</strong>
               <span>
-                {{ searchDialogMail.senderName || searchDialogMail.senderEmail || 'Unknown sender' }} · {{ formatDateTime(searchDialogMail.receivedTime) }}
-                <el-tag v-if="searchDialogLoading" size="small" type="info" effect="plain">載入中</el-tag>
+                {{ dialogMail.senderName || dialogMail.senderEmail || 'Unknown sender' }} · {{ formatDateTime(dialogMail.receivedTime) }}
+                <el-tag v-if="dialogLoading" size="small" type="info" effect="plain">載入中</el-tag>
               </span>
             </div>
           </template>
 
-          <div v-if="searchDialogMail" class="dialog-mail-content">
-            <div class="dialog-mail-summary">
-              <div class="dialog-mail-meta">
-                <span>寄件者</span>
-                <strong>{{ searchDialogMail.senderName || searchDialogMail.senderEmail || 'Unknown sender' }}</strong>
-                <small v-if="searchDialogMail.senderEmail">{{ searchDialogMail.senderEmail }}</small>
+          <div v-if="dialogMail" class="dialog-mail-layout">
+            <div class="dialog-mail-content">
+              <div class="dialog-mail-summary">
+                <div class="dialog-mail-meta">
+                  <span>寄件者</span>
+                  <strong>{{ dialogMail.senderName || dialogMail.senderEmail || 'Unknown sender' }}</strong>
+                  <small v-if="dialogMail.senderEmail">{{ dialogMail.senderEmail }}</small>
+                </div>
+                <div class="dialog-mail-meta">
+                  <span>Folder</span>
+                  <strong>{{ dialogMail.folderPath }}</strong>
+                </div>
               </div>
-              <div class="dialog-mail-meta">
-                <span>Folder</span>
-                <strong>{{ searchDialogMail.folderPath }}</strong>
+              <div class="mail-row-tags dialog-mail-tags">
+                <el-tag v-if="!dialogMail.isRead" type="warning" effect="plain">未讀</el-tag>
+                <el-tag v-if="dialogMail.isMarkedAsTask" :type="flagTagType(dialogMail.flagInterval)" effect="plain">
+                  {{ flagDisplayLabel(dialogMail.flagInterval, dialogMail.flagRequest) }}
+                </el-tag>
+                <el-tag
+                  v-for="category in splitCategories(dialogMail.categories)"
+                  :key="category"
+                  effect="dark"
+                  :style="categoryTagStyle(category)"
+                >
+                  {{ category }}
+                </el-tag>
               </div>
-            </div>
-            <div class="mail-row-tags dialog-mail-tags">
-              <el-tag v-if="!searchDialogMail.isRead" type="warning" effect="plain">未讀</el-tag>
-              <el-tag v-if="searchDialogMail.isMarkedAsTask" :type="flagTagType(searchDialogMail.flagInterval)" effect="plain">
-                {{ flagDisplayLabel(searchDialogMail.flagInterval, searchDialogMail.flagRequest) }}
-              </el-tag>
-              <el-tag
-                v-for="category in splitCategories(searchDialogMail.categories)"
-                :key="category"
-                effect="dark"
-                :style="categoryTagStyle(category)"
-              >
-                {{ category }}
-              </el-tag>
-            </div>
 
-            <div class="dialog-mail-section-head">
-              <strong>內容</strong>
-              <el-button v-if="mailHasBody(searchDialogMail)" size="small" @click="searchMailDialogHtml = !searchMailDialogHtml">
-                {{ searchMailDialogHtml ? '切到文字' : '切到 HTML' }}
-              </el-button>
-            </div>
-            <div v-if="isMailBodyLoading(searchDialogMail)" class="dialog-loading-block">
-              <el-skeleton animated :rows="6" />
-            </div>
-            <iframe
-              v-else-if="mailHasBody(searchDialogMail) && searchMailDialogHtml"
-              class="mail-html dialog-mail-body"
-              :sandbox="mailHtmlSandbox"
-              referrerpolicy="no-referrer"
-              :srcdoc="searchDialogMail.bodyHtml || searchDialogMail.body"
-            />
-            <pre v-else-if="mailHasBody(searchDialogMail)" class="mail-text dialog-mail-body">{{ searchDialogMail.body }}</pre>
-            <p v-else class="hint">目前沒有可顯示的 body。</p>
+              <div class="dialog-mail-section-head">
+                <strong>內容</strong>
+                <el-button v-if="mailHasBody(dialogMail)" size="small" @click="mailDialogHtml = !mailDialogHtml">
+                  {{ mailDialogHtml ? '切到文字' : '切到 HTML' }}
+                </el-button>
+              </div>
+              <div class="dialog-mail-body-frame">
+                <div v-if="isMailBodyLoading(dialogMail)" class="dialog-loading-block">
+                  <el-skeleton animated :rows="6" />
+                </div>
+                <iframe
+                  v-else-if="mailHasBody(dialogMail) && mailDialogHtml"
+                  class="mail-html dialog-mail-body"
+                  :sandbox="mailHtmlSandbox"
+                  referrerpolicy="no-referrer"
+                  :srcdoc="dialogMail.bodyHtml || dialogMail.body"
+                />
+                <pre v-else-if="mailHasBody(dialogMail)" class="mail-text dialog-mail-body">{{ dialogMail.body }}</pre>
+                <p v-else class="hint dialog-mail-empty-body">目前沒有可顯示的 body。</p>
+              </div>
 
-            <div class="dialog-mail-attachments">
-              <div class="attachment-header">
-                <span class="attachment-header-title">
-                  <span>附件</span>
-                  <el-tag effect="plain">{{ searchDialogMailAttachments.length }}</el-tag>
-                </span>
-              </div>
-              <div v-if="isAttachmentListLoading(searchDialogMail)" class="dialog-loading-block compact">
-                <el-skeleton animated :rows="2" />
-              </div>
-              <p v-else-if="searchDialogMailAttachments.length === 0" class="hint">這封郵件沒有附件。</p>
-              <div v-else class="attachment-list">
-                <div v-for="attachment in searchDialogMailAttachments" :key="attachment.attachmentId" class="attachment-row">
-                  <span class="attachment-main">
-                    <strong>{{ attachment.name }}</strong>
-                    <span>{{ formatAttachmentMeta(attachment.contentType, attachment.size) }}</span>
+              <div class="dialog-mail-attachments">
+                <div class="attachment-header">
+                  <span class="attachment-header-title">
+                    <span>附件</span>
+                    <el-tag effect="plain">{{ dialogMailAttachments.length }}</el-tag>
                   </span>
-                  <span class="attachment-actions">
-                    <el-button
-                      size="small"
-                      :loading="isAttachmentExporting(searchDialogMail, attachment)"
-                      :disabled="isAttachmentExporting(searchDialogMail, attachment)"
-                      @click="exportMailAttachment(searchDialogMail, attachment)"
-                    >
-                      {{ attachment.isExported ? '重新匯出' : 'Export' }}
-                    </el-button>
-                    <el-button
-                      size="small"
-                      :disabled="!attachment.exportedAttachmentId"
-                      @click="openExportedAttachment(attachment)"
-                    >
-                      開啟
-                    </el-button>
-                  </span>
+                </div>
+                <div v-if="isAttachmentListLoading(dialogMail)" class="dialog-loading-block compact">
+                  <el-skeleton animated :rows="2" />
+                </div>
+                <p v-else-if="dialogMailAttachments.length === 0" class="hint">這封郵件沒有附件。</p>
+                <div v-else class="attachment-list">
+                  <div v-for="attachment in dialogMailAttachments" :key="attachment.attachmentId" class="attachment-row">
+                    <span class="attachment-main">
+                      <strong>{{ attachment.name }}</strong>
+                      <span>{{ formatAttachmentMeta(attachment.contentType, attachment.size) }}</span>
+                    </span>
+                    <span class="attachment-actions">
+                      <el-button
+                        size="small"
+                        :loading="isAttachmentExporting(dialogMail, attachment)"
+                        :disabled="isAttachmentExporting(dialogMail, attachment)"
+                        @click="exportMailAttachment(dialogMail, attachment)"
+                      >
+                        {{ attachment.isExported ? '重新匯出' : 'Export' }}
+                      </el-button>
+                      <el-button
+                        size="small"
+                        :disabled="!attachment.exportedAttachmentId"
+                        @click="openExportedAttachment(attachment)"
+                      >
+                        開啟
+                      </el-button>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
+            <MailPropertyPane
+              v-model:draft="mailPropertiesDraft"
+              embedded
+              :categories="categories"
+              :category-tag-style="categoryTagStyle"
+              :flag-interval-options="flagIntervalOptions"
+              :loading-categories="loadingCategories"
+              :mail-properties-changed="mailPropertiesChanged"
+              :operation-loading="operationLoading"
+              :outlook-busy="outlookBusy"
+              :selected-mail="dialogMail"
+              :selected-mail-folder-name="dialogMailFolderName"
+              :selected-mail-has-identity="dialogMailHasIdentity"
+              @add-category="addMailCategoryDraft"
+              @apply="applyMailProperties"
+              @open-category-manager="openCategoryManager"
+              @remove-category="removeMailCategoryDraft"
+              @reset="resetMailPropertiesDraft"
+              @set-flag="setMailFlagDraft"
+            />
           </div>
         </el-dialog>
-      </main>
 
-      <main v-else-if="activeView === 'chat'" class="chat-layout">
+      <main v-if="activeView === 'chat'" class="chat-layout">
         <section class="panel chat-page-panel">
           <div class="panel-header">
             <div class="panel-title">
@@ -829,7 +810,7 @@ const {
         </section>
       </main>
 
-      <main v-else-if="activeView === 'calendar'" class="calendar-layout">
+      <main v-if="activeView === 'calendar'" class="calendar-layout">
         <section class="panel">
           <div class="panel-header">
             <div class="panel-title">

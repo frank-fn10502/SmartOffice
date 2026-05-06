@@ -7,6 +7,7 @@ import { flagDisplayLabel, flagTagType } from '../utils/outlookDashboardHelpers'
 const draft = defineModel<MailPropertiesDraft>('draft', { required: true })
 
 defineProps<{
+  embedded?: boolean
   selectedMail: MailItemDto | null
   selectedMailFolderName: string
   selectedMailHasIdentity: boolean
@@ -30,7 +31,7 @@ defineEmits<{
 </script>
 
 <template>
-  <section class="panel outlook-property-pane">
+  <section :class="embedded ? 'outlook-property-pane embedded-property-pane' : 'panel outlook-property-pane'">
     <div class="panel-header">
       <div class="panel-title">
         <el-icon><PriceTag /></el-icon>
@@ -178,6 +179,28 @@ defineEmits<{
 </template>
 
 <style scoped>
+.embedded-property-pane {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border-left: 1px solid #edf0f5;
+  padding-left: 16px;
+}
+
+.embedded-property-pane .panel-header {
+  min-height: 38px;
+  padding: 0 0 10px;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.embedded-property-pane .inspector-panel-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
 .mail-inspector {
   display: grid;
   gap: 12px;

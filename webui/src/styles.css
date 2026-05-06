@@ -251,26 +251,18 @@ select {
 
 .outlook-layout {
   display: grid;
-  grid-template-columns: 300px minmax(360px, 1fr) 360px;
+  grid-template-columns: 300px minmax(360px, 1fr);
   grid-auto-rows: minmax(0, calc(100vh - 150px));
   gap: 14px;
-  width: min(1440px, calc(100vw - 28px));
+  width: min(1180px, calc(100vw - 28px));
   height: calc(100vh - 140px);
   margin: 14px auto 10px;
 }
 
 .outlook-folder-pane,
 .outlook-mail-pane,
-.outlook-inspector-column,
 .outlook-property-pane {
   min-height: 0;
-  min-width: 0;
-}
-
-.outlook-inspector-column {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  gap: 14px;
   min-width: 0;
 }
 
@@ -1133,9 +1125,12 @@ select {
   background: #fff;
 }
 
-.search-result-tree-row.selected .mail-row,
 .search-result-tree-row .mail-row:hover {
-  background: #eef6ff;
+  background: #f8fafc;
+}
+
+.search-result-tree-row.selected .mail-row {
+  background: #dceeff;
 }
 
 .mail-source-label {
@@ -1150,17 +1145,21 @@ select {
 
 .mail-row-shell {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-columns: auto auto auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
 }
 
 .search-result-table .mail-row-shell {
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
 }
 
 .mail-delete-button {
+  justify-self: start;
+}
+
+.mail-open-button {
   justify-self: start;
 }
 
@@ -1222,10 +1221,21 @@ select {
 }
 
 .mail-row-shell:hover,
+.mail-row:hover {
+  background: #f8fafc;
+}
+
 .mail-card-row.selected .mail-row-shell,
-.mail-row:hover,
 .mail-card-row.selected .mail-row {
-  background: #edf4fb;
+  background: #dceeff;
+}
+
+.mail-card-row.selected {
+  box-shadow: inset 4px 0 0 #1f5f99;
+}
+
+.mail-card-row.selected .mail-row-main strong {
+  color: #0f4c81;
 }
 
 .mail-row-shell .mail-row {
@@ -1291,14 +1301,6 @@ select {
   min-width: 0;
   min-height: 0;
   padding: 12px 14px;
-}
-
-.mail-inline-detail {
-  position: relative;
-  display: grid;
-  gap: 8px;
-  padding: 12px 14px;
-  background: #fff;
 }
 
 .mail-attachments {
@@ -1368,9 +1370,10 @@ select {
   gap: 6px;
 }
 
-.search-mail-dialog.el-dialog {
+.mail-detail-dialog.el-dialog {
   display: flex;
   flex-direction: column;
+  height: min(760px, calc(100vh - 96px));
   max-height: calc(100vh - 96px);
   margin-top: 48px;
   margin-bottom: 48px;
@@ -1378,17 +1381,18 @@ select {
   border-radius: 8px;
 }
 
-.search-mail-dialog .el-dialog__header {
+.mail-detail-dialog .el-dialog__header {
   margin: 0;
   padding: 18px 22px 14px;
   border-bottom: 1px solid #e5edf5;
   background: #f8fafc;
 }
 
-.search-mail-dialog .el-dialog__body {
+.mail-detail-dialog .el-dialog__body {
+  display: grid;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 16px 22px 20px;
   background: #fff;
 }
@@ -1423,8 +1427,21 @@ select {
 
 .dialog-mail-content {
   display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 14px;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding-right: 2px;
+}
+
+.dialog-mail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 18px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .dialog-mail-summary {
@@ -1468,9 +1485,33 @@ select {
   font-size: 0.88rem;
 }
 
+.dialog-mail-body-frame {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .dialog-mail-body {
-  max-height: min(48vh, 540px);
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  max-height: none;
+  overflow: auto;
   border-color: #cfd9e5;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.dialog-mail-body.mail-text {
+  max-height: none;
+}
+
+.dialog-mail-empty-body {
+  display: grid;
+  height: 100%;
+  min-height: 160px;
+  place-items: center;
+  border: 1px solid #d9e2ec;
   border-radius: 8px;
   background: #fbfcfe;
 }
@@ -1489,6 +1530,9 @@ select {
 
 .dialog-mail-attachments {
   display: grid;
+  min-height: 0;
+  max-height: 150px;
+  overflow: auto;
   gap: 8px;
   padding-top: 12px;
   border-top: 1px solid #edf0f5;
@@ -1499,14 +1543,26 @@ select {
 }
 
 @media (max-width: 720px) {
-  .search-mail-dialog.el-dialog {
+  .mail-detail-dialog.el-dialog {
+    height: calc(100vh - 48px);
     max-height: calc(100vh - 48px);
     margin-top: 24px;
     margin-bottom: 24px;
   }
 
+  .dialog-mail-layout {
+    grid-template-rows: minmax(0, 1fr) minmax(220px, 0.75fr);
+  }
+
   .dialog-mail-summary {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .embedded-property-pane {
+    border-top: 1px solid #edf0f5;
+    border-left: 0;
+    padding-top: 14px;
+    padding-left: 0;
   }
 }
 
@@ -1938,15 +1994,10 @@ select {
 
   .outlook-folder-pane,
   .search-page-panel,
-  .outlook-mail-pane,
-  .outlook-inspector-column {
+  .outlook-mail-pane {
     grid-column: 1;
     grid-row: auto;
     min-height: 320px;
-  }
-
-  .outlook-inspector-column {
-    grid-template-rows: auto auto;
   }
 
   .outlook-layout,
