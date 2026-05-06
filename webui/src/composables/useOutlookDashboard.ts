@@ -1008,6 +1008,7 @@ function categoryTagStyle(name: string) {
     mailListMode.value = 'folder'
     selectedMailIndex.value = null
     lastSelectedMailIndex = -1
+    if (mailListNeedsFetch.value && !outlookBusy.value) scheduleMailFetch()
   }
 
   function openMailDialog(index: number) {
@@ -1660,7 +1661,15 @@ function categoryTagStyle(name: string) {
   async function switchView(view: AppView) {
     if (outlookDependentViewsLocked.value && ['search', 'chat', 'calendar'].includes(view)) return
     activeView.value = view
+    if (view === 'outlook') {
+      mailListMode.value = 'folder'
+      selectedMailIndex.value = null
+      lastSelectedMailIndex = -1
+      if (mailListNeedsFetch.value && !outlookBusy.value) scheduleMailFetch()
+      return
+    }
     if (view === 'search') {
+      cancelScheduledMailFetch()
       mailListMode.value = 'search'
       selectedMailIndex.value = null
       lastSelectedMailIndex = -1
