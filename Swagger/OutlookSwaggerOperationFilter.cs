@@ -22,13 +22,13 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-folder-children"] = new(
                 "Outlook Commands",
                 "要求單一 folder 的 children",
-                "Dispatch `fetch_folder_children`。`parentEntryId` 優先，`parentFolderPath` 可作為 fallback；Hub 會限制 `maxDepth` 1-3、`maxChildren` 1-200。完成後讀取 `GET /api/outlook/folders`。",
+                "Dispatch `fetch_folder_children`。HTTP API 的 folder path 使用 `/主要信箱 - User/Inbox`。`parentEntryId` 優先，`parentFolderPath` 可作為 fallback；Hub 會限制 `maxDepth` 1-3、`maxChildren` 1-200。完成後讀取 `GET /api/outlook/folders`。",
                 typeof(CommandDispatchResponse),
                 FolderChildrenExample()),
             ["POST api/outlook/request-mails"] = new(
                 "Outlook Commands",
                 "要求指定 folder 的郵件列表",
-                "`request-mails` 只會觸發 Outlook AddIn 載入資料，不直接代表最新郵件內容已在 response body。取得 `commandId` 後查 `GET /api/outlook/command-results/{commandId}`，完成後讀取 `GET /api/outlook/mails`。",
+                "`request-mails` 只會觸發 Outlook AddIn 載入資料，不直接代表最新郵件內容已在 response body。HTTP API 的 folder path 使用 `/主要信箱 - User/Inbox`。取得 `commandId` 後查 `GET /api/outlook/command-results/{commandId}`，完成後讀取 `GET /api/outlook/mails`。",
                 typeof(CommandDispatchResponse),
                 FetchMailsExample()),
             ["POST api/outlook/request-mail-body"] = new(
@@ -157,7 +157,7 @@ namespace SmartOffice.Hub.Swagger
             ["GET api/outlook/folders"] = new(
                 "Cached Snapshots",
                 "取得 cached folders",
-                "只讀取 Hub 目前記憶體中的 folder snapshot。若 folder tree 不完整，先呼叫 `request-folders` 或 `request-folder-children`。",
+                "只讀取 Hub 目前記憶體中的 folder snapshot。HTTP API 回傳的 folder path 使用 `/主要信箱 - User/Inbox`。若 folder tree 不完整，先呼叫 `request-folders` 或 `request-folder-children`。",
                 typeof(FolderSnapshotDto)),
             ["GET api/outlook/rules"] = new(
                 "Cached Snapshots",
@@ -259,14 +259,14 @@ namespace SmartOffice.Hub.Swagger
         {
             ["storeId"] = new OpenApiString("store-primary"),
             ["parentEntryId"] = new OpenApiString("00000000A1B2C3D4"),
-            ["parentFolderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox"),
+            ["parentFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
             ["maxDepth"] = new OpenApiInteger(1),
             ["maxChildren"] = new OpenApiInteger(50),
         };
 
         private static OpenApiObject FetchMailsExample() => new()
         {
-            ["folderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
             ["range"] = new OpenApiString("1w"),
             ["maxCount"] = new OpenApiInteger(30),
         };
@@ -274,13 +274,13 @@ namespace SmartOffice.Hub.Swagger
         private static OpenApiObject MailIdentityExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["folderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
         };
 
         private static OpenApiObject ExportAttachmentExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["folderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
             ["attachmentId"] = new OpenApiString("attachment-001"),
             ["index"] = new OpenApiInteger(1),
             ["name"] = new OpenApiString("報價單.pdf"),
@@ -309,7 +309,7 @@ namespace SmartOffice.Hub.Swagger
         private static OpenApiObject UpdateMailPropertiesExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["folderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
             ["isRead"] = new OpenApiBoolean(true),
             ["flagInterval"] = new OpenApiString("today"),
             ["flagRequest"] = new OpenApiString("今天"),
@@ -339,33 +339,33 @@ namespace SmartOffice.Hub.Swagger
 
         private static OpenApiObject CreateFolderExample() => new()
         {
-            ["parentFolderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox"),
+            ["parentFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
             ["name"] = new OpenApiString("客戶追蹤"),
         };
 
         private static OpenApiObject DeleteFolderExample() => new()
         {
-            ["folderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox\客戶追蹤"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox/客戶追蹤"),
         };
 
         private static OpenApiObject MoveMailExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["sourceFolderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox"),
-            ["destinationFolderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox\客戶追蹤"),
+            ["sourceFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["destinationFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox/客戶追蹤"),
         };
 
         private static OpenApiObject DeleteMailExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["folderPath"] = new OpenApiString(@"\\主要信箱 - User\Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
         };
 
         private static OpenApiObject MailSearchExample() => new()
         {
             ["searchId"] = new OpenApiString("6fb66d3a-7f4f-4a6d-9b3f-7e1e8c2f2d84"),
             ["storeId"] = new OpenApiString(""),
-            ["scopeFolderPaths"] = new OpenApiArray { new OpenApiString(@"\\主要信箱 - User\Inbox") },
+            ["scopeFolderPaths"] = new OpenApiArray { new OpenApiString("/主要信箱 - User/Inbox") },
             ["includeSubFolders"] = new OpenApiBoolean(true),
             ["keyword"] = new OpenApiString("客戶"),
             ["textFields"] = new OpenApiArray { new OpenApiString("subject"), new OpenApiString("sender"), new OpenApiString("body") },

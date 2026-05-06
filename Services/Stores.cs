@@ -194,7 +194,7 @@ namespace SmartOffice.Hub.Services
 
         public List<MailItemDto> GetMails()
         {
-            lock (_lock) { return new List<MailItemDto>(_mails); }
+            lock (_lock) { return _mails.Select(CloneMail).ToList(); }
         }
 
         public void BeginMailSearch(bool reset = true)

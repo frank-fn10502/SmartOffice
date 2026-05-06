@@ -19,6 +19,7 @@ metadata:
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
 - `request-delete-mail` 的語意是移到 Deleted Items，不是永久刪除；仍需先確認 `mailId` 與 `folderPath` 來自 snapshot。
 - 使用者未指定 folder 時，只查主要 mailbox 的 Inbox；但 Inbox path 必須取自 folder snapshot，不可硬寫英文 `Inbox`。
+- HTTP API 的 `folderPath` 一律使用 `/主要信箱 - User/收件匣` 這種普通斜線格式。
 - `scopeFolderPaths: []` 代表目前已載入的全部可搜尋 mail folders；使用者未明確要求全域搜尋時禁止送空陣列。
 - 回覆使用者時必須說明本次 folder 範圍，避免使用者誤以為已搜尋全信箱。
 - 大型 response 可暫存於 skill folder 的 `tmp/<run>/`，但不可提交或長期保留。
@@ -54,12 +55,12 @@ metadata:
 
 ## 常見陷阱
 
-- `Inbox` 是範例名稱，不是穩定 contract；中文 Outlook 常見路徑是 `\\<mailbox>\收件匣`。搜尋前一定要從 folder snapshot 取實際 `folderPath`。
+- `Inbox` 是範例名稱，不是穩定 contract；中文 Outlook 常見路徑是 `/主要信箱 - User/收件匣`。搜尋前一定要從 folder snapshot 取實際 `folderPath`。
 - `request-folders` 只保證載入 stores/root folders；若 root 的 `childrenLoaded=false`，要用 `request-folder-children` 展開後再找 Inbox。
 - `request-folder-children` 需要 root folder 的 `storeId`、`entryId` 與 `folderPath`；不要只傳 folder display name。
 - `request-mails.folderPath` 與 `request-mail-search.scopeFolderPaths[]` 必須完整等於 snapshot 裡的 `folderPath`。
 - `request-mail-search` 回 `no_searchable_folder` 時，通常代表 `scopeFolderPaths` 沒有對上 cached folders；此時不要改成全域搜尋，應先重新載入/展開 folders 並改用 snapshot 裡的真實路徑。
-- 手寫 JSON 時要正確 escape 反斜線；若工具可用物件序列化 JSON，優先用序列化而不是拼字串。
+- 不要自行組 folder path；一律使用 snapshot 回傳的 `/Mailbox/Inbox` 形式。
 
 ## API 設計反思
 

@@ -34,6 +34,8 @@ Web UI notification channel：
 
 這些 endpoint 仍是 Web UI、AI 或 MCP client 對 Hub 的入口。Hub 收到 request 後會透過 `/hub/outlook-addin` dispatch `OutlookCommand`。
 
+HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在 dispatch `OutlookCommand` 前會轉成 AddIn SignalR contract 使用的 Outlook folder path，例如 `\\主要信箱 - User\收件匣`。反向讀取 `GET /api/outlook/folders`、`mails`、`mail-search` 與 search progress 時，Hub 也會把 cached Outlook path 轉回 HTTP API path。這是 Hub API 邊界的實作細節，不應出現在外部 SKILL 或 Swagger 說明中。
+
 - `POST /api/outlook/request-folders`：只 dispatch `fetch_folder_roots`，載入 stores 與 root folders。
 - `POST /api/outlook/request-folder-children`：dispatch 單一 parent folder 的 `fetch_folder_children`。
 - `POST /api/outlook/request-mails`：dispatch mail fetch command。

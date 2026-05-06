@@ -41,6 +41,7 @@ namespace SmartOffice.Hub.Controllers
             if (string.IsNullOrWhiteSpace(req.SearchId))
                 req.SearchId = Guid.NewGuid().ToString();
             NormalizeMailSearchRequest(req);
+            OutlookFolderPathMapper.NormalizeSearchRequest(req);
 
             var cmd = new PendingCommand
             {
@@ -58,7 +59,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpGet("mail-search")]
         public IActionResult GetMailSearchResults()
         {
-            return Ok(_mailStore.GetMailSearchResults());
+            return Ok(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMailSearchResults()));
         }
 
         /// <summary>
@@ -68,7 +69,7 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetMailSearchProgress(string searchId)
         {
             var progress = _mailStore.GetMailSearchProgress(searchId);
-            return progress is null ? NotFound() : Ok(progress);
+            return progress is null ? NotFound() : Ok(OutlookFolderPathMapper.ToApiProgress(progress));
         }
 
         /// <summary>
@@ -78,7 +79,7 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetMailSearchProgressByCommandId(string commandId)
         {
             var progress = _mailStore.GetMailSearchProgressByCommandId(commandId);
-            return progress is null ? NotFound() : Ok(progress);
+            return progress is null ? NotFound() : Ok(OutlookFolderPathMapper.ToApiProgress(progress));
         }
 
         private async Task<IActionResult> RequestMailSearchQueuedAsync(PendingCommand cmd, SearchMailsRequest req, CancellationToken ct)

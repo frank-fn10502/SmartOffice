@@ -13,7 +13,7 @@ POST {{SmartOffice.Hub_HostAddress}}/api/outlook/request-mails
 Content-Type: application/json
 
 {
-  "folderPath": "\\\\Mailbox\\\\Inbox",
+  "folderPath": "/Mailbox/Inbox",
   "range": "1d",
   "maxCount": 10
 }

@@ -84,6 +84,8 @@ Status fields：
 
 服務 restart 後 cache 會清空，需要重新 request。
 
+HTTP API 的 folder path 一律使用普通斜線，例如 `/主要信箱 - User/收件匣`。
+
 ## Folder Endpoints
 
 ### `POST /api/outlook/request-folders`
@@ -98,14 +100,14 @@ Request:
 {
   "storeId": "store-id",
   "parentEntryId": "folder-entry-id",
-  "parentFolderPath": "\\\\主要信箱 - User",
+  "parentFolderPath": "/主要信箱 - User",
   "maxDepth": 1,
   "maxChildren": 50
 }
 ```
 
 API 會 clamp `maxDepth` 到 1-3、`maxChildren` 到 1-200，並設定 `reset=false`。
-若要尋找預設 Inbox，先對主要 store root 呼叫此 endpoint，再從 `GET /api/outlook/folders` 找 `folderType="Inbox"` 或 localized folder name。不要假設 folder path 一定是英文 `\\Mailbox - User\Inbox`。
+若要尋找預設 Inbox，先對主要 store root 呼叫此 endpoint，再從 `GET /api/outlook/folders` 找 `folderType="Inbox"` 或 localized folder name。不要假設 folder path 一定是英文 `/Mailbox - User/Inbox`。
 
 主要 store root 來自 `GET /api/outlook/folders`：
 
@@ -123,7 +125,7 @@ Request:
 
 ```json
 {
-  "folderPath": "\\\\主要信箱 - User\\收件匣",
+  "folderPath": "/主要信箱 - User/收件匣",
   "range": "1m",
   "maxCount": 30
 }
@@ -138,7 +140,7 @@ Request:
 ```json
 {
   "mailId": "mail-id",
-  "folderPath": "\\\\Mailbox - User\\Inbox"
+  "folderPath": "/Mailbox - User/Inbox"
 }
 ```
 
@@ -151,7 +153,7 @@ Request:
 ```json
 {
   "mailId": "mail-id",
-  "folderPath": "\\\\Mailbox - User\\Inbox"
+  "folderPath": "/Mailbox - User/Inbox"
 }
 ```
 
@@ -170,7 +172,7 @@ Request:
 ```json
 {
   "mailId": "mail-id",
-  "folderPath": "\\\\Mailbox - User\\Inbox",
+  "folderPath": "/Mailbox - User/Inbox",
   "attachmentId": "1",
   "index": 1,
   "name": "sample.pdf",
@@ -200,7 +202,7 @@ Request:
 {
   "searchId": "optional-client-search-id",
   "storeId": "",
-  "scopeFolderPaths": ["\\\\主要信箱 - User\\收件匣"],
+  "scopeFolderPaths": ["/主要信箱 - User/收件匣"],
   "includeSubFolders": true,
   "keyword": "customer",
   "textFields": ["subject"],
@@ -227,7 +229,7 @@ Agent 預設 request 範例應像這樣指定單一 Inbox path：
 {
   "searchId": "",
   "storeId": "",
-  "scopeFolderPaths": ["\\\\主要信箱 - User\\收件匣"],
+  "scopeFolderPaths": ["/主要信箱 - User/收件匣"],
   "includeSubFolders": true,
   "keyword": "customer",
   "textFields": ["subject"],
@@ -286,7 +288,7 @@ Request:
 ```json
 {
   "mailId": "mail-id",
-  "folderPath": "\\\\Mailbox - User\\Inbox",
+  "folderPath": "/Mailbox - User/Inbox",
   "isRead": true,
   "flagInterval": "today",
   "flagRequest": "今天",
@@ -304,7 +306,7 @@ Request:
 
 ```json
 {
-  "parentFolderPath": "\\\\Mailbox - User\\Projects",
+  "parentFolderPath": "/Mailbox - User/Projects",
   "name": "Sample Folder"
 }
 ```
@@ -313,7 +315,7 @@ Request:
 
 ```json
 {
-  "folderPath": "\\\\Mailbox - User\\Projects\\Sample Folder"
+  "folderPath": "/Mailbox - User/Projects/Sample Folder"
 }
 ```
 
@@ -322,8 +324,8 @@ Request:
 ```json
 {
   "mailId": "mail-id",
-  "sourceFolderPath": "\\\\Mailbox - User\\Inbox",
-  "destinationFolderPath": "\\\\Mailbox - User\\Projects"
+  "sourceFolderPath": "/Mailbox - User/Inbox",
+  "destinationFolderPath": "/Mailbox - User/Projects"
 }
 ```
 
@@ -332,7 +334,7 @@ Request:
 ```json
 {
   "mailId": "mail-id",
-  "folderPath": "\\\\Mailbox - User\\Inbox"
+  "folderPath": "/Mailbox - User/Inbox"
 }
 ```
 

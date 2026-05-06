@@ -150,6 +150,7 @@ namespace SmartOffice.Hub.Controllers
         public async Task<IActionResult> RequestFolderChildren([FromBody] FolderDiscoveryRequest req, CancellationToken ct)
         {
             req ??= new FolderDiscoveryRequest();
+            req.ParentFolderPath = OutlookFolderPathMapper.ToAddinPath(req.ParentFolderPath);
             req.MaxDepth = Math.Clamp(req.MaxDepth <= 0 ? 1 : req.MaxDepth, 1, 3);
             req.MaxChildren = Math.Clamp(req.MaxChildren <= 0 ? 50 : req.MaxChildren, 1, 200);
             req.Reset = false;
@@ -299,6 +300,8 @@ namespace SmartOffice.Hub.Controllers
 
         private async Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)
         {
+            OutlookFolderPathMapper.NormalizeRequest(cmd);
+
             // Hub 已收下的 AddIn request 要由中心 queue 控制完成，避免外部 client 斷線造成 Outlook automation 半路取消。
             return await _commandQueue.ExecuteExclusiveAsync(async operationCt =>
             {
@@ -349,7 +352,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpGet("mails")]
         public IActionResult GetMails()
         {
-            return Ok(_mailStore.GetMails());
+            return Ok(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails()));
         }
 
         /// <summary>
@@ -362,7 +365,7 @@ namespace SmartOffice.Hub.Controllers
                 return BadRequest(new { status = "missing_mail_id" });
 
             var attachments = _mailStore.GetMailAttachments(mailId);
-            return attachments is null ? NotFound(new { status = "not_found" }) : Ok(attachments);
+            return attachments is null ? NotFound(new { status = "not_found" }) : Ok(OutlookFolderPathMapper.ToApiAttachments(attachments));
         }
 
         /// <summary>
@@ -371,7 +374,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpGet("folders")]
         public IActionResult GetFolders()
         {
-            return Ok(_mailStore.GetFolderSnapshot());
+            return Ok(OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot()));
         }
 
         /// <summary>

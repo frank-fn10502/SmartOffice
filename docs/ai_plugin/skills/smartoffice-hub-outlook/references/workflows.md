@@ -8,6 +8,7 @@
 - 呼叫任何 `POST /api/outlook/request-*` 後，從 response 取出 `commandId`，查 `GET /api/outlook/command-results/{commandId}` 直到不是 `pending`。
 - `completed` 且 `success=true` 才進入下一步；`failed`、`folder_cache_unavailable`、`timeout` 或其他狀態要回報使用者。
 - HTTP 200 只代表 Hub 已處理 request 流程；真正資料要讀對應 snapshot endpoint。
+- HTTP API 的 folder path 一律使用普通斜線，例如 `/主要信箱 - User/收件匣`。
 - 大型 JSON 可暫存到 skill folder 的 `tmp/<run>/`，但預設只保存 metadata，不保存完整 mail body。
 
 ## API Status
@@ -41,14 +42,14 @@ Folder snapshot 形狀範例：
       "displayName": "主要信箱 - User",
       "storeKind": "exchange",
       "storeFilePath": "",
-      "rootFolderPath": "\\\\主要信箱 - User"
+      "rootFolderPath": "/主要信箱 - User"
     }
   ],
   "folders": [
     {
       "name": "主要信箱 - User",
       "entryId": "root-entry-id",
-      "folderPath": "\\\\主要信箱 - User",
+      "folderPath": "/主要信箱 - User",
       "parentEntryId": "",
       "parentFolderPath": "",
       "itemCount": 0,
@@ -72,7 +73,7 @@ Folder snapshot 形狀範例：
 {
   "storeId": "store-primary",
   "parentEntryId": "root-entry-id",
-  "parentFolderPath": "\\\\主要信箱 - User",
+  "parentFolderPath": "/主要信箱 - User",
   "maxDepth": 1,
   "maxChildren": 50
 }
@@ -84,9 +85,9 @@ Folder snapshot 形狀範例：
 {
   "name": "收件匣",
   "entryId": "inbox-entry-id",
-  "folderPath": "\\\\主要信箱 - User\\收件匣",
+  "folderPath": "/主要信箱 - User/收件匣",
   "parentEntryId": "root-entry-id",
-  "parentFolderPath": "\\\\主要信箱 - User",
+  "parentFolderPath": "/主要信箱 - User",
   "storeId": "store-primary",
   "isStoreRoot": false,
   "folderType": "Inbox",
@@ -97,7 +98,7 @@ Folder snapshot 形狀範例：
 }
 ```
 
-後續任何 `folderPath` 都使用這個完整值：`\\主要信箱 - User\收件匣`。如果手寫 JSON，反斜線必須 escape 成 `\\\\主要信箱 - User\\收件匣`。
+後續任何 HTTP API `folderPath` 都使用這個完整值：`/主要信箱 - User/收件匣`。不要自行改寫或只傳 folder name。
 
 找不到 Inbox 時，不要改成全域搜尋；回報目前 folder snapshot 無法定位主要 Inbox。
 
@@ -113,7 +114,7 @@ Request body 重點欄位：
 
 ```json
 {
-  "folderPath": "\\\\主要信箱 - User\\收件匣",
+  "folderPath": "/主要信箱 - User/收件匣",
   "range": "1m",
   "maxCount": 30
 }
@@ -139,7 +140,7 @@ Request body 重點欄位：
 {
   "searchId": "",
   "storeId": "",
-  "scopeFolderPaths": ["\\\\主要信箱 - User\\收件匣"],
+  "scopeFolderPaths": ["/主要信箱 - User/收件匣"],
   "includeSubFolders": true,
   "keyword": "",
   "textFields": ["subject", "sender"],
