@@ -185,10 +185,12 @@ defineEmits<{
 }
 
 .inspector-subject {
+  min-width: 0;
   color: #172033;
   font-size: 1.1rem;
   font-weight: 800;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .inspector-meta,
@@ -197,6 +199,12 @@ defineEmits<{
   gap: 6px;
   color: #667085;
   font-size: 0.86rem;
+}
+
+.inspector-meta > span,
+.inspector-field > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .inspector-field > span {
@@ -224,8 +232,15 @@ defineEmits<{
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+}
+
+.field-title-row .el-button {
+  min-width: 0;
+  margin-left: auto;
+  white-space: normal;
 }
 
 .property-tag-picker {
@@ -237,6 +252,18 @@ defineEmits<{
 
 .property-tag-picker .el-tag {
   max-width: 100%;
+}
+
+.property-tag-picker :deep(.el-tag__content) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.property-removable-tag :deep(.el-tag__content),
+.clickable-marker-tag :deep(.el-tag__content) {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .flag-draft-summary {
