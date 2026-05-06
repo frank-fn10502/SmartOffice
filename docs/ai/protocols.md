@@ -49,6 +49,7 @@ Web UI notification channel：
 - `POST /api/outlook/request-move-mail`：dispatch 移動單封郵件 command。
 - `POST /api/outlook/request-delete-mail`：dispatch `delete_mail` command；AddIn 必須實作為移到 Deleted Items，不可永久刪除。
 - `GET /api/outlook/folders`：讀取 cached folder snapshot，格式是 `FolderSnapshotDto`。
+  Hub folder cache 只保留 store root 與可操作 mail folder；hidden/system/non-mail folder 不會出現在此 snapshot。
 - `GET /api/outlook/mails`：讀取 cached mails。
 - `GET /api/outlook/mail-search/progress/{searchId}`：查詢 mail search 進度。
 - `GET /api/outlook/mail-search/progress/by-command/{commandId}`：以 command id 查詢 mail search 進度。
@@ -81,7 +82,7 @@ Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 fol
 
 1. 若 folder cache 為空，先由 Hub dispatch `fetch_folder_roots`，建立 store/root folder cache；mail search 只使用目前已載入的 folder cache，不得為了搜尋自動展開整棵 folder tree。
 2. 若 folder cache 無法建立，讓原始 search command 失敗並回 `folder_cache_unavailable`。
-3. 使用 cached folder tree 展開原始 request 的 `storeId` / `scopeFolderPaths` / `includeSubFolders`。
+3. 使用 cached folder tree 展開原始 request 的 `storeId` / `scopeFolderPaths` / `includeSubFolders`；Hub 只允許 `isSearchableMailFolder == true`、`defaultItemType == 0`、`isHidden == false`、`isSystem == false` 且非 store root 的 folder 進入搜尋計畫。
 4. 將搜尋計畫切成單 folder slices；每個 slice 都要有非空 `storeId` 與單一 `folderPath`。
 5. 依序 dispatch slices，slice 之間保留短暫 delay，避免大量 Outlook search 同時啟動。
 6. 用 `MailSearchProgress` broadcast 整體進度；MCP / Agents SKILL 可用 progress endpoint 主動查詢。

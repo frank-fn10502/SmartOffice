@@ -24,6 +24,10 @@ Office 2016 desktop 深度整合通常會碰到 VSTO、COM automation 或 Outloo
 - [Folders object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folders)：同一層 folder collection。
 - [Folder.Folders property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.folders)：讀取子資料夾。
 - [Store.GetRootFolder method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.store.getrootfolder)：從單一 Store root 列舉 folder tree；Microsoft 文件也指出這不同於 `NameSpace.Folders` 直接拿目前 profile 所有 stores 的 folders。
+- [Folder.DefaultItemType property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.defaultitemtype)：回報 folder 預設 Outlook item type；Hub search planning 只接受 `olMailItem` / `0`。
+- [OlItemType enumeration (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.olitemtype)：`olMailItem = 0`、`olJournalItem = 4`、`olNoteItem = 5` 等。
+- [Folder.PropertyAccessor property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.propertyaccessor)：讀取 Outlook object model 未直接 exposed 的 folder MAPI properties，例如 hidden/system flags。
+- [Default folder is missing in Outlook and Outlook on the web](https://learn.microsoft.com/en-us/troubleshoot/outlook/user-interface/default-folder-is-missing)：Microsoft support 文件說明 `PR_ATTR_HIDDEN` 與 `PR_ATTR_SYSTEM` 這兩個 folder 屬性。
 - [MailItem object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem)：郵件 item、subject、sender、body、received time 等欄位。
 - [Application.AdvancedSearch method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearch)：非同步搜尋；scope 可含同一個 store 內的多個 folder，不能跨 store。Microsoft 文件提醒大量 simultaneous search 會造成顯著搜尋活動並影響 Outlook performance；AddIn 實作時只處理 Hub 給定的單一 search slice。
 - [Application.AdvancedSearchComplete event (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearchcomplete)：`AdvancedSearch` 完成事件，避免以 blocking loop 等待。

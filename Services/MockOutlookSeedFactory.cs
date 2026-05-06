@@ -175,6 +175,8 @@ namespace SmartOffice.Hub.Services
                 ParentFolderPath = parentFolderPath,
                 StoreId = storeId,
                 IsStoreRoot = isStoreRoot,
+                DefaultItemType = isStoreRoot ? -1 : 0,
+                IsSearchableMailFolder = !isStoreRoot,
                 DiscoveryState = "partial",
             });
         }

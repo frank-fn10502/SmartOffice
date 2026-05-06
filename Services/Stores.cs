@@ -324,7 +324,8 @@ namespace SmartOffice.Hub.Services
                 foreach (var item in batch.Folders)
                 {
                     if (rejectedStoreIds.Contains(item.StoreId)) continue;
-                    if (IsSystemFolder(item)) continue;
+                    NormalizeFolderSearchability(item);
+                    if (IsRejectedFolder(item)) continue;
                     var folder = CloneFolder(item);
                     UpsertFolder(_folders, folder);
                 }
@@ -444,7 +445,46 @@ namespace SmartOffice.Hub.Services
             return folders.Count;
         }
 
-        private static bool IsSystemFolder(FolderDto folder)
+        public static bool IsSearchableMailFolder(FolderDto folder)
+        {
+            return !folder.IsStoreRoot
+                && folder.IsSearchableMailFolder
+                && folder.DefaultItemType == 0
+                && !folder.IsHidden
+                && !folder.IsSystem;
+        }
+
+        private static void NormalizeFolderSearchability(FolderDto folder)
+        {
+            if (folder.IsHidden || folder.IsSystem)
+            {
+                folder.IsSearchableMailFolder = false;
+                return;
+            }
+
+            if (folder.DefaultItemType != 0)
+            {
+                folder.IsSearchableMailFolder = false;
+                return;
+            }
+
+            folder.IsSearchableMailFolder = folder.IsSearchableMailFolder && !folder.IsStoreRoot;
+        }
+
+        private static bool IsRejectedFolder(FolderDto folder)
+        {
+            return folder.IsHidden
+                || folder.IsSystem
+                || IsSystemFolderName(folder)
+                || !IsOperableFolder(folder);
+        }
+
+        private static bool IsOperableFolder(FolderDto folder)
+        {
+            return folder.IsStoreRoot || IsSearchableMailFolder(folder);
+        }
+
+        private static bool IsSystemFolderName(FolderDto folder)
         {
             return IsSystemNameOrPath(folder.Name) || IsSystemNameOrPath(folder.FolderPath);
         }
@@ -535,6 +575,10 @@ namespace SmartOffice.Hub.Services
                 ItemCount = folder.ItemCount,
                 StoreId = folder.StoreId,
                 IsStoreRoot = folder.IsStoreRoot,
+                DefaultItemType = folder.DefaultItemType,
+                IsHidden = folder.IsHidden,
+                IsSystem = folder.IsSystem,
+                IsSearchableMailFolder = folder.IsSearchableMailFolder,
                 HasChildren = folder.HasChildren,
                 ChildrenLoaded = folder.ChildrenLoaded,
                 DiscoveryState = folder.DiscoveryState,

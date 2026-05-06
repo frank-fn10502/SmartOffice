@@ -7,6 +7,10 @@ export interface FolderDto {
   itemCount: number
   storeId: string
   isStoreRoot: boolean
+  defaultItemType: number
+  isHidden: boolean
+  isSystem: boolean
+  isSearchableMailFolder: boolean
   hasChildren: boolean
   childrenLoaded: boolean
   discoveryState: 'partial' | 'loaded' | 'failed' | string

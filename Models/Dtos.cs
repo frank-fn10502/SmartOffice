@@ -44,6 +44,10 @@ namespace SmartOffice.Hub.Models
         public int ItemCount { get; set; }
         public string StoreId { get; set; } = string.Empty;
         public bool IsStoreRoot { get; set; }
+        public int DefaultItemType { get; set; } = -1; // Outlook OlItemType；mail folder 為 0。
+        public bool IsHidden { get; set; }
+        public bool IsSystem { get; set; }
+        public bool IsSearchableMailFolder { get; set; }
         public bool HasChildren { get; set; }
         public bool ChildrenLoaded { get; set; }
         public string DiscoveryState { get; set; } = "partial"; // partial、loaded、failed。

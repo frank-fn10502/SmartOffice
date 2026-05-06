@@ -89,10 +89,18 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
   - `itemCount`
   - `storeId`
   - `isStoreRoot`
+  - `defaultItemType`
+  - `isHidden`
+  - `isSystem`
+  - `isSearchableMailFolder`
   - `hasChildren`
   - `childrenLoaded`
   - `discoveryState`
 - [ ] Store root folder 的 `parentFolderPath = ""` 且 `isStoreRoot = true`，底下 folder 都是 `false`。
+- [ ] `defaultItemType` 必須來自 Outlook `Folder.DefaultItemType`；mail folder 為 `0` / `olMailItem`，無法判定時填 `-1`。
+- [ ] `isHidden` 與 `isSystem` 必須來自 MAPI `PR_ATTR_HIDDEN` / `PR_ATTR_SYSTEM`，不得用 folder name 或本地化顯示文字猜測。
+- [ ] `isSearchableMailFolder` 只在 `defaultItemType == 0`、`isHidden == false`、`isSystem == false` 且不是 store root 時為 `true`；Hub 會用這個欄位決定 search scope。
+- [ ] Hub folder snapshot 只保留 store root 與 `isSearchableMailFolder == true` 的 mail folder；日誌、記事、Calendar、Contacts、Tasks、Sync Issues、Local Failures、Server Failures 等不可操作 folder 不應出現在 Web UI folder list。
 - [ ] `FolderDto` 不再包含 `subFolders`，也不重複傳 store metadata。
 - [ ] `.pst` / `.ost` 的真實位置填在 `storeFilePath`；回報文件中必須匿名化路徑。
 

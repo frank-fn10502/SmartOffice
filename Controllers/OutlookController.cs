@@ -153,7 +153,7 @@ namespace SmartOffice.Hub.Controllers
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var searchableFolders = snapshot.Folders
-                .Where(folder => !folder.IsStoreRoot)
+                .Where(MailStore.IsSearchableMailFolder)
                 .Where(folder => string.IsNullOrWhiteSpace(req.StoreId) || string.Equals(folder.StoreId, req.StoreId, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
