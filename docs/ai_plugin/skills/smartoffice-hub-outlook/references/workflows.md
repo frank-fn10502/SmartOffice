@@ -47,6 +47,8 @@ curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-folder-children" 
 
 ## Load Recent Mails
 
+未指定 folder 時預設使用主要 mailbox 的 Inbox；不要主動載入或搜尋其他 folder。
+
 ```bash
 curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mails" \
   -H "Content-Type: application/json" \
@@ -57,6 +59,7 @@ curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mails"
 ```
 
 回覆使用者時優先摘要 `subject`、`senderName`、`receivedTime`、`categories`、`flagInterval` 等 metadata；不要主動輸出完整 body。
+回覆中必須說明 folder 範圍，例如「範圍：主要 mailbox 的 Inbox」。
 
 ## Read One Mail Body
 
@@ -90,6 +93,8 @@ curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-attachments?mailId=mail-id"
 
 ## Search Mail
 
+未指定 folder 時，`scopeFolderPaths` 只放主要 mailbox 的 Inbox。只有使用者明確要求其他 folder、子資料夾或全域搜尋時，才擴大 scope。
+
 ```bash
 curl -sS -X POST "$SMARTOFFICE_OUTLOOK_URL/api/outlook/request-mail-search" \
   -H "Content-Type: application/json" \
@@ -109,7 +114,8 @@ curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/command-results/$COMMAND_ID"
 curl -sS "$SMARTOFFICE_OUTLOOK_URL/api/outlook/mail-search"
 ```
 
-若使用者只說「收件夾」或沒有指定 folder，先用 folder snapshot 找主要 mailbox 的 Inbox，作為 `scopeFolderPaths`；通常同時設定 `includeSubFolders=true`。
+若使用者只說「收件夾」或沒有指定 folder，使用主要 mailbox 的 Inbox 作為 `scopeFolderPaths`。不要為了保險而搜尋所有 folder。
+回覆中必須說明 folder 範圍；若使用 `scopeFolderPaths=["\\\\Mailbox - User\\Inbox"]`，要讓使用者知道結果只來自該 Inbox scope。
 
 只依照「存在附件」搜尋時，`keyword` 可以是空字串：
 

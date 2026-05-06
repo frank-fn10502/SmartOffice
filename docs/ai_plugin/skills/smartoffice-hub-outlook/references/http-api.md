@@ -197,8 +197,8 @@ Request:
 }
 ```
 
-- `scopeFolderPaths` 空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders。
-- 使用者未指定 folder 時，建議先從 `GET /api/outlook/folders` 選擇主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值。
+- `scopeFolderPaths` 空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders；AI agent 不可在使用者未要求全域搜尋時送空陣列。
+- 使用者未指定 folder 時，使用主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值。
 - `textFields`: `subject`、`sender`、`body`；API 會 normalize，不合法時回到 `subject`。
 - `flagState`: `any`、`flagged`、`unflagged`。
 - `readState`: `any`、`unread`、`read`。

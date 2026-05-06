@@ -17,16 +17,18 @@ metadata:
 - 修改郵件前必須先從 snapshot 取得 `MailItemDto.id`，不可只用 subject、sender 或 folder name 猜目標。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
 - `request-delete-mail` 的語意是移到 Deleted Items，不是永久刪除；仍需先確認 `mailId` 與 `folderPath` 來自 snapshot。
-- 使用者沒有指定 folder 時，以目前主要 mailbox 的 Inbox 作為起點，並預設 `includeSubFolders=true`。
+- 使用者沒有明確指定 folder / 全域搜尋 / 移動或刪除 folder 時，一律以目前主要 mailbox 的 Inbox 為範圍。
+- 不要主動搜尋其他 folder；只有使用者明確要求其他 folder、子資料夾或全域搜尋時，才擴大 scope。
+- 回覆使用者時必須說明本次使用的 folder 範圍，例如「範圍：主要 mailbox 的 Inbox」或「範圍：指定 folder `...`」，避免使用者誤以為已搜尋全信箱。
 
 ## 操作流程
 
 1. 讀 `GET /api/outlook/admin/status` 確認 Outlook API 是否可用。
-2. 若需要 folder scope，先 `POST /api/outlook/request-folders`，等待 command 完成，再讀 `GET /api/outlook/folders`。
-3. 使用者未指定 folder 時，從 folder snapshot 選擇主要 store 的 Inbox；若有多個 Inbox 且無法判斷主要 mailbox，回報候選並請使用者指定。
-4. 發出任務所需的 `request-*` endpoint。
-5. 輪詢 `command-results/{commandId}`；mail search 可同時查 progress endpoint。
-6. 依 command 類型讀取 cache：`mails`、`mail-attachments`、`mail-search`、`folders`、`calendar`、`categories` 或 `rules`。
+2. 使用者未指定 folder 時，使用目前主要 mailbox 的 Inbox；不要主動 request 或搜尋其他 folder。
+3. 查詢 Inbox 郵件時，呼叫 `POST /api/outlook/request-mails`，再用 response 的 `commandId` 查 `GET /api/outlook/command-results/{commandId}`。
+4. 需要條件搜尋時，呼叫 `POST /api/outlook/request-mail-search`，但 `scopeFolderPaths` 預設只放主要 Inbox；只有使用者明確要求時才設定其他 folder 或全域搜尋。
+5. 讀單封 body、attachment 或執行 mutation 前，必須使用 snapshot 中的 `mailId` 與 `folderPath`。
+6. 回覆使用者時列出本次 folder 範圍；若只查 Inbox，要明確說不是全域搜尋。
 7. 對 mutation 類操作，在回覆使用者前重新讀 snapshot，確認變更結果。
 
 ## 何時讀 references
