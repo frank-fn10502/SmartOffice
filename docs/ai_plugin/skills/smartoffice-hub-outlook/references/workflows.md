@@ -163,11 +163,15 @@ Request body 重點欄位：
 
 先從 `GET /api/outlook/mails` 或 `GET /api/outlook/mail-search` 找到目標 `id` 與 `folderPath`。
 
+使用者只要求最近郵件、郵件清單、統計或 Markdown metadata 報告時，停在 metadata；不要為每封 mail 自動讀 body。只有使用者明確要求內容摘要、內文關鍵字判讀，或 metadata 不足以完成任務時才讀 body。
+
 讀 body：
 
 - `POST /api/outlook/request-mail-body`
 - `GET /api/outlook/command-results/{commandId}`
 - `GET /api/outlook/mails`
+
+若同一封 mail 的 body request 已完成，但 snapshot 中同 id 的 `body` 與 `bodyHtml` 仍為空，不要重複呼叫同一 request；視為 Outlook/AddIn 目前未提供可讀內容，回報限制或改用 metadata。
 
 讀 attachment metadata：
 

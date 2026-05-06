@@ -17,6 +17,7 @@ metadata:
 - `request-*` response 不是資料本體；它只代表 Hub dispatch / wait 狀態。真正資料一律從 `folders`、`mails`、`mail-search`、`calendar` 等 snapshot endpoint 讀取。
 - 修改郵件前必須先從 snapshot 取得 `MailItemDto.id` 與 `folderPath`，不可只用 subject、sender 或 folder name 猜目標。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
+- 使用者只要求最近郵件、郵件清單、統計或 Markdown metadata 報告時，不要呼叫 `request-mail-body`；只有使用者明確要求內容摘要、內文關鍵字判讀，或 metadata 不足以完成任務時才讀 body。
 - `request-delete-mail` 的語意是移到 Deleted Items，不是永久刪除；仍需先確認 `mailId` 與 `folderPath` 來自 snapshot。
 - 使用者未指定 folder 時，只查主要 mailbox 的 Inbox；但 Inbox path 必須取自 folder snapshot，不可硬寫英文 `Inbox`。
 - HTTP API 的 `folderPath` 一律使用 `/主要信箱 - User/收件匣` 這種普通斜線格式。
@@ -61,6 +62,7 @@ metadata:
 - `request-mails.folderPath` 與 `request-mail-search.scopeFolderPaths[]` 必須完整等於 snapshot 裡的 `folderPath`。
 - `request-mail-search` 回 `no_searchable_folder` 時，通常代表 `scopeFolderPaths` 沒有對上 cached folders；此時不要改成全域搜尋，應先重新載入/展開 folders 並改用 snapshot 裡的真實路徑。
 - 不要自行組 folder path；一律使用 snapshot 回傳的 `/Mailbox/Inbox` 形式。
+- 對同一封 mail 呼叫 `request-mail-body` 完成後，若同 id 的 `body` 與 `bodyHtml` 仍為空，不要重複呼叫同一 endpoint；將該封內容視為目前不可用，回報限制或改用 metadata。
 
 ## API 設計反思
 
