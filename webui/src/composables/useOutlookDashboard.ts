@@ -268,8 +268,6 @@ export function useOutlookDashboard() {
     { label: 'Search', value: 'search', disabled: outlookDependentViewsLocked.value },
     { label: 'Chat', value: 'chat', disabled: outlookDependentViewsLocked.value },
     { label: 'Calendar', value: 'calendar', disabled: outlookDependentViewsLocked.value },
-    { label: 'Admin', value: 'admin' },
-    { label: 'Swagger', value: 'swagger' },
   ])
 
   const folderOptions = computed(() => collectFolderOptions(visibleFolders.value))
@@ -1605,12 +1603,6 @@ function categoryTagStyle(name: string) {
       htmlMailIndexes.value = new Set()
       selectedMailHtml.value = false
     }
-    if (view === 'admin') {
-      await Promise.allSettled([
-        refreshAdminData(),
-        loadAttachmentExportSettings(),
-      ])
-    }
   }
 
   async function scrollChatToBottom() {
@@ -1850,6 +1842,7 @@ function categoryTagStyle(name: string) {
     htmlMailIndexes,
     loadingCalendar,
     loadingCategories,
+    loadAttachmentExportSettings,
     loadingFolders,
     loadingMails,
     loadingMailSearch,
@@ -1941,3 +1934,5 @@ function categoryTagStyle(name: string) {
     flagEditorVisible,
   }
 }
+
+export type OutlookDashboardState = ReturnType<typeof useOutlookDashboard>

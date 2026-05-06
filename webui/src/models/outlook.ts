@@ -317,5 +317,6 @@ export interface AddinLogEntry {
   timestamp: string
 }
 
-export type AppView = 'outlook' | 'search' | 'chat' | 'calendar' | 'admin' | 'swagger'
+export type AppView = 'outlook' | 'search' | 'chat' | 'calendar'
+export type HubPage = 'outlook' | 'admin' | 'swagger'
 export type SignalRState = 'connected' | 'reconnecting' | 'disconnected'
