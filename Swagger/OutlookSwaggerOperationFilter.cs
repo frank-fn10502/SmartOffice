@@ -120,7 +120,7 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-move-mails"] = new(
                 "Outlook Commands",
                 "移動多封郵件",
-                "將多封 mail 移到 destination folder。`mailIds` 必須來自目前 `mails` 或 `mail-search` snapshot；完成後讀取 `GET /api/outlook/mails` 與 `GET /api/outlook/folders`。",
+                "將多封 mail 移到 destination folder。`mailIds` 必須來自目前 `mails` 或 `mail-search` snapshot；單次最多 500 封，超過請由 caller 分批呼叫。完成後讀取 `GET /api/outlook/mails` 與 `GET /api/outlook/folders`。",
                 typeof(CommandDispatchResponse),
                 MoveMailsExample()),
             ["POST api/outlook/request-delete-mail"] = new(

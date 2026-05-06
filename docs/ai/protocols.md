@@ -51,7 +51,7 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `POST /api/outlook/request-create-folder`：dispatch 建立 folder command。
 - `POST /api/outlook/request-delete-folder`：dispatch 刪除 folder command。
 - `POST /api/outlook/request-move-mail`：dispatch 移動單封郵件 command。
-- `POST /api/outlook/request-move-mails`：dispatch 移動多封郵件 command；`mailIds` 必須來自目前 Hub snapshot，AddIn 逐封移動並回報結果。
+- `POST /api/outlook/request-move-mails`：dispatch 移動多封郵件 command；`mailIds` 必須來自目前 Hub snapshot，單次最多 500 封，AddIn 逐封移動並回報結果。
 - `POST /api/outlook/request-delete-mail`：dispatch `delete_mail` command；AddIn 必須實作為移到 Deleted Items，不可永久刪除。
 - `GET /api/outlook/folders`：讀取 cached folder snapshot，格式是 `FolderSnapshotDto`。
   Hub folder cache 只保留 store root 與可操作 mail folder；hidden/system/non-mail folder 不會出現在此 snapshot。

@@ -48,6 +48,7 @@ metadata:
 - 讀 body：先從 `mails` 或 `mail-search` 取 `id` 與 `folderPath` -> `request-mail-body` -> `mails` 找同 id 的 `body` / `bodyHtml`。
 - 讀附件：先從 snapshot 取 `id` 與 `folderPath` -> `request-mail-attachments` -> `mail-attachments?mailId={id}`。
 - 修改、移動、刪除郵件：先從 snapshot 確認唯一目標的 `id` 與 `folderPath` -> mutation endpoint -> 重新讀 snapshot。
+- 大量搬移整個 folder 或含 subfolders 的郵件：不要用 `request-mails` 枚舉，也不要一次送出超過 500 封；用 `request-mail-search` 指定 `scopeFolderPaths` + `includeSubFolders=true` 取得 ids，再以每批最多 500 封逐批呼叫 `request-move-mails`。詳細流程見 `references/workflows.md` 的「Bulk Move Folder Tree」。
 
 ## 何時讀 references
 
@@ -63,6 +64,7 @@ metadata:
 - `request-mail-search` 回 `no_searchable_folder` 時，通常代表 `scopeFolderPaths` 沒有對上 cached folders；此時不要改成全域搜尋，應先重新載入/展開 folders 並改用 snapshot 裡的真實路徑。
 - 不要自行組 folder path；一律使用 snapshot 回傳的 `/Mailbox/Inbox` 形式。
 - 對同一封 mail 呼叫 `request-mail-body` 完成後，若同 id 的 `body` 與 `bodyHtml` 仍為空，不要重複呼叫同一 endpoint；將該封內容視為目前不可用，回報限制或改用 metadata。
+- `request-move-mails` 單次最多 500 個 `mailIds`。遇到「搬移 folderA 和所有 subfolder」這類任務時，必須分批慢慢送，不可把 8000+ ids 放進單一 request。
 
 ## API 設計反思
 

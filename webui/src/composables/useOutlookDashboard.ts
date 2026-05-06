@@ -646,8 +646,29 @@ function categoryTagStyle(name: string) {
     completeAttachmentLoad(payload.mailId)
   }
 
-  async function loadCachedFolders() {
+  function collectExistingFolderCounts() {
+    const counts = new Map<string, number>()
+    function visit(items: FolderTreeNode[]) {
+      for (const folder of items) {
+        counts.set(folder.folderPath, folder.itemCount)
+        visit(folder.subFolders)
+      }
+    }
+    visit(folders.value)
+    return counts
+  }
+
+  async function loadCachedFolders(options: { preserveExistingCounts?: boolean } = {}) {
     const snapshot = await outlookApi.getFolders()
+    if (options.preserveExistingCounts) {
+      const existingCounts = collectExistingFolderCounts()
+      snapshot.folders = snapshot.folders.map((folder) => {
+        const previousCount = existingCounts.get(folder.folderPath) ?? 0
+        return previousCount > 0 && folder.itemCount === 0
+          ? { ...folder, itemCount: previousCount }
+          : folder
+      })
+    }
     folderStores.value = snapshot.stores
     folders.value = buildFolderTree(snapshot)
     selectDefaultFolder()
@@ -713,7 +734,7 @@ function categoryTagStyle(name: string) {
         maxChildren: 50,
       })
       await waitForCommandResult(response.commandId)
-      await loadCachedFolders()
+      await loadCachedFolders({ preserveExistingCounts: true })
     } finally {
       loadingFolders.value = false
     }
@@ -761,7 +782,7 @@ function categoryTagStyle(name: string) {
             maxChildren: 50,
           })
           await waitForCommandResult(response.commandId)
-          await loadCachedFolders()
+          await loadCachedFolders({ preserveExistingCounts: true })
         } finally {
           loadingFolders.value = false
         }

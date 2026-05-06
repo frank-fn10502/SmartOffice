@@ -191,7 +191,7 @@ AddIn 收到的是 Hub 已規劃好的單一 Outlook folder search slice；AddIn
 刪除郵件有獨立 `delete_mail` command；但唯一允許實作仍是移動到 Outlook 的「刪除的郵件 / Deleted Items」folder。AddIn 不得直接呼叫 `MailItem.Delete()` 或永久刪除郵件。
 
 - [ ] AddIn 收到 `move_mail`。
-- [ ] AddIn 收到 `move_mails` 時，逐封用 `moveMailsRequest.mailIds` 找回 mail item。
+- [ ] AddIn 收到 `move_mails` 時，逐封用 `moveMailsRequest.mailIds` 找回 mail item；Hub 單次最多 dispatch 500 封，更多郵件由 caller 分批呼叫。
 - [ ] AddIn 收到 `delete_mail` 時，用同一套移動流程移到 Deleted Items。
 - [ ] 用 `moveMailRequest.mailId` 找回 mail item。
 - [ ] 用 `destinationFolderPath` 找到 Outlook destination `Folder`。

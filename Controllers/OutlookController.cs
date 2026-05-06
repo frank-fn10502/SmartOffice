@@ -11,6 +11,8 @@ namespace SmartOffice.Hub.Controllers
     [Route("api/outlook")]
     public class OutlookController : ControllerBase
     {
+        private const int MaxMoveMailsBatchSize = 500;
+
         private readonly MailStore _mailStore;
         private readonly ChatStore _chatStore;
         private readonly CommandResultStore _commandResults;
@@ -290,6 +292,20 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-move-mails")]
         public async Task<IActionResult> RequestMoveMails([FromBody] MoveMailsRequest req, CancellationToken ct)
         {
+            req.MailIds ??= new List<string>();
+            req.SourceFolderPaths ??= new List<string>();
+
+            if (req.MailIds.Count > MaxMoveMailsBatchSize)
+            {
+                return BadRequest(new
+                {
+                    status = "too_many_mail_ids",
+                    message = $"move_mails 單次最多只能移動 {MaxMoveMailsBatchSize} 封郵件；請由 caller 分批呼叫。",
+                    maxBatchSize = MaxMoveMailsBatchSize,
+                    actualCount = req.MailIds.Count
+                });
+            }
+
             var cmd = new PendingCommand
             {
                 Type = "move_mails",

@@ -329,6 +329,30 @@ Request:
 }
 ```
 
+### `POST /api/outlook/request-move-mails`
+
+單次最多 500 個 `mailIds`；更多郵件必須由 caller 分批呼叫。
+
+```json
+{
+  "mailIds": ["mail-id-1", "mail-id-2"],
+  "sourceFolderPath": "/Mailbox - User/Inbox",
+  "sourceFolderPaths": ["/Mailbox - User/Inbox"],
+  "destinationFolderPath": "/Mailbox - User/Projects",
+  "continueOnError": true
+}
+```
+
+超過限制時回 `400`：
+
+```json
+{
+  "status": "too_many_mail_ids",
+  "maxBatchSize": 500,
+  "actualCount": 8000
+}
+```
+
 ### `POST /api/outlook/request-delete-mail`
 
 ```json

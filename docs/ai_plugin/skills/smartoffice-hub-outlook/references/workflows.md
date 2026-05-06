@@ -191,9 +191,54 @@ Request body 重點欄位：
 
 - `POST /api/outlook/request-update-mail-properties`
 - `POST /api/outlook/request-move-mail`
+- `POST /api/outlook/request-move-mails`
 - `POST /api/outlook/request-delete-mail`
 
 `request-delete-mail` 代表移到 Deleted Items，不是永久刪除。mutation 完成後重新讀 `mails` 與必要的 `folders` snapshot，確認結果。
+
+### Bulk Move Folder Tree
+
+當使用者要求「將 folderA 與底下 subfolder 的郵件都搬到 folderOther」或「搬空某個 folder tree」時，使用這個流程。不要用 `request-mails` 蒐集目標郵件，因為它是近期列表 API，受 `range` / `maxCount` 限制。
+
+1. 取得最新 folders snapshot，定位來源 folderA 與 destination folderOther 的真實 `folderPath`；不要自行組 path。
+2. 若 folderA 的子 folder 尚未載入，先用 `request-folder-children` 展開到足以涵蓋使用者要求的層級，再重新讀 folders snapshot。
+3. 用 `request-mail-search` 枚舉來源範圍：
+
+```json
+{
+  "searchId": "",
+  "storeId": "",
+  "scopeFolderPaths": ["/Mailbox - User/folderA"],
+  "includeSubFolders": true,
+  "keyword": "",
+  "textFields": ["subject"],
+  "categoryNames": [],
+  "hasAttachments": null,
+  "flagState": "any",
+  "readState": "any",
+  "receivedFrom": null,
+  "receivedTo": null
+}
+```
+
+4. 等待 command result 完成後讀 `GET /api/outlook/mail-search`，只取 `id` 與 `folderPath` 等必要 metadata。
+5. 將結果依最多 500 封切 batch。`POST /api/outlook/request-move-mails` 單次超過 500 會回 `400 too_many_mail_ids`。
+6. 逐批呼叫 `request-move-mails`，每批都等待 `command-results/{commandId}` 成功後再送下一批：
+
+```json
+{
+  "mailIds": ["id-1", "id-2"],
+  "sourceFolderPath": "",
+  "sourceFolderPaths": ["/Mailbox - User/folderA", "/Mailbox - User/folderA/Subfolder"],
+  "destinationFolderPath": "/Mailbox - User/folderOther",
+  "continueOnError": true
+}
+```
+
+`sourceFolderPath` 只有單一來源 folder 時才填；跨 subfolders 時可留空並填 `sourceFolderPaths` 去幫助 folder count 更新。
+
+7. 回報進度，例如 `500/8000`、`1000/8000`。若某批失敗，停止後回報失敗批次與已完成數量；不要假裝整批成功。
+8. 全部批次完成後，重新讀必要的 folders snapshot 確認來源與目的 folder count。若需要確認目前 UI folder list，再針對相關 folder request mails。
 
 ## Calendar
 
