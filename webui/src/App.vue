@@ -558,6 +558,9 @@ const {
               ]"
             />
           </div>
+          <div v-if="loadingMailSearch" class="search-result-loading" role="status">
+            <span>{{ mailSearchProgressText || 'Outlook 郵件搜尋中...' }}</span>
+          </div>
 
           <div class="mail-table search-result-table">
             <p v-if="mails.length === 0 && !loadingMailSearch" class="hint">尚未取得搜尋結果。</p>
@@ -644,9 +647,6 @@ const {
                   </div>
                 </div>
               </div>
-            </div>
-            <div v-if="loadingMailSearch" class="pane-loading">
-              <span>{{ mailSearchProgressText || 'Outlook 郵件搜尋中...' }}</span>
             </div>
           </div>
         </section>

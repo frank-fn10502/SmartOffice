@@ -685,6 +685,25 @@ select {
   background: #fbfcfe;
 }
 
+.search-result-loading {
+  display: grid;
+  place-items: center;
+  min-height: 42px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #cfe0f2;
+  background: #eef6ff;
+  color: #17466f;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.search-result-loading span {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .search-result-total {
   color: #475467;
   font-size: 0.84rem;

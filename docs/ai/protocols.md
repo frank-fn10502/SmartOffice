@@ -74,7 +74,7 @@ HTTP status 是 `409 Conflict`。
 
 AI / MCP client 與 Agents SKILL 的完整建議流程請參考 `docs/ai_plugin/mcp-agents-skill-integration.md`。
 
-目前郵件已讀、flag 與 category mutation 以 `request-update-mail-properties` / `update_mail_properties` 為正式入口。舊的 marker-style endpoint 若仍存在於程式碼中，只能視為待移除的 transitional surface，不應再寫入 `docs/addin/` 或要求工作機 AddIn 維護相容 handler。
+目前郵件已讀、flag 與 category mutation 以 `request-update-mail-properties` / `update_mail_properties` 為正式入口。舊的 marker-style endpoint 已從 Hub 公開 API 移除，不應再寫入 `docs/addin/` 或要求工作機 AddIn 維護相容 handler。
 
 ## Hub Mail Search Planning
 

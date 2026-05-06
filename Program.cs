@@ -1,17 +1,37 @@
 using SmartOffice.Hub.Hubs;
 using SmartOffice.Hub.Services;
+using SmartOffice.Hub.Swagger;
+using Microsoft.OpenApi.Models;
+using System.Reflection;
 
 namespace SmartOffice.Hub
 {
     public class Program
     {
+        private const string OutlookSwaggerDocumentName = "outlook-v1";
+
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen(options =>
+            {
+                options.SwaggerDoc(OutlookSwaggerDocumentName, new OpenApiInfo
+                {
+                    Title = "SmartOffice.Hub Outlook API",
+                    Version = "v1",
+                    Description = "Hub/Web UI/AI integration API for Outlook command routing and cached snapshots.",
+                });
+                options.DocInclusionPredicate((documentName, apiDescription) =>
+                    string.Equals(apiDescription.GroupName, documentName, StringComparison.OrdinalIgnoreCase));
+                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+                if (File.Exists(xmlPath))
+                    options.IncludeXmlComments(xmlPath);
+                options.OperationFilter<OutlookSwaggerOperationFilter>();
+            });
             // SignalR 預設 incoming message 上限較小；folder tree 必須使用
             // BeginFolderSync / PushFolderBatch 小批次回推。
             builder.Services.AddSignalR(options =>
@@ -28,6 +48,7 @@ namespace SmartOffice.Hub
             builder.Services.AddSingleton<AttachmentExportService>();
             builder.Services.AddSingleton<OutlookSignalRCommandDispatcher>();
             builder.Services.AddSingleton<OutlookCommandQueue>();
+            builder.Services.AddSingleton<OutlookFolderCacheService>();
             builder.Services.AddSingleton<MockOutlookService>();
 
             builder.Services.AddCors(options =>
@@ -41,7 +62,11 @@ namespace SmartOffice.Hub
             var app = builder.Build();
 
             app.UseSwagger();
-            app.UseSwaggerUI();
+            app.UseSwaggerUI(options =>
+            {
+                options.DocumentTitle = "SmartOffice.Hub API";
+                options.SwaggerEndpoint($"/swagger/{OutlookSwaggerDocumentName}/swagger.json", "Outlook API v1");
+            });
 
             app.UseCors();
             app.UseDefaultFiles();

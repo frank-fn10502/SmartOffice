@@ -289,16 +289,6 @@ export const outlookApi = {
     postJson('/api/outlook/request-calendar', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
 
-  requestMarkMailRead: (body: { mailId: string; folderPath: string }) =>
-    postJson('/api/outlook/request-mark-mail-read', body),
-  requestMarkMailUnread: (body: { mailId: string; folderPath: string }) =>
-    postJson('/api/outlook/request-mark-mail-unread', body),
-  requestMarkMailTask: (body: { mailId: string; folderPath: string }) =>
-    postJson('/api/outlook/request-mark-mail-task', body),
-  requestClearMailTask: (body: { mailId: string; folderPath: string }) =>
-    postJson('/api/outlook/request-clear-mail-task', body),
-  requestSetMailCategories: (body: { mailId: string; folderPath: string; categories: string }) =>
-    postJson('/api/outlook/request-set-mail-categories', body),
   requestUpdateMailProperties: (body: MailPropertiesCommandRequest) =>
     postJson('/api/outlook/request-update-mail-properties', body),
   requestUpsertCategory: (body: CategoryCommandRequest) =>

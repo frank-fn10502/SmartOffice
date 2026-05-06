@@ -138,49 +138,6 @@ namespace SmartOffice.Hub.Services
                         calendar = FilterCalendar(command.CalendarRequest);
                         _mailStore.SetCalendarEvents(calendar);
                         break;
-                    case "mark_mail_read":
-                        UpdateMailMarker(command.MailMarkerRequest, mail => mail.IsRead = true);
-                        mails = SyncVisibleMails();
-                        _mailStore.SetMails(mails);
-                        break;
-                    case "mark_mail_unread":
-                        UpdateMailMarker(command.MailMarkerRequest, mail => mail.IsRead = false);
-                        mails = SyncVisibleMails();
-                        _mailStore.SetMails(mails);
-                        break;
-                    case "mark_mail_task":
-                        UpdateMailMarker(command.MailMarkerRequest, mail =>
-                        {
-                            mail.IsMarkedAsTask = true;
-                            mail.FlagInterval = "today";
-                            mail.FlagRequest = "今天";
-                            mail.TaskStartDate = DateTime.Now.Date;
-                            mail.TaskDueDate = DateTime.Now.Date;
-                            mail.TaskCompletedDate = null;
-                            mail.Importance = "high";
-                        });
-                        mails = SyncVisibleMails();
-                        _mailStore.SetMails(mails);
-                        break;
-                    case "clear_mail_task":
-                        UpdateMailMarker(command.MailMarkerRequest, mail =>
-                        {
-                            mail.IsMarkedAsTask = false;
-                            mail.FlagInterval = "none";
-                            mail.FlagRequest = string.Empty;
-                            mail.TaskStartDate = null;
-                            mail.TaskDueDate = null;
-                            mail.TaskCompletedDate = null;
-                            mail.Importance = "normal";
-                        });
-                        mails = SyncVisibleMails();
-                        _mailStore.SetMails(mails);
-                        break;
-                    case "set_mail_categories":
-                        UpdateMailMarker(command.MailMarkerRequest, mail => mail.Categories = command.MailMarkerRequest?.Categories ?? string.Empty);
-                        mails = SyncVisibleMails();
-                        _mailStore.SetMails(mails);
-                        break;
                     case "upsert_category":
                         UpsertCategory(command.CategoryRequest);
                         categories = new List<OutlookCategoryDto>(_mockCategories);
@@ -475,14 +432,6 @@ namespace SmartOffice.Hub.Services
             existing.Color = string.IsNullOrWhiteSpace(request.Color) ? existing.Color : request.Color;
             existing.ColorValue = request.ColorValue;
             existing.ShortcutKey = request.ShortcutKey;
-        }
-
-        private void UpdateMailMarker(MailMarkerCommandRequest? request, Action<MailItemDto> update)
-        {
-            if (request is null || string.IsNullOrWhiteSpace(request.MailId)) return;
-            var mail = _mockMails.FirstOrDefault(item => item.Id == request.MailId);
-            if (mail is null) return;
-            update(mail);
         }
 
         private MailItemDto? UpdateMailProperties(MailPropertiesCommandRequest? request)
