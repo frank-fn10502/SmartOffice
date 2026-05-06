@@ -67,6 +67,22 @@ namespace SmartOffice.Hub.Services
             "Dossiers publics",
             "ffentliche Ordner",
         };
+        private static readonly HashSet<OutlookFolderType> BlockedFolderTypes = new()
+        {
+            OutlookFolderType.SyncIssues,
+            OutlookFolderType.Conflicts,
+            OutlookFolderType.LocalFailures,
+            OutlookFolderType.ServerFailures,
+            OutlookFolderType.Calendar,
+            OutlookFolderType.Contacts,
+            OutlookFolderType.Tasks,
+            OutlookFolderType.Notes,
+            OutlookFolderType.Journal,
+            OutlookFolderType.RssFeeds,
+            OutlookFolderType.ConversationHistory,
+            OutlookFolderType.ConversationActionSettings,
+            OutlookFolderType.OtherSystem,
+        };
         private List<MailItemDto> _mails = new();
         private List<FolderDto> _folders = new();
         private List<OutlookStoreDto> _stores = new();
@@ -324,7 +340,6 @@ namespace SmartOffice.Hub.Services
                 foreach (var item in batch.Folders)
                 {
                     if (rejectedStoreIds.Contains(item.StoreId)) continue;
-                    NormalizeFolderSearchability(item);
                     if (IsRejectedFolder(item)) continue;
                     var folder = CloneFolder(item);
                     UpsertFolder(_folders, folder);
@@ -448,34 +463,16 @@ namespace SmartOffice.Hub.Services
         public static bool IsSearchableMailFolder(FolderDto folder)
         {
             return !folder.IsStoreRoot
-                && folder.IsSearchableMailFolder
                 && folder.DefaultItemType == 0
                 && !folder.IsHidden
-                && !folder.IsSystem;
-        }
-
-        private static void NormalizeFolderSearchability(FolderDto folder)
-        {
-            if (folder.IsHidden || folder.IsSystem)
-            {
-                folder.IsSearchableMailFolder = false;
-                return;
-            }
-
-            if (folder.DefaultItemType != 0)
-            {
-                folder.IsSearchableMailFolder = false;
-                return;
-            }
-
-            folder.IsSearchableMailFolder = folder.IsSearchableMailFolder && !folder.IsStoreRoot;
+                && !folder.IsSystem
+                && IsAllowedMailFolderType(folder.FolderType);
         }
 
         private static bool IsRejectedFolder(FolderDto folder)
         {
             return folder.IsHidden
                 || folder.IsSystem
-                || IsSystemFolderName(folder)
                 || !IsOperableFolder(folder);
         }
 
@@ -484,9 +481,18 @@ namespace SmartOffice.Hub.Services
             return folder.IsStoreRoot || IsSearchableMailFolder(folder);
         }
 
-        private static bool IsSystemFolderName(FolderDto folder)
+        private static bool IsAllowedMailFolderType(OutlookFolderType folderType)
         {
-            return IsSystemNameOrPath(folder.Name) || IsSystemNameOrPath(folder.FolderPath);
+            if (BlockedFolderTypes.Contains(folderType)) return false;
+
+            return folderType is OutlookFolderType.Mail
+                or OutlookFolderType.Inbox
+                or OutlookFolderType.Sent
+                or OutlookFolderType.Drafts
+                or OutlookFolderType.Deleted
+                or OutlookFolderType.Junk
+                or OutlookFolderType.Archive
+                or OutlookFolderType.Outbox;
         }
 
         private static bool IsSystemStore(OutlookStoreDto store)
@@ -575,10 +581,10 @@ namespace SmartOffice.Hub.Services
                 ItemCount = folder.ItemCount,
                 StoreId = folder.StoreId,
                 IsStoreRoot = folder.IsStoreRoot,
+                FolderType = folder.FolderType,
                 DefaultItemType = folder.DefaultItemType,
                 IsHidden = folder.IsHidden,
                 IsSystem = folder.IsSystem,
-                IsSearchableMailFolder = folder.IsSearchableMailFolder,
                 HasChildren = folder.HasChildren,
                 ChildrenLoaded = folder.ChildrenLoaded,
                 DiscoveryState = folder.DiscoveryState,

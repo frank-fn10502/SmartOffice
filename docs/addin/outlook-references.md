@@ -24,6 +24,8 @@ Office 2016 desktop 深度整合通常會碰到 VSTO、COM automation 或 Outloo
 - [Folders object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folders)：同一層 folder collection。
 - [Folder.Folders property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.folders)：讀取子資料夾。
 - [Store.GetRootFolder method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.store.getrootfolder)：從單一 Store root 列舉 folder tree；Microsoft 文件也指出這不同於 `NameSpace.Folders` 直接拿目前 profile 所有 stores 的 folders。
+- [Store.GetDefaultFolder method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.store.getdefaultfolder)：依 `OlDefaultFolders` 回傳該 store 的 well-known folder；Hub 會用 AddIn 回報的 EntryID 對照表排除不可操作的 special folders。
+- [OlDefaultFolders enumeration (Outlook)](https://learn.microsoft.com/office/vba/api/Outlook.OlDefaultFolders)：包含 `olFolderSyncIssues`、`olFolderConflicts`、`olFolderLocalFailures`、`olFolderServerFailures` 等 Exchange special folders。
 - [Folder.DefaultItemType property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.defaultitemtype)：回報 folder 預設 Outlook item type；Hub search planning 只接受 `olMailItem` / `0`。
 - [OlItemType enumeration (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.olitemtype)：`olMailItem = 0`、`olJournalItem = 4`、`olNoteItem = 5` 等。
 - [Folder.PropertyAccessor property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.propertyaccessor)：讀取 Outlook object model 未直接 exposed 的 folder MAPI properties，例如 hidden/system flags。

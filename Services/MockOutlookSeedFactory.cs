@@ -175,8 +175,8 @@ namespace SmartOffice.Hub.Services
                 ParentFolderPath = parentFolderPath,
                 StoreId = storeId,
                 IsStoreRoot = isStoreRoot,
+                FolderType = isStoreRoot ? OutlookFolderType.StoreRoot : OutlookFolderType.Mail,
                 DefaultItemType = isStoreRoot ? -1 : 0,
-                IsSearchableMailFolder = !isStoreRoot,
                 DiscoveryState = "partial",
             });
         }

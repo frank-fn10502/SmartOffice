@@ -1,3 +1,28 @@
+export type OutlookFolderType =
+  | 'Unknown'
+  | 'StoreRoot'
+  | 'Mail'
+  | 'Inbox'
+  | 'Sent'
+  | 'Drafts'
+  | 'Deleted'
+  | 'Junk'
+  | 'Archive'
+  | 'Outbox'
+  | 'SyncIssues'
+  | 'Conflicts'
+  | 'LocalFailures'
+  | 'ServerFailures'
+  | 'Calendar'
+  | 'Contacts'
+  | 'Tasks'
+  | 'Notes'
+  | 'Journal'
+  | 'RssFeeds'
+  | 'ConversationHistory'
+  | 'ConversationActionSettings'
+  | 'OtherSystem'
+
 export interface FolderDto {
   name: string
   entryId: string
@@ -7,10 +32,10 @@ export interface FolderDto {
   itemCount: number
   storeId: string
   isStoreRoot: boolean
+  folderType: OutlookFolderType
   defaultItemType: number
   isHidden: boolean
   isSystem: boolean
-  isSearchableMailFolder: boolean
   hasChildren: boolean
   childrenLoaded: boolean
   discoveryState: 'partial' | 'loaded' | 'failed' | string

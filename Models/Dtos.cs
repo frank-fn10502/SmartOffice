@@ -34,6 +34,34 @@ namespace SmartOffice.Hub.Models
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 
+    [JsonConverter(typeof(JsonStringEnumConverter<OutlookFolderType>))]
+    public enum OutlookFolderType
+    {
+        Unknown = 0,
+        StoreRoot,
+        Mail,
+        Inbox,
+        Sent,
+        Drafts,
+        Deleted,
+        Junk,
+        Archive,
+        Outbox,
+        SyncIssues,
+        Conflicts,
+        LocalFailures,
+        ServerFailures,
+        Calendar,
+        Contacts,
+        Tasks,
+        Notes,
+        Journal,
+        RssFeeds,
+        ConversationHistory,
+        ConversationActionSettings,
+        OtherSystem,
+    }
+
     public class FolderDto
     {
         public string Name { get; set; } = string.Empty;
@@ -44,10 +72,10 @@ namespace SmartOffice.Hub.Models
         public int ItemCount { get; set; }
         public string StoreId { get; set; } = string.Empty;
         public bool IsStoreRoot { get; set; }
+        public OutlookFolderType FolderType { get; set; } = OutlookFolderType.Unknown;
         public int DefaultItemType { get; set; } = -1; // Outlook OlItemType；mail folder 為 0。
         public bool IsHidden { get; set; }
         public bool IsSystem { get; set; }
-        public bool IsSearchableMailFolder { get; set; }
         public bool HasChildren { get; set; }
         public bool ChildrenLoaded { get; set; }
         public string DiscoveryState { get; set; } = "partial"; // partial、loaded、failed。
