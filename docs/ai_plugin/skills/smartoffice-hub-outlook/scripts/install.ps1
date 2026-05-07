@@ -19,7 +19,10 @@ function Show-Usage {
 安裝 SmartOffice Outlook Agents SKILL。
 
 用法:
-  pwsh ./scripts/install.ps1 [options]
+  pwsh ./install-smartoffice-hub-outlook-skill.ps1 [options]
+
+直接呼叫 skill 內部 installer:
+  pwsh ./docs/ai_plugin/skills/smartoffice-hub-outlook/scripts/install.ps1 [options]
 
 預設:
   同時複製 SKILL folder 到 codex、copilot、opencode 的 user skill 位置。
@@ -64,10 +67,10 @@ Options:
       顯示說明。
 
 範例:
-  pwsh ./scripts/install.ps1
-  pwsh ./scripts/install.ps1 -Project C:\path\to\project
-  pwsh ./scripts/install.ps1 -Tools codex,opencode
-  pwsh ./scripts/install.ps1 -Tool copilot -Project C:\path\to\project
+  pwsh ./install-smartoffice-hub-outlook-skill.ps1
+  pwsh ./install-smartoffice-hub-outlook-skill.ps1 -Project C:\path\to\project
+  pwsh ./install-smartoffice-hub-outlook-skill.ps1 -Tools codex,opencode
+  pwsh ./install-smartoffice-hub-outlook-skill.ps1 -Tool copilot -Project C:\path\to\project
 "@
 }
 

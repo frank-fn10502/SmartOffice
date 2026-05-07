@@ -10,7 +10,10 @@ usage() {
 安裝 SmartOffice Outlook Agents SKILL。
 
 用法:
-  install.sh [options]
+  ./install-smartoffice-hub-outlook-skill.sh [options]
+
+直接呼叫 skill 內部 installer:
+  ./docs/ai_plugin/skills/smartoffice-hub-outlook/scripts/install.sh [options]
 
 預設:
   同時複製 SKILL folder 到 codex、copilot、opencode 的 user skill 位置。
@@ -55,10 +58,10 @@ Options:
       顯示說明。
 
 範例:
-  ./scripts/install.sh
-  ./scripts/install.sh --project /path/to/project
-  ./scripts/install.sh --tools codex,opencode
-  ./scripts/install.sh --tool copilot --project /path/to/project
+  ./install-smartoffice-hub-outlook-skill.sh
+  ./install-smartoffice-hub-outlook-skill.sh --project /path/to/project
+  ./install-smartoffice-hub-outlook-skill.sh --tools codex,opencode
+  ./install-smartoffice-hub-outlook-skill.sh --tool copilot --project /path/to/project
 USAGE
 }
 
