@@ -57,7 +57,7 @@ function estimatedAttachmentExportRoot() {
 }
 
 const manualOutlookDeleteMessage = 'SmartOffice API 不會永久刪除 Outlook 郵件或 folder。此項目已在 Outlook 刪除資料夾內；若要永久刪除，請到 Outlook 手動操作。'
-const mailFetchDelayMs = 500
+const mailFetchDelayMs = 300
 const mailFetchCountdownTickMs = 100
 
 export function useOutlookDashboard() {
@@ -101,8 +101,8 @@ export function useOutlookDashboard() {
   const mailAttachmentsByMailId = ref<Record<string, MailAttachmentDto[]>>({})
   const loadingAttachmentMailIds = ref<Set<string>>(new Set())
   const exportingAttachmentIds = ref<Set<string>>(new Set())
-  const mailRange = ref('1m')
-  const mailCount = ref(30)
+  const mailRange = ref('30d')
+  const mailCount = ref(100)
   const lastMailFetchAt = ref<Date | null>(null)
   const scheduledMailFetchAt = ref(0)
   const mailFetchCountdownTick = ref(Date.now())
@@ -344,8 +344,15 @@ export function useOutlookDashboard() {
     return `${mailFetchCountdownSeconds.value.toFixed(1)} 秒後自動抓取`
   })
 
+  const showMailFetchWarning = computed(() => {
+    return mailListNeedsFetch.value
+      && !mailFetchCountdownText.value
+      && !loadingMails.value
+  })
+
   const mailFetchStatusText = computed(() => {
     if (mailFetchCountdownText.value) return `已選取 ${selectedFolderName.value}，${mailFetchCountdownText.value}；按「立即抓取」可提早執行。`
+    if (loadingMails.value && pendingMailFolderPath.value) return `正在抓取：${folderNameForPath(pendingMailFolderPath.value)}`
     if (lastMailFetchAt.value) return `上次抓取：${lastMailFetchAt.value.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
     return '尚未抓取郵件。'
   })
@@ -863,10 +870,10 @@ function categoryTagStyle(name: string) {
     await requestMails()
   }
 
-  async function loadCachedMails() {
+  async function loadCachedMails(fallbackFolderPath = '') {
     const items = await outlookApi.getMails()
     setMails(items)
-    fetchedMailFolderPath.value = inferMailFolderPath(items)
+    fetchedMailFolderPath.value = inferMailFolderPath(items, fallbackFolderPath)
   }
 
   async function loadCachedMailSearchResults() {
@@ -907,7 +914,7 @@ function categoryTagStyle(name: string) {
         maxCount: mailCount.value,
       })
       await waitForCommandResult(response.commandId)
-      await loadCachedMails()
+      await loadCachedMails(pendingMailFolderPath.value)
       lastMailFetchAt.value = new Date()
       pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
@@ -1102,8 +1109,8 @@ function categoryTagStyle(name: string) {
 
     if (unmounted) return
     if (!selectedFolderPath.value) selectInboxFolder()
-    mailRange.value = '1m'
-    mailCount.value = 30
+    mailRange.value = '30d'
+    mailCount.value = 100
     await requestMails(true)
   }
 
@@ -1901,6 +1908,7 @@ function categoryTagStyle(name: string) {
     fetchedMailFolderName,
     mailListNeedsFetch,
     mailFetchCountdownText,
+    showMailFetchWarning,
     mailFetchStatusText,
     selectedFolderName,
     selectedCalendarEvent,

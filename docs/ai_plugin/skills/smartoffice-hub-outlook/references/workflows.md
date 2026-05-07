@@ -115,8 +115,10 @@ Request body 重點欄位：
 ```json
 {
   "folderPath": "/主要信箱 - User/收件匣",
-  "range": "1m",
-  "maxCount": 30
+  "range": "30d",
+  "receivedFrom": "",
+  "receivedTo": "",
+  "maxCount": 100
 }
 ```
 

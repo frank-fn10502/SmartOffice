@@ -94,6 +94,7 @@ const {
   mailListMode,
   mailListNeedsFetch,
   mailFetchCountdownText,
+  showMailFetchWarning,
   mailFetchStatusText,
   mailHasBody,
   mailPropertiesDraft,
@@ -224,31 +225,40 @@ const {
         </section>
 
         <section class="panel outlook-mail-pane">
-          <div class="panel-header">
-            <div class="panel-title">
-              <el-icon><Document /></el-icon>
-              <span>{{ fetchedMailFolderName }}</span>
-              <el-tag effect="plain">{{ mails.length }}</el-tag>
-              <el-tag v-if="mailListNeedsFetch" type="warning" effect="plain">需抓取：{{ selectedFolderName }}</el-tag>
+          <div class="panel-header mail-list-header">
+            <div class="mail-header-main">
+              <div class="panel-title mail-title">
+                <el-icon><Document /></el-icon>
+                <span>{{ fetchedMailFolderName }}</span>
+                <el-tag effect="plain">{{ mails.length }}</el-tag>
+                <el-tag v-if="showMailFetchWarning" type="warning" effect="plain">需抓取：{{ selectedFolderName }}</el-tag>
+              </div>
+              <p class="mail-fetch-status">{{ mailFetchStatusText }}</p>
+              <p v-if="showMailFetchWarning" class="mail-fetch-warning">
+                目前列表仍是上次抓取的 {{ fetchedMailFolderName }}；已選取 {{ selectedFolderName }}，請按「抓取郵件」更新列表。
+              </p>
             </div>
 
-            <el-button type="primary" :loading="loadingMails" :disabled="outlookBusy && !loadingMails" @click="requestMails">
-              {{ mailFetchCountdownText ? '立即抓取' : '抓取郵件' }}
-            </el-button>
+            <div class="mail-header-actions">
+              <el-select v-model="mailRange" class="range-select" size="small">
+                <el-option label="今天" value="1d" />
+                <el-option label="最近 7 天" value="1w" />
+                <el-option label="最近 30 天" value="30d" />
+                <el-option label="最近 60 天" value="60d" />
+                <el-option label="最近 90 天" value="90d" />
+              </el-select>
+              <el-select v-model="mailCount" class="count-select" size="small">
+                <el-option :value="30" label="30 封" />
+                <el-option :value="60" label="60 封" />
+                <el-option :value="100" label="100 封" />
+              </el-select>
+              <el-button type="primary" size="small" :loading="loadingMails" :disabled="outlookBusy && !loadingMails" @click="requestMails">
+                {{ mailFetchCountdownText ? '立即抓取' : '抓取郵件' }}
+              </el-button>
+            </div>
           </div>
 
           <div class="mail-fetch-bar">
-            <el-select v-model="mailRange" class="range-select">
-              <el-option label="今天" value="1d" />
-              <el-option label="最近 7 天" value="1w" />
-              <el-option label="最近 30 天" value="1m" />
-            </el-select>
-            <el-select v-model="mailCount" class="count-select">
-              <el-option :value="10" label="10" />
-              <el-option :value="20" label="20" />
-              <el-option :value="30" label="30" />
-              <el-option :value="100" label="100" />
-            </el-select>
             <div class="mail-counts">
               <span>未讀 {{ mailStats.unread }}</span>
               <span>旗標 {{ mailStats.flagged }}</span>
@@ -256,10 +266,6 @@ const {
             </div>
             <el-button v-if="mailListMode === 'search'" size="small" @click="showFolderMails">回到 folder list</el-button>
           </div>
-          <p class="hint">{{ mailFetchStatusText }}</p>
-          <p v-if="mailListNeedsFetch && !mailFetchCountdownText" class="hint">
-            目前列表仍是上次抓取的 {{ fetchedMailFolderName }}；已選取 {{ selectedFolderName }}，請按「抓取郵件」更新列表。
-          </p>
 
           <div class="mail-table">
             <p v-if="mails.length === 0 && !loadingMails" class="hint">選取左邊 folder 後抓取郵件。</p>

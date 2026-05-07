@@ -41,8 +41,10 @@ namespace SmartOffice.Hub.Models
     public class FetchMailsRequest
     {
         public string FolderPath { get; set; } = string.Empty;
-        public string Range { get; set; } = "1m"; // 目前預期值："1d"、"1w"、"1m"。
-        public int MaxCount { get; set; } = 30;
+        public string Range { get; set; } = "30d"; // 預設 preset："1d"、"1w"、"30d"、"60d"、"90d"；也可用日期區間字串。
+        public string ReceivedFrom { get; set; } = string.Empty;
+        public string ReceivedTo { get; set; } = string.Empty;
+        public int MaxCount { get; set; } = 100;
     }
 
     /// <summary>

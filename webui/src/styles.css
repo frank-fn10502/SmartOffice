@@ -522,11 +522,11 @@ select {
 }
 
 .range-select {
-  width: 140px;
+  width: 124px;
 }
 
 .count-select {
-  width: 86px;
+  width: 96px;
 }
 
 .mail-list {
@@ -767,9 +767,52 @@ select {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 14px;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 8px 14px;
   border-bottom: 1px solid #edf1f5;
   background: #fbfcfe;
+}
+
+.mail-list-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.mail-header-main {
+  display: grid;
+  flex: 1 1 260px;
+  min-width: 0;
+  gap: 4px;
+}
+
+.mail-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.mail-fetch-status,
+.mail-fetch-warning {
+  margin: 0;
+  color: #667085;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.mail-fetch-warning {
+  color: #b54708;
+}
+
+.mail-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .mail-search-panel {
@@ -2018,6 +2061,11 @@ select {
   .panel-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .mail-header-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .workspace-toolbar,
