@@ -101,8 +101,8 @@ export function useOutlookDashboard() {
   const mailAttachmentsByMailId = ref<Record<string, MailAttachmentDto[]>>({})
   const loadingAttachmentMailIds = ref<Set<string>>(new Set())
   const exportingAttachmentIds = ref<Set<string>>(new Set())
-  const mailRange = ref('30d')
-  const mailCount = ref(100)
+  const mailRange = ref('1w')
+  const mailCount = ref(30)
   const lastMailFetchAt = ref<Date | null>(null)
   const scheduledMailFetchAt = ref(0)
   const mailFetchCountdownTick = ref(Date.now())
@@ -1109,8 +1109,8 @@ function categoryTagStyle(name: string) {
 
     if (unmounted) return
     if (!selectedFolderPath.value) selectInboxFolder()
-    mailRange.value = '30d'
-    mailCount.value = 100
+    mailRange.value = '1w'
+    mailCount.value = 30
     await requestMails(true)
   }
 

@@ -273,10 +273,10 @@ namespace SmartOffice.Hub.Swagger
         private static OpenApiObject FetchMailsExample() => new()
         {
             ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
-            ["range"] = new OpenApiString("30d"),
+            ["range"] = new OpenApiString("1w"),
             ["receivedFrom"] = new OpenApiString(""),
             ["receivedTo"] = new OpenApiString(""),
-            ["maxCount"] = new OpenApiInteger(100),
+            ["maxCount"] = new OpenApiInteger(30),
         };
 
         private static OpenApiObject MailIdentityExample() => new()

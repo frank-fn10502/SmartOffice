@@ -46,7 +46,7 @@ namespace SmartOffice.Hub.Services
             {
                 EnsureSeeded();
                 _mailStore.ApplyFolderBatch(BuildFolderRootsBatch(reset: true));
-                _mailStore.SetMails(MockOutlookMailSearch.FilterMails(_mockMails, MockOutlookPaths.Inbox, MockOutlookPaths.Inbox, "30d", 100));
+                _mailStore.SetMails(MockOutlookMailSearch.FilterMails(_mockMails, MockOutlookPaths.Inbox, MockOutlookPaths.Inbox, "1w", 30));
                 _mailStore.SetCategories(new List<OutlookCategoryDto>(_mockCategories));
                 _mailStore.SetRules(new List<OutlookRuleDto>(_mockRules));
                 _mailStore.SetCalendarEvents(new List<CalendarEventDto>(_mockCalendar));
@@ -90,8 +90,8 @@ namespace SmartOffice.Hub.Services
                             _mockMails,
                             MockOutlookPaths.Inbox,
                             command.MailsRequest?.FolderPath ?? MockOutlookPaths.Inbox,
-                            command.MailsRequest?.Range ?? "30d",
-                            command.MailsRequest?.MaxCount ?? 100,
+                            command.MailsRequest?.Range ?? "1w",
+                            command.MailsRequest?.MaxCount ?? 30,
                             command.MailsRequest?.ReceivedFrom ?? string.Empty,
                             command.MailsRequest?.ReceivedTo ?? string.Empty);
                         _mailStore.SetMails(mails);

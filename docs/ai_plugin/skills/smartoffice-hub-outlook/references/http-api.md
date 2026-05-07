@@ -126,10 +126,10 @@ Request:
 ```json
 {
   "folderPath": "/主要信箱 - User/收件匣",
-  "range": "30d",
+  "range": "1w",
   "receivedFrom": "",
   "receivedTo": "",
-  "maxCount": 100
+  "maxCount": 30
 }
 ```
 

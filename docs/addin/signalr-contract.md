@@ -61,10 +61,10 @@ Payload：
   "type": "fetch_mails",
   "mailsRequest": {
     "folderPath": "\\\\Mailbox - User\\Inbox",
-    "range": "30d",
+    "range": "1w",
     "receivedFrom": "",
     "receivedTo": "",
-    "maxCount": 100
+    "maxCount": 30
   },
   "mailSearchSliceRequest": null,
   "mailBodyRequest": null,
@@ -156,10 +156,10 @@ AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-a
 ```json
 {
   "folderPath": "\\\\Mailbox - User\\Inbox",
-  "range": "30d",
+  "range": "1w",
   "receivedFrom": "",
   "receivedTo": "",
-  "maxCount": 100
+  "maxCount": 30
 }
 ```
 
