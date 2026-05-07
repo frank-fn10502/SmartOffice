@@ -14,7 +14,7 @@ Content-Type: application/json
 
 {
   "folderPath": "/Mailbox/Inbox",
-  "range": "1d",
+  "lookbackHours": 24,
   "maxCount": 10
 }
 

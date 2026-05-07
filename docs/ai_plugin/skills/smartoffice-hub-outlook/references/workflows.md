@@ -115,9 +115,7 @@ Request body 重點欄位：
 ```json
 {
   "folderPath": "/主要信箱 - User/收件匣",
-  "range": "1w",
-  "receivedFrom": "",
-  "receivedTo": "",
+  "lookbackHours": 168,
   "maxCount": 30
 }
 ```
@@ -200,7 +198,7 @@ Request body 重點欄位：
 
 ### Bulk Move Folder Tree
 
-當使用者要求「將 folderA 與底下 subfolder 的郵件都搬到 folderOther」或「搬空某個 folder tree」時，使用這個流程。不要用 `request-mails` 蒐集目標郵件，因為它是近期列表 API，受 `range` / `maxCount` 限制。
+當使用者要求「將 folderA 與底下 subfolder 的郵件都搬到 folderOther」或「搬空某個 folder tree」時，使用這個流程。不要用 `request-mails` 蒐集目標郵件，因為它是近期列表 API，受 `lookbackHours` / `maxCount` 限制。
 
 1. 取得最新 folders snapshot，定位來源 folderA 與 destination folderOther 的真實 `folderPath`；不要自行組 path。
 2. 若 folderA 的子 folder 尚未載入，先用 `request-folder-children` 展開到足以涵蓋使用者要求的層級，再重新讀 folders snapshot。

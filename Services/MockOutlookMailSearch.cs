@@ -1,4 +1,3 @@
-using System.Globalization;
 using SmartOffice.Hub.Models;
 
 namespace SmartOffice.Hub.Services
@@ -9,17 +8,15 @@ namespace SmartOffice.Hub.Services
             List<MailItemDto> mails,
             string defaultFolderPath,
             string folderPath,
-            string range,
             int maxCount,
-            string receivedFrom = "",
-            string receivedTo = "")
+            DateTime? receivedFrom = null,
+            DateTime? receivedTo = null)
         {
             var target = string.IsNullOrWhiteSpace(folderPath) ? defaultFolderPath : folderPath;
-            var dateRange = MailListDateRange(range, receivedFrom, receivedTo);
             return mails
                 .Where(mail =>
                     string.Equals(mail.FolderPath, target, StringComparison.OrdinalIgnoreCase)
-                    && InReceivedTime(mail, dateRange.From, dateRange.To))
+                    && InReceivedTime(mail, receivedFrom, receivedTo))
                 .OrderByDescending(mail => mail.ReceivedTime)
                 .Take(Math.Max(1, maxCount))
                 .Select(CloneMailMetadata)
@@ -90,72 +87,6 @@ namespace SmartOffice.Hub.Services
             if (receivedFrom is not null && mail.ReceivedTime < receivedFrom.Value) return false;
             if (receivedTo is not null && mail.ReceivedTime > receivedTo.Value) return false;
             return true;
-        }
-
-        private static (DateTime? From, DateTime? To) MailListDateRange(string range, string receivedFrom, string receivedTo)
-        {
-            var from = ParseFlexibleDateTime(receivedFrom, isEnd: false);
-            var to = ParseFlexibleDateTime(receivedTo, isEnd: true);
-            if (from is not null || to is not null) return (from, to);
-
-            var rangeParts = SplitDateRange(range);
-            if (rangeParts is not null)
-            {
-                return (
-                    ParseFlexibleDateTime(rangeParts.Value.From, isEnd: false),
-                    ParseFlexibleDateTime(rangeParts.Value.To, isEnd: true));
-            }
-
-            return (RangeStart(range), null);
-        }
-
-        private static (string From, string To)? SplitDateRange(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return null;
-            var separators = new[] { "~", "～", "..", " 至 ", " 到 ", " - ", " – ", " — ", " to " };
-            foreach (var separator in separators)
-            {
-                var parts = value.Split(separator, 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 2) return (parts[0], parts[1]);
-            }
-            return null;
-        }
-
-        private static DateTime? ParseFlexibleDateTime(string value, bool isEnd)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return null;
-            var trimmed = value.Trim();
-            var styles = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal;
-            var cultures = new[] { CultureInfo.CurrentCulture, CultureInfo.GetCultureInfo("zh-TW"), CultureInfo.InvariantCulture };
-
-            foreach (var culture in cultures)
-            {
-                if (DateTime.TryParse(trimmed, culture, styles, out var parsed))
-                    return NormalizeDateBoundary(parsed, trimmed, isEnd);
-            }
-
-            return null;
-        }
-
-        private static DateTime NormalizeDateBoundary(DateTime value, string source, bool isEnd)
-        {
-            var hasTime = source.Contains(':', StringComparison.Ordinal) || source.Contains('T', StringComparison.OrdinalIgnoreCase);
-            if (hasTime) return value;
-            return isEnd ? value.Date.AddDays(1).AddTicks(-1) : value.Date;
-        }
-
-        private static DateTime RangeStart(string range)
-        {
-            var now = DateTime.Now;
-            return range switch
-            {
-                "1d" => now.AddDays(-1),
-                "1w" => now.AddDays(-7),
-                "1m" or "30d" => now.AddDays(-30),
-                "60d" => now.AddDays(-60),
-                "90d" => now.AddDays(-90),
-                _ => now.AddDays(-30),
-            };
         }
 
         private static MailItemDto CloneMailMetadata(MailItemDto mail)

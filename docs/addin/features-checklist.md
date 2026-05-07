@@ -115,9 +115,7 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
 
 - [ ] AddIn 收到 `fetch_mails`。
 - [ ] 依 `mailsRequest.folderPath` 讀取該 folder 的 mail。
-- [ ] 支援 `range`：`1d`、`1w`、`30d`、`60d`、`90d`。
-- [ ] 支援 `range` 日期區間字串，例如 `2026/05/01 ~ 2026/05/31` 與含時間的 `2026-05-01 09:00 ~ 2026-05-07 18:00`。
-- [ ] 支援 `receivedFrom` / `receivedTo` 分開指定日期或日期時間，且優先於 `range`。
+- [ ] 支援 Hub 已換算好的 `receivedFrom` / `receivedTo` date-time 邊界。
 - [ ] 支援 `maxCount`。
 - [ ] 回推 `PushMails(mails)`，只包含 metadata。
 - [ ] 每筆 mail 的 `id` 必填，建議使用 Outlook `MailItem.EntryID` 或 AddIn 可穩定找回 item 的識別。

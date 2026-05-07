@@ -126,14 +126,12 @@ Request:
 ```json
 {
   "folderPath": "/主要信箱 - User/收件匣",
-  "range": "1w",
-  "receivedFrom": "",
-  "receivedTo": "",
+  "lookbackHours": 168,
   "maxCount": 30
 }
 ```
 
-`folderPath` 必須取自 `GET /api/outlook/folders` snapshot。`range` 可用 preset：`1d`、`1w`、`30d`、`60d`、`90d`，也可用日期區間字串，例如 `2026/05/01 ~ 2026/05/31`、`2026-05-01 09:00 ~ 2026-05-07 18:00`。也可改用 `receivedFrom` / `receivedTo` 分開傳入日期或日期時間；兩者優先於 `range`。完成後讀 `GET /api/outlook/mails`。mail list 只應包含 metadata，完整 body 需另請求。
+`folderPath` 必須取自 `GET /api/outlook/folders` snapshot。`lookbackHours` 是以小時為單位的簡易相對時間，例如 `12` 代表過去 12 小時、`24` 代表過去 1 天、`168` 代表過去 7 天。也可直接傳入 `receivedFrom` / `receivedTo` date-time 邊界；Hub 會在 dispatch 前補齊給 AddIn。完成後讀 `GET /api/outlook/mails`。mail list 只應包含 metadata，完整 body 需另請求。
 
 ### `POST /api/outlook/request-mail-body`
 

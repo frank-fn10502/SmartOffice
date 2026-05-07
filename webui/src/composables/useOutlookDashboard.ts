@@ -101,7 +101,7 @@ export function useOutlookDashboard() {
   const mailAttachmentsByMailId = ref<Record<string, MailAttachmentDto[]>>({})
   const loadingAttachmentMailIds = ref<Set<string>>(new Set())
   const exportingAttachmentIds = ref<Set<string>>(new Set())
-  const mailRange = ref('1w')
+  const mailLookbackHours = ref(168)
   const mailCount = ref(30)
   const lastMailFetchAt = ref<Date | null>(null)
   const scheduledMailFetchAt = ref(0)
@@ -910,7 +910,7 @@ function categoryTagStyle(name: string) {
     try {
       const response = await outlookApi.requestMails({
         folderPath: selectedFolderPath.value,
-        range: mailRange.value,
+        lookbackHours: mailLookbackHours.value,
         maxCount: mailCount.value,
       })
       await waitForCommandResult(response.commandId)
@@ -1109,7 +1109,7 @@ function categoryTagStyle(name: string) {
 
     if (unmounted) return
     if (!selectedFolderPath.value) selectInboxFolder()
-    mailRange.value = '1w'
+    mailLookbackHours.value = 168
     mailCount.value = 30
     await requestMails(true)
   }
@@ -1879,7 +1879,7 @@ function categoryTagStyle(name: string) {
     mailDialogVisible,
     mailPropertiesDraft,
     mailPropertiesChanged,
-    mailRange,
+    mailLookbackHours,
     mailStats,
     masterCategoryListExpanded,
     mails,

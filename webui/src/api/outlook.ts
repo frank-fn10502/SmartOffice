@@ -307,7 +307,7 @@ export const outlookApi = {
     maxDepth?: number
     maxChildren?: number
   }) => postJson<CommandDispatchResponse>('/api/outlook/request-folder-children', body),
-  requestMails: (body: { folderPath: string; range: string; maxCount: number; receivedFrom?: string; receivedTo?: string }) =>
+  requestMails: (body: { folderPath: string; lookbackHours?: number; maxCount: number; receivedFrom?: string; receivedTo?: string }) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-mails', body),
   requestMailSearch: (body: SearchMailsRequest) =>
     postJson<CommandDispatchResponse>('/api/outlook/request-mail-search', body),

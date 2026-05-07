@@ -72,7 +72,8 @@ workstation-report-YYYYMMDD-HHMM-command-type.md
   "type": "fetch_mails",
   "mailsRequest": {
     "folderPath": "\\\\Mailbox - User\\Inbox",
-    "range": "1w",
+    "receivedFrom": "2026-05-01T09:30:00+08:00",
+    "receivedTo": "2026-05-08T09:30:00+08:00",
     "maxCount": 30
   }
 }

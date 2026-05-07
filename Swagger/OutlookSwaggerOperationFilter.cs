@@ -273,9 +273,7 @@ namespace SmartOffice.Hub.Swagger
         private static OpenApiObject FetchMailsExample() => new()
         {
             ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
-            ["range"] = new OpenApiString("1w"),
-            ["receivedFrom"] = new OpenApiString(""),
-            ["receivedTo"] = new OpenApiString(""),
+            ["lookbackHours"] = new OpenApiDouble(168),
             ["maxCount"] = new OpenApiInteger(30),
         };
 

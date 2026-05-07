@@ -43,12 +43,15 @@ namespace SmartOffice.Hub.Controllers
         /// Web UI、AI 或 MCP client 要求 mails；Hub 會透過 SignalR dispatch 給 Outlook AddIn。
         /// </summary>
         [HttpPost("request-mails")]
-        public async Task<IActionResult> RequestMails([FromBody] FetchMailsRequest req, CancellationToken ct)
+        public async Task<IActionResult> RequestMails([FromBody] RequestMailsApiRequest req, CancellationToken ct)
         {
+            var normalized = BuildFetchMailsRequest(req);
+            if (normalized.Error is not null) return normalized.Error;
+
             var cmd = new PendingCommand
             {
                 Type = "fetch_mails",
-                MailsRequest = req
+                MailsRequest = normalized.Request
             };
             return await DispatchCommandAsync(cmd, ct);
         }
@@ -346,6 +349,41 @@ namespace SmartOffice.Hub.Controllers
                 var body = new { commandId = result.CommandId == string.Empty ? cmd.Id : result.CommandId, status = result.Status, message = result.Message };
                 return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
             }, CancellationToken.None);
+        }
+
+        private (FetchMailsRequest Request, IActionResult? Error) BuildFetchMailsRequest(RequestMailsApiRequest req)
+        {
+            req ??= new RequestMailsApiRequest();
+            var request = new FetchMailsRequest
+            {
+                FolderPath = req.FolderPath,
+                ReceivedFrom = req.ReceivedFrom,
+                ReceivedTo = req.ReceivedTo,
+                MaxCount = req.MaxCount,
+            };
+            if (req.LookbackHours is null) return (request, null);
+
+            if (req.LookbackHours <= 0)
+            {
+                return (request, BadRequest(new
+                {
+                    status = "invalid_lookback_hours",
+                    message = "lookbackHours 必須大於 0，例如 12 代表過去 12 小時、24 代表過去 1 天。"
+                }));
+            }
+
+            if (req.LookbackHours > 24 * 365)
+            {
+                return (request, BadRequest(new
+                {
+                    status = "invalid_lookback_hours",
+                    message = "lookbackHours 不可超過 8760 小時。若需要更大的範圍，請改用 receivedFrom / receivedTo。"
+                }));
+            }
+
+            request.ReceivedTo ??= DateTime.Now;
+            request.ReceivedFrom ??= request.ReceivedTo.Value.Subtract(TimeSpan.FromHours(req.LookbackHours.Value));
+            return (request, null);
         }
 
         private IActionResult? ManualDeleteRequired(PendingCommand cmd)

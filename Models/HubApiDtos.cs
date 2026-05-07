@@ -33,6 +33,15 @@ namespace SmartOffice.Hub.Models
         public string ExportedAttachmentId { get; set; } = string.Empty;
     }
 
+    public class RequestMailsApiRequest
+    {
+        public string FolderPath { get; set; } = string.Empty;
+        public double? LookbackHours { get; set; }
+        public DateTime? ReceivedFrom { get; set; }
+        public DateTime? ReceivedTo { get; set; }
+        public int MaxCount { get; set; } = 30;
+    }
+
     public class AttachmentExportSettingsDto
     {
         public string RootPath { get; set; } = string.Empty;

@@ -36,7 +36,7 @@
 ## 資料讀取功能
 
 1. 讀取 folder tree，透過 SignalR invoke `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`。
-2. 讀取指定 folder 的 mails，支援 `folderPath`、`range` 與 `maxCount`，透過 SignalR invoke `PushMails(mails)`；這裡只回 metadata，`body` / `bodyHtml` 應留空。
+2. 讀取指定 folder 的 mails，支援 `folderPath`、Hub 已換算好的 `receivedFrom` / `receivedTo` 與 `maxCount`，透過 SignalR invoke `PushMails(mails)`；這裡只回 metadata，`body` / `bodyHtml` 應留空。
 3. 使用者點開單封 mail 時，處理 `fetch_mail_body`，依 `mailBodyRequest.mailId` / `folderPath` 載入該封內容，透過 SignalR invoke `PushMailBody(body)`。
 4. 使用者或 AI/MCP 需要附件時，處理 `fetch_mail_attachments`，回推 `PushMailAttachments(attachments)`。
 5. 使用者或 AI/MCP 選定附件後，處理 `export_mail_attachment`，將附件匯出到 Hub 約定的 attachment root，回推 `PushExportedMailAttachment(exported)`；AddIn 不負責開啟檔案。

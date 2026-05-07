@@ -61,9 +61,8 @@ Payload：
   "type": "fetch_mails",
   "mailsRequest": {
     "folderPath": "\\\\Mailbox - User\\Inbox",
-    "range": "1w",
-    "receivedFrom": "",
-    "receivedTo": "",
+    "receivedFrom": "2026-05-01T09:30:00+08:00",
+    "receivedTo": "2026-05-08T09:30:00+08:00",
     "maxCount": 30
   },
   "folderDiscoveryRequest": null,
@@ -162,22 +161,13 @@ AddIn 不應使用 HTTP `/api/outlook/chat` 送 chat；請改用 `/hub/outlook-a
 ```json
 {
   "folderPath": "\\\\Mailbox - User\\Inbox",
-  "range": "1w",
-  "receivedFrom": "",
-  "receivedTo": "",
+  "receivedFrom": "2026-05-01T09:30:00+08:00",
+  "receivedTo": "2026-05-08T09:30:00+08:00",
   "maxCount": 30
 }
 ```
 
-`range` 可用 preset，也可用日期區間字串，例如 `2026/05/01 ~ 2026/05/31`、`2026-05-01 09:00 ~ 2026-05-07 18:00`。`receivedFrom` / `receivedTo` 可分開傳入日期或日期時間；兩者優先於 `range`。date-only 終點表示該日整天。
-
-`range` preset 值：
-
-- `1d`
-- `1w`
-- `30d`
-- `60d`
-- `90d`
+AddIn 只需要依 `receivedFrom` / `receivedTo` date-time 邊界篩選。
 
 ### FetchCalendarRequest
 

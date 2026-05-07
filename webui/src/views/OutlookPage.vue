@@ -99,7 +99,7 @@ const {
   mailHasBody,
   mailPropertiesDraft,
   mailPropertiesChanged,
-  mailRange,
+  mailLookbackHours,
   mailSearchDraft,
   mailSearchProgressText,
   mailSearchSummaryItems,
@@ -240,12 +240,12 @@ const {
             </div>
 
             <div class="mail-header-actions">
-              <el-select v-model="mailRange" class="range-select" size="small">
-                <el-option label="今天" value="1d" />
-                <el-option label="最近 7 天" value="1w" />
-                <el-option label="最近 30 天" value="30d" />
-                <el-option label="最近 60 天" value="60d" />
-                <el-option label="最近 90 天" value="90d" />
+              <el-select v-model="mailLookbackHours" class="lookback-select" size="small">
+                <el-option label="最近 12 小時" :value="12" />
+                <el-option label="最近 24 小時" :value="24" />
+                <el-option label="最近 7 天" :value="168" />
+                <el-option label="最近 30 天" :value="720" />
+                <el-option label="最近 90 天" :value="2160" />
               </el-select>
               <el-select v-model="mailCount" class="count-select" size="small">
                 <el-option :value="30" label="30 封" />
