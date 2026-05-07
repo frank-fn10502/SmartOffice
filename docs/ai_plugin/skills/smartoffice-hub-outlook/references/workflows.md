@@ -5,9 +5,10 @@
 ## 通用規則
 
 - Base URL 預設為 `http://localhost:2805`；只有使用者明確提供其他 Hub URL 時才改用該 URL。
-- 呼叫任何 `POST /api/outlook/request-*` 後，從 response 取出 `commandId`，查 `GET /api/outlook/command-results/{commandId}` 直到不是 `pending`。
-- `completed` 且 `success=true` 才進入下一步；`failed`、`folder_cache_unavailable`、`timeout` 或其他狀態要回報使用者。
+- 呼叫任何 `POST /api/outlook/request-*` 後，從 dispatch response 取出 `commandId`。dispatch response 沒有 `success` 欄位，不可在這一步判斷 `success=true`。
+- 查 `GET /api/outlook/command-results/{commandId}` 直到不是 `pending`；只有 command result 的 `status="completed"` 且 `success=true` 才進入下一步。`failed`、`folder_cache_unavailable`、`timeout` 或其他狀態要回報使用者。
 - HTTP 200 只代表 Hub 已處理 request 流程；真正資料要讀對應 snapshot endpoint。
+- HTTP 409 / 400 / 502 / 504 的 response body 也可能有 `commandId`、`status` 與 `message`；解析後回報，不要靠猜測重試。
 - HTTP API 的 folder path 一律使用普通斜線，例如 `/主要信箱 - User/收件匣`。
 - 大型 JSON 可暫存到 skill folder 的 `tmp/<run>/`，但預設只保存 metadata，不保存完整 mail body。
 
@@ -27,7 +28,7 @@
 2. 等待 command result。
 3. `GET /api/outlook/folders`
 4. 以 `stores[0]` 作為主要 store；使用同 `storeId` 且 `isStoreRoot=true` 的 folder 作為 root。
-5. 若主要 store root 的 `childrenLoaded=false`，用 root folder 的 `storeId`、`entryId`、`folderPath` 呼叫 `POST /api/outlook/request-folder-children`。
+5. 若主要 store root 的 `childrenLoaded=false`，呼叫 `POST /api/outlook/request-folder-children`，request 欄位必須是 `storeId=root.storeId`、`parentEntryId=root.entryId`、`parentFolderPath=root.folderPath`。
 6. 等待 command result。
 7. 再讀 `GET /api/outlook/folders`。
 8. 在主要 store 底下找 `folderType="Inbox"`；若 AddIn 未回報 folder type，再用 localized folder name，例如 `收件匣` 或 `Inbox`。
@@ -78,6 +79,8 @@ Folder snapshot 形狀範例：
   "maxChildren": 50
 }
 ```
+
+不要把 snapshot 欄位 `entryId` / `folderPath` 原樣當成 request 欄位送出；此 endpoint 只接受 `parentEntryId` / `parentFolderPath`。
 
 展開後，應從同一個 `storeId` 找 Inbox：
 

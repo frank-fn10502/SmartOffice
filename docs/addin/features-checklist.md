@@ -141,11 +141,11 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
 
 ### 4. Mail Search
 
-AddIn 收到的是 Hub 已規劃好的單一 Outlook folder search slice；AddIn 不負責跨 folder 排程或整體 progress。搜尋由 keyword 文字搜尋與獨立篩選條件組成，並依 Microsoft Outlook `AdvancedSearch` / DASL 這類內建搜尋流程執行。
+AddIn 收到的是單一 Outlook folder search slice；AddIn 不負責跨 folder 排程或整體 progress。搜尋由 keyword 文字搜尋與獨立篩選條件組成，並依 Microsoft Outlook `AdvancedSearch` / DASL 這類內建搜尋流程執行。
 
 - [ ] AddIn 收到 `fetch_mail_search_slice`。
-- [ ] AddIn 使用 `mailSearchSliceRequest.storeId` 與 `folderPath` 定位單一 Outlook folder。
-- [ ] AddIn 若收到空 `storeId` 或空 `folderPath`，必須用 `CompleteMailSearchSlice(success=false)` 結束該 slice；不得自行全域掃描。
+- [ ] AddIn 使用 `mailSearchSliceRequest.storeId` 與 `folderEntryId` 優先定位單一 Outlook folder；`folderPath` 只作為顯示、search scope 組合與 fallback。
+- [ ] AddIn 若收到空 `storeId`、空 `folderEntryId` 或空 `folderPath`，必須用 `CompleteMailSearchSlice(success=false)` 結束該 slice；不得自行全域掃描。
 - [ ] AddIn 使用 Outlook 內建搜尋在單一 folder 內套用 `keyword`、`textFields`、分類、附件、旗標、已讀狀態與時間；不要實作 typo-tolerant fuzzy search，也不要套用掃描數量限制。
 - [ ] search result 只回 metadata，`body` / `bodyHtml` 留空。
 - [ ] 使用 `BeginMailSearch`、`PushMailSearchSliceResult`、`CompleteMailSearchSlice` 回傳搜尋結果；不要用 `PushMails` 覆蓋目前 folder list。

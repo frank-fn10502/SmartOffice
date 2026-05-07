@@ -13,8 +13,10 @@ metadata:
 - 一律透過 Outlook HTTP API 操作 Outlook；不要繞過 API 使用其他通道。
 - 預設 base URL 是 `http://localhost:2805`；若使用者明確提供其他 Hub URL，才改用該 URL。
 - 可用任何可呼叫 HTTP 與解析 JSON 的工具；不要把 `curl`、PowerShell 或特定 shell 視為必要條件。
-- 每次 `request-*` 後，用 response 的 `commandId` 查 `command-results/{commandId}`；`completed` 且 `success=true` 後再讀對應 snapshot endpoint。
+- 每次 `request-*` 後，先解析 dispatch response 的 `commandId`；dispatch response 沒有 `success` 欄位，不可在這一步等待或判斷 `success=true`。
+- 取得 `commandId` 後查 `GET /api/outlook/command-results/{commandId}`；只有 command result 的 `status="completed"` 且 `success=true` 時，才讀對應 snapshot endpoint。
 - `request-*` response 不是資料本體；它只代表 Hub dispatch / wait 狀態。真正資料一律從 `folders`、`mails`、`mail-search`、`calendar` 等 snapshot endpoint 讀取。
+- 若 `request-*` 回 HTTP 409 / 400 / 502 / 504，仍先解析 body 的 `status`、`message` 與可能存在的 `commandId`；不要靠猜測重試，也不要改用更大的搜尋範圍。
 - 修改郵件前必須先從 snapshot 取得 `MailItemDto.id` 與 `folderPath`，不可只用 subject、sender 或 folder name 猜目標。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
 - 使用者只要求最近郵件、郵件清單、統計或 Markdown metadata 報告時，不要呼叫 `request-mail-body`；只有使用者明確要求內容摘要、內文關鍵字判讀，或 metadata 不足以完成任務時才讀 body。
@@ -32,7 +34,7 @@ metadata:
 1. 確認 API status。
 2. `POST /api/outlook/request-folders`，等待 `command-results/{commandId}` 完成。
 3. `GET /api/outlook/folders`，從 `stores[0]` 找主要 store，並找同 store 的 root folder。
-4. 若 root folder `childrenLoaded=false`，用該 root 的 `storeId`、`entryId`、`folderPath` 呼叫 `POST /api/outlook/request-folder-children`。
+4. 若 root folder `childrenLoaded=false`，呼叫 `POST /api/outlook/request-folder-children`，request 欄位必須是 `storeId=root.storeId`、`parentEntryId=root.entryId`、`parentFolderPath=root.folderPath`。
 5. 再讀 `GET /api/outlook/folders`，在主要 store 底下選 `folderType="Inbox"` 的 folder；若沒有，才用 `name` 等於 `收件匣` 或 `Inbox` fallback。
 6. 使用該 folder 的完整 `folderPath` 呼叫 `request-mails` 或放入 `request-mail-search.scopeFolderPaths[0]`。
 7. 等待 command result 完成後，讀 `mails` 或 `mail-search` snapshot。
@@ -59,7 +61,7 @@ metadata:
 
 - `Inbox` 是範例名稱，不是穩定 contract；中文 Outlook 常見路徑是 `/主要信箱 - User/收件匣`。搜尋前一定要從 folder snapshot 取實際 `folderPath`。
 - `request-folders` 只保證載入 stores/root folders；若 root 的 `childrenLoaded=false`，要用 `request-folder-children` 展開後再找 Inbox。
-- `request-folder-children` 需要 root folder 的 `storeId`、`entryId` 與 `folderPath`；不要只傳 folder display name。
+- `request-folder-children` 的 request 欄位是 `storeId`、`parentEntryId`、`parentFolderPath`；值分別取自 snapshot root folder 的 `storeId`、`entryId`、`folderPath`。不要送 `entryId` 或 `folderPath` 這兩個錯誤欄位名，也不要只傳 folder display name。
 - `request-mails.folderPath` 與 `request-mail-search.scopeFolderPaths[]` 必須完整等於 snapshot 裡的 `folderPath`。
 - `request-mail-search` 回 `no_searchable_folder` 時，通常代表 `scopeFolderPaths` 沒有對上 cached folders；此時不要改成全域搜尋，應先重新載入/展開 folders 並改用 snapshot 裡的真實路徑。
 - 不要自行組 folder path；一律使用 snapshot 回傳的 `/Mailbox/Inbox` 形式。

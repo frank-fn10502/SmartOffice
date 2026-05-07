@@ -225,6 +225,7 @@ AddIn 只需要依 `receivedFrom` / `receivedTo` date-time 邊界篩選。
   "commandId": "slice-command-id",
   "parentCommandId": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
   "storeId": "[redacted store id]",
+  "folderEntryId": "[redacted folder entry id]",
   "folderPath": "\\\\主要信箱 - User\\Inbox",
   "keyword": "客戶",
   "textFields": ["subject"],
@@ -246,7 +247,8 @@ AddIn 只需要依 `receivedFrom` / `receivedTo` date-time 邊界篩選。
 - `commandId`: 此 slice command id；AddIn 回推 slice result 時必須沿用。
 - `parentCommandId`: 原始 `request-mail-search` 的 command id。
 - `storeId`: 指定單一 Outlook Store，必須非空。
-- `folderPath`: 指定單一 Outlook folder，必須非空。
+- `folderEntryId`: Outlook folder EntryID，必須非空；AddIn 應優先使用 `storeId` + `folderEntryId` 定位 folder。
+- `folderPath`: 指定單一 Outlook folder，必須非空；只作為顯示、search scope 組合與 `folderEntryId` 無法定位時的 fallback，不得取代 `folderEntryId` 作為主要 identity。
 - `keyword`: 文字搜尋關鍵字；空白時只套用篩選條件。
 - `textFields`: keyword 文字搜尋欄位；目前正式值為 `subject`、`sender`、`body`。預設只有 `subject`。
 - `categoryNames`: 分類篩選；任一分類符合即可。
@@ -259,7 +261,7 @@ AddIn 只需要依 `receivedFrom` / `receivedTo` date-time 邊界篩選。
 - `resetSearchResults`: 只有第一個 slice 是 `true`；AddIn 呼叫 `BeginMailSearch` 或第一批 `PushMailSearchSliceResult` 時應沿用。
 - `completeSearchOnSlice`: 只有最後一個 slice 是 `true`；AddIn 只有最後一個 slice 才應呼叫 `CompleteMailSearchSlice` 或送 `isFinal=true`。
 
-AddIn 若收到空 `storeId` 或空 `folderPath`，應使用 `CompleteMailSearchSlice(success=false)` 結束該 slice，不得自行展開整個 store 或全域搜尋。
+AddIn 若收到空 `storeId`、空 `folderEntryId` 或空 `folderPath`，應使用 `CompleteMailSearchSlice(success=false)` 結束該 slice，不得自行展開整個 store 或全域搜尋。AddIn 定位 folder 時必須優先使用 `storeId` + `folderEntryId`；只有 `folderEntryId` 無法在目前 Outlook profile 中解析時，才可用 `folderPath` fallback 並回報匿名化 warning。
 
 AddIn 必須在指定單一 folder 內依 Microsoft Outlook `AdvancedSearch` / DASL 這類內建搜尋流程，把 `keyword`、`textFields`、分類、附件、旗標、已讀狀態與時間組成 filter，再回傳符合的 metadata。Hub 不做主要 keyword 後篩；這不是 typo-tolerant fuzzy search。
 

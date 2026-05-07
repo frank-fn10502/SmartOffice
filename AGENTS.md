@@ -10,6 +10,7 @@
 - 工作機上的完整 SmartOffice solution 會以 `..\SmartOffice.Hub\SmartOffice.Hub.csproj` 參考本 Hub 專案；真正的 Outlook AddIn / Office automation 實作必須在工作機 SmartOffice solution 中完成。
 - 在本 repository 的 `Plan/` 任務是交給工作機 AI 使用的 AddIn 實作指引；除非使用者明確要求修改 Hub contract，否則不要把 `Plan/` 任務解讀成要修改 Hub 程式碼。
 - `Plan/status.md` 是 VS Code Copilot custom agent 的任務佇列狀態檔；切分或執行 `Plan/` 任務時也必須遵守 `docs/ai/plan-splitting.md`。
+- `docs/addin/` 是工作機 Outlook AddIn 實作者文件；非必要不要讓其中的文件知道或解釋 Hub 內部。內容應描述 AddIn 需遵守的 SignalR contract、DTO、Office automation 行為與驗收，不要寫 Hub cache、Hub planning、Web UI、mock、AI/MCP 對外 API 或開發機架構。只有 route 名稱、SignalR endpoint、DTO 欄位語意這類 AddIn 實作必要資訊可保留。
 - 修改時維持 SmartOffice.Hub 的邊界：Add-in 負責 Office automation，Hub 負責 HTTP API、SignalR、command routing 與 temporary state，Web UI 負責檢視、手動 request、chat 與 diagnostics。
 - 本 repository 是 PoC / prototype，不預設保留舊版相容程式碼；contract、DTO、UI state、mock 與文件都應以目前正式行為為準。
 - 修改 contract 或流程時，請刪除未使用的舊欄位、舊模式、相容 shim、fallback branch 與死碼；不要留下「可能以後會用」但目前無法驗證或無法處理的相容垃圾。

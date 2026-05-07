@@ -32,7 +32,7 @@ Default: `http://localhost:2805`.
 
 常見 `status`：`completed`、`mocked`、`timeout`、`failed`、`folder_cache_unavailable`、`no_searchable_folder`。遇到其他非完成狀態時，回報原始 `status` 與 `message`。
 
-`request-*` response 不是資料本體。取得 `commandId` 後仍要查 `GET /api/outlook/command-results/{commandId}`；完成後讀對應 snapshot endpoint：
+`request-*` dispatch response 沒有 `success` 欄位。取得 `commandId` 後仍要查 `GET /api/outlook/command-results/{commandId}`；只有 command result 的 `status="completed"` 且 `success=true` 時，才讀對應 snapshot endpoint：
 
 - folder request -> `GET /api/outlook/folders`
 - mail list / body request -> `GET /api/outlook/mails`
@@ -40,6 +40,8 @@ Default: `http://localhost:2805`.
 - mail search request -> `GET /api/outlook/mail-search`
 - calendar request -> `GET /api/outlook/calendar`
 - rules / categories request -> `GET /api/outlook/rules` 或 `GET /api/outlook/categories`
+
+若 `request-*` 回 HTTP 409 / 400 / 502 / 504，body 通常仍包含 `status`、`message` 與可能存在的 `commandId`。Caller 應回報該狀態；不要自行擴大 folder scope、改成空 `scopeFolderPaths`，或猜測 folder path 重試。
 
 ## Command Results
 
@@ -116,6 +118,8 @@ API 會 clamp `maxDepth` 到 1-3、`maxChildren` 到 1-200，並設定 `reset=fa
 - `request-folder-children.storeId` 使用 root 的 `storeId`。
 - `request-folder-children.parentEntryId` 使用 root 的 `entryId`。
 - `request-folder-children.parentFolderPath` 使用 root 的 `folderPath`。
+
+注意 request 欄位名稱必須是 `parentEntryId` 與 `parentFolderPath`；`entryId` 與 `folderPath` 是 snapshot 欄位，不是此 endpoint 的 request 欄位。
 
 ## Mail List / Body / Attachment Endpoints
 

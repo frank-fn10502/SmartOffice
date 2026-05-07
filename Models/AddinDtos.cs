@@ -84,6 +84,7 @@ namespace SmartOffice.Hub.Models
         public string CommandId { get; set; } = string.Empty;
         public string ParentCommandId { get; set; } = string.Empty;
         public string StoreId { get; set; } = string.Empty;
+        public string FolderEntryId { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
         public string Keyword { get; set; } = string.Empty;
         public List<string> TextFields { get; set; } = new() { "subject" };

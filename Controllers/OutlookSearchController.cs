@@ -169,7 +169,9 @@ namespace SmartOffice.Hub.Controllers
                     .ToList();
 
             var plannedFolders = scopedFolders
-                .Where(folder => !string.IsNullOrWhiteSpace(folder.FolderPath))
+                .Where(folder =>
+                    !string.IsNullOrWhiteSpace(folder.EntryId)
+                    && !string.IsNullOrWhiteSpace(folder.FolderPath))
                 .DistinctBy(folder => folder.FolderPath, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(folder => folder.StoreId)
                 .ThenBy(folder => folder.FolderPath)
@@ -181,6 +183,7 @@ namespace SmartOffice.Hub.Controllers
                     SearchId = req.SearchId,
                     ParentCommandId = parentCommandId,
                     StoreId = folder.StoreId,
+                    FolderEntryId = folder.EntryId,
                     FolderPath = folder.FolderPath,
                     Keyword = req.Keyword,
                     TextFields = new List<string>(req.TextFields),

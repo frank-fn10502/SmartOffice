@@ -29,9 +29,9 @@ SmartOffice API cache
 每個會操作 Outlook 的 AI tool 建議使用同一個流程：
 
 1. 呼叫 `/api/outlook/request-*` dispatch command。
-2. 取得 response 裡的 `commandId`。
+2. 取得 dispatch response 裡的 `commandId`；dispatch response 沒有 `success` 欄位。
 3. 輪詢 `GET /api/outlook/command-results/{commandId}`，直到 `status` 不是 `pending`。
-4. 若 command 會更新 snapshot，再讀取對應 cache endpoint，例如 `/api/outlook/mails` 或 `/api/outlook/folders`。
+4. 只有 command result 的 `status="completed"` 且 `success=true` 時，才讀取對應 cache endpoint，例如 `/api/outlook/mails` 或 `/api/outlook/folders`。
 
 Mail search 另有進度 endpoint，適合 MCP / Agents SKILL 對長時間搜尋做主動確認：
 
