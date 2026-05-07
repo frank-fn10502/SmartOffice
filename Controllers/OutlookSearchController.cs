@@ -84,7 +84,7 @@ namespace SmartOffice.Hub.Controllers
 
         private async Task<IActionResult> RequestMailSearchQueuedAsync(PendingCommand cmd, SearchMailsRequest req, CancellationToken ct)
         {
-            var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct);
+            var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct, loadPendingChildren: true);
             if (!folderReady)
             {
                 _commandResults.RecordDispatched(cmd);

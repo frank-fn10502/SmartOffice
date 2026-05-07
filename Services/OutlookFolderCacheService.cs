@@ -22,7 +22,10 @@ namespace SmartOffice.Hub.Services
             _hub = hub;
         }
 
-        public async Task<bool> EnsureFolderCacheAsync(PendingCommand? ownerCommand, CancellationToken ct)
+        public async Task<bool> EnsureFolderCacheAsync(
+            PendingCommand? ownerCommand,
+            CancellationToken ct,
+            bool loadPendingChildren = false)
         {
             if (_mailStore.CountFolders() <= 0 || _mailStore.IsFolderCacheStale(FolderCacheMaxAge))
             {
@@ -32,7 +35,9 @@ namespace SmartOffice.Hub.Services
                 if (!result.Success) return false;
             }
 
-            await LoadPendingFolderDiscoveryTargetsAsync(ownerCommand, ct);
+            if (loadPendingChildren)
+                await LoadPendingFolderDiscoveryTargetsAsync(ownerCommand, ct);
+
             return _mailStore.CountFolders() > 0;
         }
 

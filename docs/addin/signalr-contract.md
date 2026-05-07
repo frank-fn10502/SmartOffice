@@ -66,17 +66,23 @@ Payload：
     "receivedTo": "",
     "maxCount": 30
   },
+  "folderDiscoveryRequest": null,
   "mailSearchSliceRequest": null,
   "mailBodyRequest": null,
+  "mailAttachmentsRequest": null,
+  "exportMailAttachmentRequest": null,
   "calendarRequest": null,
   "mailPropertiesRequest": null,
   "categoryRequest": null,
   "createFolderRequest": null,
   "deleteFolderRequest": null,
   "moveMailRequest": null,
+  "moveMailsRequest": null,
   "deleteMailRequest": null
 }
 ```
+
+上方是 `PendingCommand` 外層 shape 範例；實際 command 只會填入對應 request object，其餘欄位會是 `null` 或未被 AddIn 使用。AddIn 的 command model 應包含表格中列出的所有 request property，避免 Hub 在 `fetch_folder_roots`、`fetch_folder_children`、`fetch_mail_attachments`、`export_mail_attachment` 或 `move_mails` 時因 model 漏欄位而無法讀取 request。
 
 目前 command type：
 
