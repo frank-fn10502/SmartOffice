@@ -238,7 +238,6 @@ const {
                 目前列表仍是上次抓取的 {{ fetchedMailFolderName }}；已選取 {{ selectedFolderName }}，請按「抓取郵件」更新列表。
               </p>
             </div>
-
           </div>
 
           <div class="mail-fetch-bar">

@@ -775,15 +775,22 @@ select {
 }
 
 .mail-list-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: flex-start;
-  gap: 12px;
+  gap: 6px;
+  min-height: 0;
+  padding-bottom: 8px;
+  overflow: visible;
 }
 
 .mail-header-main {
   display: grid;
   flex: 1 1 260px;
+  width: 100%;
   min-width: 0;
   gap: 4px;
+  overflow: visible;
 }
 
 .mail-title {
@@ -796,10 +803,12 @@ select {
 
 .mail-fetch-status,
 .mail-fetch-warning {
+  display: block;
   margin: 0;
   color: #667085;
   font-size: 0.8rem;
   line-height: 1.45;
+  overflow: visible;
 }
 
 .mail-fetch-warning {
