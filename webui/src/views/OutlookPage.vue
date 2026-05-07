@@ -239,7 +239,16 @@ const {
               </p>
             </div>
 
+          </div>
+
+          <div class="mail-fetch-bar">
+            <div class="mail-counts">
+              <span>未讀 {{ mailStats.unread }}</span>
+              <span>旗標 {{ mailStats.flagged }}</span>
+              <span>分類 {{ mailStats.categorized }}</span>
+            </div>
             <div class="mail-header-actions">
+              <el-button v-if="mailListMode === 'search'" size="small" @click="showFolderMails">回到 folder list</el-button>
               <el-select v-model="mailLookbackHours" class="lookback-select" size="small">
                 <el-option label="最近 12 小時" :value="12" />
                 <el-option label="最近 24 小時" :value="24" />
@@ -256,15 +265,6 @@ const {
                 {{ mailFetchCountdownText ? '立即抓取' : '抓取郵件' }}
               </el-button>
             </div>
-          </div>
-
-          <div class="mail-fetch-bar">
-            <div class="mail-counts">
-              <span>未讀 {{ mailStats.unread }}</span>
-              <span>旗標 {{ mailStats.flagged }}</span>
-              <span>分類 {{ mailStats.categorized }}</span>
-            </div>
-            <el-button v-if="mailListMode === 'search'" size="small" @click="showFolderMails">回到 folder list</el-button>
           </div>
 
           <div class="mail-table">
