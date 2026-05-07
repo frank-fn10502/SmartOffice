@@ -8,6 +8,17 @@ namespace SmartOffice.Hub.Services
         {
             var attachments = mail.Id switch
             {
+                var id when MockInboxSequence(id) is { } sequence && sequence % 7 == 0 => new[]
+                {
+                    ("客戶現場截圖與問題重現步驟-檔名刻意很長用來測試列表截斷.pdf", "application/pdf", 348_000L),
+                    ("附件二-跨部門回覆彙整表.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 126_000L),
+                    ("mail-thread-export.eml", "message/rfc822", 58_000L),
+                },
+                var id when MockInboxSequence(id) is { } sequence && sequence % 4 == 0 => new[]
+                {
+                    ("檢查清單.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 84_000L),
+                    ("會議截圖.png", "image/png", 420_000L),
+                },
                 "mock-001" => new[]
                 {
                     ("客戶需求摘要.pdf", "application/pdf", 128_000L),
@@ -60,6 +71,13 @@ namespace SmartOffice.Hub.Services
                     Size = attachment.Item3,
                 })
                 .ToList();
+        }
+
+        private static int? MockInboxSequence(string id)
+        {
+            const string prefix = "mock-inbox-";
+            if (!id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
+            return int.TryParse(id[prefix.Length..], out var sequence) ? sequence : null;
         }
     }
 }

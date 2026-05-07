@@ -1,4 +1,4 @@
-import type { OutlookStoreDto } from '../models/outlook'
+import type { CalendarEventDto, OutlookStoreDto } from '../models/outlook'
 
 export const flagIntervalOptions = [
   { label: '不設定旗標', value: 'none' },
@@ -83,6 +83,68 @@ export function monthEndExclusive(date: Date) {
 
 export function addMonths(date: Date, count: number) {
   return new Date(date.getFullYear(), date.getMonth() + count, 1)
+}
+
+export function calendarEventSegment(event: CalendarEventDto, weekStart: Date, weekEnd: Date) {
+  const start = new Date(event.start)
+  const end = new Date(event.end)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null
+  const eventEnd = new Date(end)
+  if (eventEnd.getTime() > start.getTime()) eventEnd.setMilliseconds(eventEnd.getMilliseconds() - 1)
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const endDay = new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate())
+  if (endDay < weekStart || startDay > weekEnd) return null
+
+  const segmentStart = startDay < weekStart ? weekStart : startDay
+  const segmentEnd = endDay > weekEnd ? weekEnd : endDay
+  const startColumn = Math.floor((segmentStart.getTime() - weekStart.getTime()) / 86400000) + 1
+  const span = Math.floor((segmentEnd.getTime() - segmentStart.getTime()) / 86400000) + 1
+
+  return {
+    event,
+    startColumn,
+    span,
+    isStart: startDay >= weekStart,
+    isEnd: endDay <= weekEnd,
+    isMultiDay: endDay.getTime() > startDay.getTime(),
+  }
+}
+
+export function buildCalendarWeeks(calendarMonthDate: Date, calendarEvents: CalendarEventDto[]) {
+  const first = monthStart(calendarMonthDate)
+  const gridStart = new Date(first)
+  gridStart.setDate(first.getDate() - first.getDay())
+  const todayKey = toDateKey(new Date())
+
+  return Array.from({ length: 6 }, (_, weekIndex) => {
+    const weekStart = new Date(gridStart)
+    weekStart.setDate(gridStart.getDate() + weekIndex * 7)
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + 6)
+    const days = Array.from({ length: 7 }, (_, dayIndex) => {
+      const date = new Date(gridStart)
+      date.setDate(gridStart.getDate() + weekIndex * 7 + dayIndex)
+      const key = toDateKey(date)
+      return {
+        key,
+        date,
+        dayNumber: date.getDate(),
+        inMonth: date.getMonth() === calendarMonthDate.getMonth(),
+        isToday: key === todayKey,
+      }
+    })
+
+    const segments = calendarEvents
+      .map((event) => calendarEventSegment(event, weekStart, weekEnd))
+      .filter((segment): segment is NonNullable<typeof segment> => Boolean(segment))
+      .sort((a, b) => new Date(a.event.start).getTime() - new Date(b.event.start).getTime())
+
+    return {
+      key: days.map((day) => day.key).join('-'),
+      days,
+      segments,
+    }
+  })
 }
 
 export function splitCategories(value: string) {

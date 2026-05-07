@@ -51,6 +51,7 @@ namespace SmartOffice.Hub.Services
                 Mail("mock-011", "票據入口：待補發票掃描", "Finance Bot", "finance@example.test", now.AddDays(-12), MockOutlookPaths.LegacyInbox, false, "", false, "none", ""),
                 Mail("mock-012", "營運升級：夜間批次異常", "NOC", "noc@example.test", now.AddMinutes(-75), MockOutlookPaths.OpsEscalations, false, "測試,追蹤", true, "today", "今天"),
             };
+            mails.AddRange(BuildInboxStressMails(now));
             RefreshFolderCounts(folders, mails);
 
             return new MockOutlookSeedData(
@@ -66,6 +67,82 @@ namespace SmartOffice.Hub.Services
                 },
                 BuildRules(),
                 BuildCalendar(now));
+        }
+
+        private static List<MailItemDto> BuildInboxStressMails(DateTime now)
+        {
+            var subjects = new[]
+            {
+                "請確認：跨部門週報資料與待回覆事項",
+                "Re: 客戶環境 Outlook 2016 測試結果",
+                "FW: 採購單號與發票抬頭修正",
+                "長標題測試：這封郵件刻意放入很長很長的主旨，用來確認列表截斷、hover、tag wrapping 與按鈕區塊不會互相覆蓋",
+                "每日系統通知 - 無需回覆",
+                "附件命名很長的報表請協助下載",
+                "未讀郵件樣式與粗體 subject 檢查",
+                "分類很多的測試郵件",
+                "旗標：今天下班前回覆",
+                "供應商來信：交期調整",
+                "內部討論串第 4 封：保留 Re 前綴",
+                "客戶專案風險清單更新",
+                "測試空分類與一般重要性",
+                "高優先度：現場問題回報",
+                "會議記錄與行動項目整理",
+                "請補充附件：報價單、合約、驗收截圖",
+                "短主旨",
+                "多收件人與群組顯示測試",
+                "read/unread toggle 後列表位置檢查",
+                "搜尋結果與 folder list 共用 row 樣式檢查",
+                "邊界案例：沒有附件但是有很長的摘要文字",
+                "客戶回覆：第二階段 PoC 時程",
+                "營運窗口異動通知",
+                "法務意見回覆",
+                "付款條件確認",
+                "正式版驗收前檢查清單",
+                "Outlook cached mode 行為紀錄",
+                "拖曳多封郵件測試資料",
+                "刪除按鈕與開啟按鈕排列檢查",
+                "列表最後一筆可視範圍檢查",
+                "凌晨批次通知",
+                "下午會議前提醒",
+                "設計稿截圖與標註",
+                "臨時插單：請評估影響",
+                "客戶滿意度回饋",
+                "封存前最後確認",
+            };
+            var senders = new[]
+            {
+                ("Ada Chen", "ada.chen@example.test"),
+                ("Ben Lin", "ben.lin@example.test"),
+                ("Chris Wang", "chris.wang@example.test"),
+                ("Customer Success Team With A Long Display Name", "customer.success@example.test"),
+                ("QA Lab", "qa@example.test"),
+                ("Finance Bot", "finance@example.test"),
+            };
+            var categoryOptions = new[] { "", "客戶", "待辦", "測試", "追蹤", "客戶,待辦", "測試,追蹤", "客戶,追蹤,待辦" };
+            var result = new List<MailItemDto>();
+
+            for (var index = 0; index < subjects.Length; index++)
+            {
+                var sender = senders[index % senders.Length];
+                var isMarkedAsTask = index % 5 == 0 || index % 11 == 0;
+                var flagInterval = isMarkedAsTask ? (index % 2 == 0 ? "today" : "this_week") : "none";
+                var flagRequest = isMarkedAsTask ? (flagInterval == "today" ? "今天" : "本週") : string.Empty;
+                result.Add(Mail(
+                    $"mock-inbox-{index + 100:000}",
+                    subjects[index],
+                    sender.Item1,
+                    sender.Item2,
+                    now.AddMinutes(-(95 + index * 37)),
+                    MockOutlookPaths.Inbox,
+                    isRead: index % 3 != 0,
+                    categories: categoryOptions[index % categoryOptions.Length],
+                    isMarkedAsTask: isMarkedAsTask,
+                    flagInterval: flagInterval,
+                    flagRequest: flagRequest));
+            }
+
+            return result;
         }
 
         private static List<OutlookRuleDto> BuildRules()

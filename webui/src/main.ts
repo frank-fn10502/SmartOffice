@@ -4,5 +4,6 @@ import 'element-plus/dist/index.css'
 
 import App from './App.vue'
 import './styles.css'
+import './styles/mail.css'
 
 createApp(App).use(ElementPlus).mount('#app')
