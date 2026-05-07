@@ -334,15 +334,63 @@ namespace SmartOffice.Hub.Controllers
             {
                 if (RequiresFolderCache(cmd) && !await _folderCache.EnsureFolderCacheAsync(cmd, operationCt))
                 {
-                    var failedBody = new { commandId = cmd.Id, status = "folder_cache_unavailable", message = "Hub could not load Outlook folders before running folder-dependent command." };
+                    var failedBody = new { commandId = cmd.Id, status = "folder_cache_unavailable", message = "SmartOffice API could not load Outlook folders before running this command." };
                     return Conflict(failedBody);
                 }
+
+                var manualDelete = ManualDeleteRequired(cmd);
+                if (manualDelete is not null) return manualDelete;
 
                 var result = await _commandQueue.ExecuteQueuedCommandAsync(cmd, DataReadyPredicate(cmd), ct: operationCt);
                 await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), CancellationToken.None);
                 var body = new { commandId = result.CommandId == string.Empty ? cmd.Id : result.CommandId, status = result.Status, message = result.Message };
                 return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
             }, CancellationToken.None);
+        }
+
+        private IActionResult? ManualDeleteRequired(PendingCommand cmd)
+        {
+            var folderPath = cmd.Type switch
+            {
+                "delete_folder" => cmd.DeleteFolderRequest?.FolderPath,
+                "delete_mail" => cmd.DeleteMailRequest?.FolderPath,
+                _ => null,
+            };
+
+            if (string.IsNullOrWhiteSpace(folderPath) || !IsInDefaultDeletedItems(folderPath)) return null;
+
+            return Conflict(new
+            {
+                commandId = cmd.Id,
+                status = "manual_delete_required",
+                message = "SmartOffice API 不會永久刪除 Outlook 郵件或 folder。目標已在 Outlook default Deleted Items folder 內；若要永久刪除，請使用者自行到 Outlook 操作。"
+            });
+        }
+
+        private bool IsInDefaultDeletedItems(string folderPath)
+        {
+            var addinPath = OutlookFolderPathMapper.ToAddinPath(folderPath);
+            if (string.IsNullOrWhiteSpace(addinPath)) return false;
+
+            var folders = _mailStore.GetFolderSnapshot().Folders;
+            var target = folders.FirstOrDefault(folder =>
+                string.Equals(folder.FolderPath, addinPath, StringComparison.OrdinalIgnoreCase));
+            var storeId = target?.StoreId ?? folders.FirstOrDefault(folder =>
+                !folder.IsStoreRoot
+                && addinPath.StartsWith($"{folder.FolderPath}\\", StringComparison.OrdinalIgnoreCase))?.StoreId;
+
+            var deletedFolder = folders.FirstOrDefault(folder =>
+                folder.FolderType == OutlookFolderType.Deleted
+                && (
+                    string.IsNullOrWhiteSpace(storeId)
+                    || string.Equals(folder.StoreId, storeId, StringComparison.OrdinalIgnoreCase)
+                )
+                && (
+                    string.Equals(addinPath, folder.FolderPath, StringComparison.OrdinalIgnoreCase)
+                    || addinPath.StartsWith($"{folder.FolderPath}\\", StringComparison.OrdinalIgnoreCase)
+                ));
+
+            return deletedFolder is not null;
         }
 
         private static bool RequiresFolderCache(PendingCommand cmd)

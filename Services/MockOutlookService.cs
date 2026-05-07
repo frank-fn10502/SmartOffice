@@ -159,15 +159,9 @@ namespace SmartOffice.Hub.Services
                         folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
                         break;
                     case "delete_folder":
-                        var deletedParentPath = FindFolder(command.DeleteFolderRequest?.FolderPath ?? string.Empty)?.ParentFolderPath ?? string.Empty;
-                        var deletedStoreId = FindFolder(command.DeleteFolderRequest?.FolderPath ?? string.Empty)?.StoreId ?? string.Empty;
                         DeleteFolder(command.DeleteFolderRequest);
-                        folderBatch = BuildFolderChildrenBatch(new FolderDiscoveryRequest
-                        {
-                            StoreId = deletedStoreId,
-                            ParentFolderPath = deletedParentPath,
-                        });
-                        folderBatch = ToFullFolderBatch(folderBatch, _mailStore.ApplyFolderBatch(folderBatch));
+                        folderBatch = BuildFullFolderBatch();
+                        _mailStore.ApplyFolderBatch(folderBatch);
                         break;
                     case "move_mail":
                         MoveMail(command.MoveMailRequest);
@@ -471,8 +465,7 @@ namespace SmartOffice.Hub.Services
         private void DeleteFolder(DeleteFolderRequest? request)
         {
             if (request is null || string.IsNullOrWhiteSpace(request.FolderPath)) return;
-            DeleteFolderFrom(request.FolderPath);
-            _mockMails.RemoveAll(mail => mail.FolderPath.StartsWith(request.FolderPath, StringComparison.OrdinalIgnoreCase));
+            MoveFolderToDeletedItems(request.FolderPath);
             RefreshFolderCounts();
         }
 
@@ -510,11 +503,16 @@ namespace SmartOffice.Hub.Services
         private void DeleteMail(DeleteMailRequest? request)
         {
             if (request is null || string.IsNullOrWhiteSpace(request.MailId)) return;
+            var mail = _mockMails.FirstOrDefault(item => item.Id == request.MailId);
+            if (mail is null || IsInDefaultDeletedItems(mail.FolderPath)) return;
+            var deletedFolder = DefaultDeletedFolderFor(mail.FolderPath);
+            if (deletedFolder is null) return;
+
             MoveMail(new MoveMailRequest
             {
                 MailId = request.MailId,
                 SourceFolderPath = request.FolderPath,
-                DestinationFolderPath = MockOutlookPaths.Deleted,
+                DestinationFolderPath = deletedFolder.FolderPath,
             });
         }
 
@@ -601,14 +599,6 @@ namespace SmartOffice.Hub.Services
             return _mockFolders.FirstOrDefault(folder => folder.FolderPath == path);
         }
 
-        private void DeleteFolderFrom(string path)
-        {
-            _mockFolders.RemoveAll(folder =>
-                folder.FolderPath == path
-                || folder.ParentFolderPath.StartsWith(path, StringComparison.OrdinalIgnoreCase)
-                || folder.FolderPath.StartsWith($"{path}\\", StringComparison.OrdinalIgnoreCase));
-        }
-
         private static List<FolderDto> CloneFolders(List<FolderDto> folders)
         {
             return folders.Select(folder => new FolderDto
@@ -649,6 +639,27 @@ namespace SmartOffice.Hub.Services
                     RootFolderPath = store.RootFolderPath,
                 }).ToList(),
                 Folders = CloneFolders(_mockFolders.Where(folder => folder.IsStoreRoot).ToList()),
+            };
+        }
+
+        private FolderSyncBatchDto BuildFullFolderBatch()
+        {
+            RefreshFolderCounts();
+            return new FolderSyncBatchDto
+            {
+                SyncId = Guid.NewGuid().ToString(),
+                Sequence = 1,
+                Reset = true,
+                IsFinal = true,
+                Stores = _mockStores.Select(store => new OutlookStoreDto
+                {
+                    StoreId = store.StoreId,
+                    DisplayName = store.DisplayName,
+                    StoreKind = store.StoreKind,
+                    StoreFilePath = store.StoreFilePath,
+                    RootFolderPath = store.RootFolderPath,
+                }).ToList(),
+                Folders = CloneFolders(_mockFolders),
             };
         }
 
@@ -721,6 +732,92 @@ namespace SmartOffice.Hub.Services
             };
         }
 
+        private void MoveFolderToDeletedItems(string folderPath)
+        {
+            var target = FindFolder(folderPath);
+            if (target is null || target.IsStoreRoot || target.IsHidden || target.IsSystem) return;
+
+            var deletedFolder = DefaultDeletedFolderFor(target.FolderPath);
+
+            if (deletedFolder is null) return;
+            if (IsInDefaultDeletedItems(target.FolderPath)) return;
+
+            var oldRootPath = target.FolderPath;
+            var newRootPath = UniqueFolderPath(deletedFolder.FolderPath, target.Name, target.StoreId, oldRootPath);
+            var movedFolders = _mockFolders
+                .Where(folder =>
+                    string.Equals(folder.FolderPath, oldRootPath, StringComparison.OrdinalIgnoreCase)
+                    || folder.FolderPath.StartsWith($"{oldRootPath}\\", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var folder in movedFolders)
+            {
+                var oldFolderPath = folder.FolderPath;
+                folder.FolderPath = RebasePath(oldFolderPath, oldRootPath, newRootPath);
+                folder.ParentFolderPath = string.Equals(oldFolderPath, oldRootPath, StringComparison.OrdinalIgnoreCase)
+                    ? deletedFolder.FolderPath
+                    : RebasePath(folder.ParentFolderPath, oldRootPath, newRootPath);
+                folder.EntryId = MockFolderEntryId(folder.StoreId, folder.FolderPath);
+                folder.ParentEntryId = MockFolderEntryId(folder.StoreId, folder.ParentFolderPath);
+            }
+
+            foreach (var mail in _mockMails.Where(mail =>
+                string.Equals(mail.FolderPath, oldRootPath, StringComparison.OrdinalIgnoreCase)
+                || mail.FolderPath.StartsWith($"{oldRootPath}\\", StringComparison.OrdinalIgnoreCase)))
+            {
+                mail.FolderPath = RebasePath(mail.FolderPath, oldRootPath, newRootPath);
+            }
+        }
+
+        private string UniqueFolderPath(string parentFolderPath, string folderName, string storeId, string currentPath)
+        {
+            var basePath = $"{parentFolderPath}\\{folderName}";
+            var path = basePath;
+            var index = 2;
+            while (_mockFolders.Any(folder =>
+                !string.Equals(folder.FolderPath, currentPath, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(folder.StoreId, storeId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(folder.FolderPath, path, StringComparison.OrdinalIgnoreCase)))
+            {
+                path = $"{basePath} ({index})";
+                index += 1;
+            }
+
+            return path;
+        }
+
+        private FolderDto? DefaultDeletedFolderFor(string folderPath)
+        {
+            var target = FindFolder(folderPath);
+            var storeId = target?.StoreId ?? _mockFolders.FirstOrDefault(folder =>
+                !folder.IsStoreRoot
+                && folderPath.StartsWith($"{folder.FolderPath}\\", StringComparison.OrdinalIgnoreCase))?.StoreId;
+
+            return _mockFolders.FirstOrDefault(folder =>
+                folder.FolderType == OutlookFolderType.Deleted
+                && (
+                    string.IsNullOrWhiteSpace(storeId)
+                    || string.Equals(folder.StoreId, storeId, StringComparison.OrdinalIgnoreCase)
+                ));
+        }
+
+        private bool IsInDefaultDeletedItems(string folderPath)
+        {
+            var deletedFolder = DefaultDeletedFolderFor(folderPath);
+            return deletedFolder is not null
+                && (
+                    string.Equals(folderPath, deletedFolder.FolderPath, StringComparison.OrdinalIgnoreCase)
+                    || folderPath.StartsWith($"{deletedFolder.FolderPath}\\", StringComparison.OrdinalIgnoreCase)
+                );
+        }
+
+        private static string RebasePath(string path, string oldRootPath, string newRootPath)
+        {
+            if (string.Equals(path, oldRootPath, StringComparison.OrdinalIgnoreCase)) return newRootPath;
+            if (!path.StartsWith($"{oldRootPath}\\", StringComparison.OrdinalIgnoreCase)) return path;
+            return $"{newRootPath}{path[oldRootPath.Length..]}";
+        }
+
         private static FolderSyncBatchDto ToFullFolderBatch(FolderSyncBatchDto source, FolderSnapshotDto snapshot)
         {
             return new FolderSyncBatchDto
@@ -745,8 +842,10 @@ namespace SmartOffice.Hub.Services
             {
                 Id = mail.Id,
                 Subject = mail.Subject,
-                SenderName = mail.SenderName,
-                SenderEmail = mail.SenderEmail,
+                Sender = CloneRecipient(mail.Sender),
+                ToRecipients = CloneRecipients(mail.ToRecipients),
+                CcRecipients = CloneRecipients(mail.CcRecipients),
+                BccRecipients = CloneRecipients(mail.BccRecipients),
                 ReceivedTime = mail.ReceivedTime,
                 Body = mail.Body,
                 BodyHtml = mail.BodyHtml,
@@ -775,10 +874,31 @@ namespace SmartOffice.Hub.Services
                 Start = item.Start,
                 End = item.End,
                 Location = item.Location,
-                Organizer = item.Organizer,
-                RequiredAttendees = item.RequiredAttendees,
+                Organizer = CloneRecipient(item.Organizer),
+                RequiredAttendees = CloneRecipients(item.RequiredAttendees),
                 IsRecurring = item.IsRecurring,
                 BusyStatus = item.BusyStatus,
+            };
+        }
+
+        private static List<OutlookRecipientDto> CloneRecipients(List<OutlookRecipientDto> recipients)
+        {
+            return recipients.Select(CloneRecipient).ToList();
+        }
+
+        private static OutlookRecipientDto CloneRecipient(OutlookRecipientDto recipient)
+        {
+            return new OutlookRecipientDto
+            {
+                RecipientKind = recipient.RecipientKind,
+                DisplayName = recipient.DisplayName,
+                SmtpAddress = recipient.SmtpAddress,
+                RawAddress = recipient.RawAddress,
+                AddressType = recipient.AddressType,
+                EntryUserType = recipient.EntryUserType,
+                IsGroup = recipient.IsGroup,
+                IsResolved = recipient.IsResolved,
+                Members = CloneRecipients(recipient.Members),
             };
         }
 

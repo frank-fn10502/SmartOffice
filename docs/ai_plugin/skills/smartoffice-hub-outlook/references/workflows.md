@@ -120,7 +120,7 @@ Request body 重點欄位：
 }
 ```
 
-回覆使用者時摘要 `subject`、`senderName`、`receivedTime`、`categories`、`flagInterval` 等 metadata，並說明「範圍：主要 mailbox 的 Inbox」或實際指定 folder。
+回覆使用者時摘要 `subject`、`sender.displayName`、`receivedTime`、`categories`、`flagInterval` 等 metadata，並說明「範圍：主要 mailbox 的 Inbox」或實際指定 folder。
 
 ## Mail Search
 
@@ -185,7 +185,7 @@ Request body 重點欄位：
 
 修改、移動或刪除 mail 前，必須使用 snapshot 中的 `mailId` 與 `folderPath`，並確認目標就是使用者指定的 mail。
 
-若 snapshot 中有多封 mail 符合同一 subject 或 sender，不要任選一封。先向使用者列出必要 metadata，例如 `receivedTime`、`senderName`、短 subject，請使用者確認目標。
+若 snapshot 中有多封 mail 符合同一 subject 或 sender，不要任選一封。先向使用者列出必要 metadata，例如 `receivedTime`、`sender.displayName`、短 subject，請使用者確認目標。
 
 常用 endpoint：
 
@@ -194,7 +194,7 @@ Request body 重點欄位：
 - `POST /api/outlook/request-move-mails`
 - `POST /api/outlook/request-delete-mail`
 
-`request-delete-mail` 代表移到 Deleted Items，不是永久刪除。mutation 完成後重新讀 `mails` 與必要的 `folders` snapshot，確認結果。
+`request-delete-mail` 代表移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不提供目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴顯示名稱或本地化名稱。若目標已經在 default Deleted Items folder 內，API 會回 `manual_delete_required`，此時請使用者自行到 Outlook 永久刪除。mutation 完成後重新讀 `mails` 與必要的 `folders` snapshot，確認結果。
 
 ### Bulk Move Folder Tree
 

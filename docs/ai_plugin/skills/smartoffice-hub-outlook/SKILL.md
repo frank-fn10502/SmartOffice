@@ -18,7 +18,7 @@ metadata:
 - 修改郵件前必須先從 snapshot 取得 `MailItemDto.id` 與 `folderPath`，不可只用 subject、sender 或 folder name 猜目標。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
 - 使用者只要求最近郵件、郵件清單、統計或 Markdown metadata 報告時，不要呼叫 `request-mail-body`；只有使用者明確要求內容摘要、內文關鍵字判讀，或 metadata 不足以完成任務時才讀 body。
-- `request-delete-mail` 的語意是移到 Deleted Items，不是永久刪除；仍需先確認 `mailId` 與 `folderPath` 來自 snapshot。
+- `request-delete-mail` 的語意是移到 Outlook default Deleted Items folder，不是永久刪除；目的 folder 由 AddIn 用 Outlook default folder identity 定位，不靠顯示名稱猜測；仍需先確認 `mailId` 與 `folderPath` 來自 snapshot。若目標已經在 Deleted Items 內，API 會要求使用者自行到 Outlook 永久刪除。
 - 使用者未指定 folder 時，只查主要 mailbox 的 Inbox；但 Inbox path 必須取自 folder snapshot，不可硬寫英文 `Inbox`。
 - HTTP API 的 `folderPath` 一律使用 `/主要信箱 - User/收件匣` 這種普通斜線格式。
 - `scopeFolderPaths: []` 代表目前已載入的全部可搜尋 mail folders；使用者未明確要求全域搜尋時禁止送空陣列。

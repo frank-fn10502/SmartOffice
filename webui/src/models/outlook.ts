@@ -160,11 +160,25 @@ export interface OutlookCommandResult {
   timestamp: string
 }
 
+export interface OutlookRecipientDto {
+  recipientKind: string
+  displayName: string
+  smtpAddress: string
+  rawAddress: string
+  addressType: string
+  entryUserType: string
+  isGroup: boolean
+  isResolved: boolean
+  members: OutlookRecipientDto[]
+}
+
 export interface MailItemDto {
   id: string
   subject: string
-  senderName: string
-  senderEmail: string
+  sender: OutlookRecipientDto
+  toRecipients: OutlookRecipientDto[]
+  ccRecipients: OutlookRecipientDto[]
+  bccRecipients: OutlookRecipientDto[]
   receivedTime: string
   body: string
   bodyHtml: string
@@ -291,8 +305,8 @@ export interface CalendarEventDto {
   start: string
   end: string
   location: string
-  organizer: string
-  requiredAttendees: string
+  organizer: OutlookRecipientDto
+  requiredAttendees: OutlookRecipientDto[]
   isRecurring: boolean
   busyStatus: string
 }

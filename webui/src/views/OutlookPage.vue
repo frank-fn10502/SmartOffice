@@ -19,6 +19,7 @@ import MailPropertyPane from '../components/MailPropertyPane.vue'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
 import type { AppView } from '../models/outlook'
 import { formatDateTime, formatTime } from '../utils/formatters'
+import { formatMailSender, formatRecipient, formatRecipients, shouldShowRecipientSmtpAddress } from '../utils/mailAddresses'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState
@@ -93,6 +94,7 @@ const {
   mailListMode,
   mailListNeedsFetch,
   mailFetchCountdownText,
+  mailFetchStatusText,
   mailHasBody,
   mailPropertiesDraft,
   mailPropertiesChanged,
@@ -254,10 +256,8 @@ const {
             </div>
             <el-button v-if="mailListMode === 'search'" size="small" @click="showFolderMails">回到 folder list</el-button>
           </div>
-          <p v-if="mailFetchCountdownText" class="hint">
-            已選取 {{ selectedFolderName }}，{{ mailFetchCountdownText }}；按「立即抓取」可提早執行。
-          </p>
-          <p v-else-if="mailListNeedsFetch" class="hint">
+          <p class="hint">{{ mailFetchStatusText }}</p>
+          <p v-if="mailListNeedsFetch && !mailFetchCountdownText" class="hint">
             目前列表仍是上次抓取的 {{ fetchedMailFolderName }}；已選取 {{ selectedFolderName }}，請按「抓取郵件」更新列表。
           </p>
 
@@ -314,7 +314,7 @@ const {
                   <span class="mail-row-head">
                     <span class="mail-row-main">
                       <strong>{{ mail.subject }}</strong>
-                      <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                      <span>{{ formatMailSender(mail) }} · {{ formatDateTime(mail.receivedTime) }}</span>
                       <span v-if="mail.attachmentCount > 0" class="mail-row-attachment-summary" :title="mail.attachmentNames">
                         {{ mail.attachmentNames }}
                       </span>
@@ -547,7 +547,7 @@ const {
                   <span class="mail-row-head">
                     <span class="mail-row-main">
                       <strong>{{ mail.subject }}</strong>
-                      <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                      <span>{{ formatMailSender(mail) }} · {{ formatDateTime(mail.receivedTime) }}</span>
                       <span class="mail-source-label">{{ sourceLabel }}</span>
                     </span>
                     <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
@@ -626,7 +626,7 @@ const {
                           <span class="mail-row-head">
                             <span class="mail-row-main">
                               <strong>{{ mail.subject }}</strong>
-                              <span>{{ mail.senderName }} · {{ formatDateTime(mail.receivedTime) }}</span>
+                              <span>{{ formatMailSender(mail) }} · {{ formatDateTime(mail.receivedTime) }}</span>
                             </span>
                             <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">{{ mail.attachmentCount }} 個附件</el-tag>
                           </span>
@@ -666,7 +666,7 @@ const {
             <div v-if="dialogMail" class="dialog-mail-title">
               <strong>{{ dialogMail.subject || '(No subject)' }}</strong>
               <span>
-                {{ dialogMail.senderName || dialogMail.senderEmail || 'Unknown sender' }} · {{ formatDateTime(dialogMail.receivedTime) }}
+                {{ formatMailSender(dialogMail) }} · {{ formatDateTime(dialogMail.receivedTime) }}
                 <el-tag v-if="dialogLoading" size="small" type="info" effect="plain">載入中</el-tag>
               </span>
             </div>
@@ -677,8 +677,15 @@ const {
               <div class="dialog-mail-summary">
                 <div class="dialog-mail-meta">
                   <span>寄件者</span>
-                  <strong>{{ dialogMail.senderName || dialogMail.senderEmail || 'Unknown sender' }}</strong>
-                  <small v-if="dialogMail.senderEmail">{{ dialogMail.senderEmail }}</small>
+                  <strong>{{ formatMailSender(dialogMail) }}</strong>
+                  <small v-if="shouldShowRecipientSmtpAddress(dialogMail.sender)">{{ dialogMail.sender.smtpAddress }}</small>
+                </div>
+                <div class="dialog-mail-meta">
+                  <span>收件者</span>
+                  <strong>{{ formatRecipients(dialogMail.toRecipients) || '-' }}</strong>
+                  <small v-for="recipient in dialogMail.toRecipients.filter((item) => item.isGroup)" :key="recipient.displayName || recipient.smtpAddress">
+                    {{ formatRecipient(recipient) }} group<span v-if="recipient.members.length > 0">：{{ formatRecipients(recipient.members) }}</span>
+                  </small>
                 </div>
                 <div class="dialog-mail-meta">
                   <span>Folder</span>
@@ -866,8 +873,8 @@ const {
                 <div class="rule-detail">
                   <span>{{ formatDateTime(selectedCalendarEvent.start) }} - {{ formatDateTime(selectedCalendarEvent.end) }}</span>
                   <span>地點：{{ selectedCalendarEvent.location || '-' }}</span>
-                  <span>召集人：{{ selectedCalendarEvent.organizer || '-' }}</span>
-                  <span>出席者：{{ selectedCalendarEvent.requiredAttendees || '-' }}</span>
+                  <span>召集人：{{ formatRecipient(selectedCalendarEvent.organizer, '-') }}</span>
+                  <span>出席者：{{ formatRecipients(selectedCalendarEvent.requiredAttendees) || '-' }}</span>
                 </div>
                 <div class="marker-tags">
                   <el-tag effect="plain">{{ selectedCalendarEvent.busyStatus || 'unknown' }}</el-tag>

@@ -7,8 +7,10 @@ namespace SmartOffice.Hub.Models
     {
         public string Id { get; set; } = string.Empty;
         public string Subject { get; set; } = string.Empty;
-        public string SenderName { get; set; } = string.Empty;
-        public string SenderEmail { get; set; } = string.Empty;
+        public OutlookRecipientDto Sender { get; set; } = new();
+        public List<OutlookRecipientDto> ToRecipients { get; set; } = new();
+        public List<OutlookRecipientDto> CcRecipients { get; set; } = new();
+        public List<OutlookRecipientDto> BccRecipients { get; set; } = new();
         public DateTime ReceivedTime { get; set; }
         public string Body { get; set; } = string.Empty;
         public string BodyHtml { get; set; } = string.Empty;
@@ -25,6 +27,19 @@ namespace SmartOffice.Hub.Models
         public DateTime? TaskCompletedDate { get; set; }
         public string Importance { get; set; } = "normal";
         public string Sensitivity { get; set; } = "normal";
+    }
+
+    public class OutlookRecipientDto
+    {
+        public string RecipientKind { get; set; } = string.Empty; // sender、to、cc、bcc、organizer、required。
+        public string DisplayName { get; set; } = string.Empty;
+        public string SmtpAddress { get; set; } = string.Empty;
+        public string RawAddress { get; set; } = string.Empty;
+        public string AddressType { get; set; } = string.Empty; // Outlook 常見值：SMTP、EX。
+        public string EntryUserType { get; set; } = string.Empty;
+        public bool IsGroup { get; set; }
+        public bool IsResolved { get; set; }
+        public List<OutlookRecipientDto> Members { get; set; } = new();
     }
 
     public class ChatMessageDto
@@ -177,8 +192,8 @@ namespace SmartOffice.Hub.Models
         public DateTime Start { get; set; }
         public DateTime End { get; set; }
         public string Location { get; set; } = string.Empty;
-        public string Organizer { get; set; } = string.Empty;
-        public string RequiredAttendees { get; set; } = string.Empty;
+        public OutlookRecipientDto Organizer { get; set; } = new();
+        public List<OutlookRecipientDto> RequiredAttendees { get; set; } = new();
         public bool IsRecurring { get; set; }
         public string BusyStatus { get; set; } = string.Empty;
     }

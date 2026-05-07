@@ -2,6 +2,7 @@
 import { PriceTag } from '@element-plus/icons-vue'
 import type { MailItemDto, MailPropertiesDraft, OutlookCategoryDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'
+import { formatMailSender, shouldShowRecipientSmtpAddress } from '../utils/mailAddresses'
 import { flagDisplayLabel, flagTagType } from '../utils/outlookDashboardHelpers'
 
 const draft = defineModel<MailPropertiesDraft>('draft', { required: true })
@@ -43,7 +44,9 @@ defineEmits<{
       <div v-if="selectedMail" class="mail-inspector">
         <div class="inspector-subject">{{ selectedMail.subject }}</div>
         <div class="inspector-meta">
-          <span>{{ selectedMail.senderName }} &lt;{{ selectedMail.senderEmail }}&gt;</span>
+          <span>
+            {{ formatMailSender(selectedMail) }}<template v-if="shouldShowRecipientSmtpAddress(selectedMail.sender)"> &lt;{{ selectedMail.sender.smtpAddress }}&gt;</template>
+          </span>
           <span>{{ formatDateTime(selectedMail.receivedTime) }}</span>
           <span>來源：{{ selectedMailFolderName }}</span>
         </div>

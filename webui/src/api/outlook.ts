@@ -15,6 +15,7 @@ import type {
   MailSearchProgressDto,
   MailPropertiesCommandRequest,
   MailItemDto,
+  OutlookRecipientDto,
   OutlookCommandResult,
   OutlookCategoryDto,
   OutlookRuleDto,
@@ -50,6 +51,26 @@ function readNumber(source: LooseRecord, camelName: string, pascalName: string, 
   return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) || fallback : fallback
 }
 
+function normalizeRecipient(item: unknown, kind = ''): OutlookRecipientDto {
+  const source = (item ?? {}) as LooseRecord
+  const members = source.members ?? source.Members
+  return {
+    recipientKind: readString(source, 'recipientKind', 'RecipientKind', kind),
+    displayName: readString(source, 'displayName', 'DisplayName'),
+    smtpAddress: readString(source, 'smtpAddress', 'SmtpAddress'),
+    rawAddress: readString(source, 'rawAddress', 'RawAddress'),
+    addressType: readString(source, 'addressType', 'AddressType'),
+    entryUserType: readString(source, 'entryUserType', 'EntryUserType'),
+    isGroup: readBoolean(source, 'isGroup', 'IsGroup'),
+    isResolved: readBoolean(source, 'isResolved', 'IsResolved'),
+    members: Array.isArray(members) ? members.map((member) => normalizeRecipient(member, 'member')) : [],
+  }
+}
+
+function normalizeRecipients(items: unknown, kind: string): OutlookRecipientDto[] {
+  return Array.isArray(items) ? items.map((item) => normalizeRecipient(item, kind)) : []
+}
+
 export function normalizeMailItem(item: unknown): MailItemDto {
   const source = (item ?? {}) as LooseRecord
   const flagInterval = readString(source, 'flagInterval', 'FlagInterval', 'none') || 'none'
@@ -61,8 +82,10 @@ export function normalizeMailItem(item: unknown): MailItemDto {
   return {
     id: readString(source, 'id', 'Id'),
     subject: readString(source, 'subject', 'Subject'),
-    senderName: readString(source, 'senderName', 'SenderName'),
-    senderEmail: readString(source, 'senderEmail', 'SenderEmail'),
+    sender: normalizeRecipient(source.sender ?? source.Sender, 'sender'),
+    toRecipients: normalizeRecipients(source.toRecipients ?? source.ToRecipients, 'to'),
+    ccRecipients: normalizeRecipients(source.ccRecipients ?? source.CcRecipients, 'cc'),
+    bccRecipients: normalizeRecipients(source.bccRecipients ?? source.BccRecipients, 'bcc'),
     receivedTime: readString(source, 'receivedTime', 'ReceivedTime'),
     body: readString(source, 'body', 'Body'),
     bodyHtml: readString(source, 'bodyHtml', 'BodyHtml'),
@@ -170,6 +193,25 @@ export function normalizeMailAttachments(item: unknown): MailAttachmentsDto {
   }
 }
 
+export function normalizeCalendarEvent(item: unknown): CalendarEventDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    id: readString(source, 'id', 'Id'),
+    subject: readString(source, 'subject', 'Subject'),
+    start: readString(source, 'start', 'Start'),
+    end: readString(source, 'end', 'End'),
+    location: readString(source, 'location', 'Location'),
+    organizer: normalizeRecipient(source.organizer ?? source.Organizer, 'organizer'),
+    requiredAttendees: normalizeRecipients(source.requiredAttendees ?? source.RequiredAttendees, 'required'),
+    isRecurring: readBoolean(source, 'isRecurring', 'IsRecurring'),
+    busyStatus: readString(source, 'busyStatus', 'BusyStatus'),
+  }
+}
+
+export function normalizeCalendarEvents(items: unknown): CalendarEventDto[] {
+  return Array.isArray(items) ? items.map(normalizeCalendarEvent) : []
+}
+
 export function normalizeExportedMailAttachment(item: unknown): ExportedMailAttachmentDto {
   const source = (item ?? {}) as LooseRecord
   const attachmentId = readString(source, 'attachmentId', 'AttachmentId') || readString(source, 'id', 'Id') || readString(source, 'index', 'Index')
@@ -249,7 +291,7 @@ export const outlookApi = {
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/by-command/${encodeURIComponent(commandId)}`)),
   getRules: () => getJson<OutlookRuleDto[]>('/api/outlook/rules'),
   getCategories: async () => normalizeOutlookCategories(await getJson<unknown>('/api/outlook/categories')),
-  getCalendar: () => getJson<CalendarEventDto[]>('/api/outlook/calendar'),
+  getCalendar: async () => normalizeCalendarEvents(await getJson<unknown>('/api/outlook/calendar')),
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
   getAdminLogs: () => getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),

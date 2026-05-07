@@ -56,13 +56,13 @@
 6. 設定或覆蓋單封郵件 categories。
 7. 使用較新的 `mailPropertiesRequest` 時，可一次更新 read state、flag、task dates、categories 與需要新增的 master categories。
 8. 移動單封郵件到指定 destination folder。
-9. 刪除郵件只能視為移動到 Outlook 的「刪除的郵件 / Deleted Items」folder；不得直接呼叫 Outlook `MailItem.Delete()` 或永久刪除郵件。
+9. 刪除郵件只能視為移動到同一個 Outlook store / mailbox 的 default Deleted Items folder；AddIn 必須用 Outlook default folder identity 定位目的地，不得用顯示名稱、本地化名稱或 `folderPath` 字串猜測，也不得直接呼叫 Outlook `MailItem.Delete()` 或永久刪除郵件。
 10. 單封屬性 mutation 完成後 invoke `PushMail` 回報該 mail；只有會改變列表成員的操作才重新 invoke `PushMails` 回報受影響 folder 的 mails。若 folder count 或 categories 受影響，也要使用 folder 增量同步或 `PushCategories`。
 
 ## Folder 與 Category 操作功能
 
 1. 在指定 parent folder 建立子 folder。
-2. 刪除指定 folder。
+2. 將指定 folder 移到同一個 Outlook store / mailbox 的 default Deleted Items folder；不得永久刪除 folder，也不得用顯示名稱、本地化名稱或 `folderPath` 字串猜測 Deleted Items 目的地。
 3. 新增或更新 Outlook master category。
 4. category color 與 shortcut key 必須記錄 Office 2016 實測支援狀態。
 5. 每個操作完成後使用 folder 增量同步或 invoke `PushCategories`。
@@ -84,7 +84,7 @@
 3. Mail 讀取與 stable mail id 驗證。
 4. Mail metadata 讀取。
 5. Mail mutation：read/unread、flag、categories。
-6. Folder mutation：create/delete folder。
+6. Folder mutation：create folder / soft-delete folder（move to Outlook default Deleted Items folder）。
 7. Move mail。
 8. Master category list 讀取與 upsert。
 9. Rules 讀取。

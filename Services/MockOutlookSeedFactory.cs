@@ -12,26 +12,29 @@ namespace SmartOffice.Hub.Services
 
             AddStore(stores, "mock-store-primary", "主要信箱 - Mock User", "ost", @"C:\Users\mock\AppData\Local\Microsoft\Outlook\mock.user@example.test.ost", MockOutlookPaths.PrimaryRoot);
             AddFolder(folders, "主要信箱 - Mock User", MockOutlookPaths.PrimaryRoot, "", "mock-store-primary", true);
-            AddFolder(folders, "Inbox", MockOutlookPaths.Inbox, MockOutlookPaths.PrimaryRoot, "mock-store-primary");
+            AddFolder(folders, "Inbox", MockOutlookPaths.Inbox, MockOutlookPaths.PrimaryRoot, "mock-store-primary", folderType: OutlookFolderType.Inbox);
             AddFolder(folders, "客戶專案", MockOutlookPaths.ClientProjects, MockOutlookPaths.Inbox, "mock-store-primary");
-            AddFolder(folders, "Sent Items", MockOutlookPaths.Sent, MockOutlookPaths.PrimaryRoot, "mock-store-primary");
-            AddFolder(folders, "Drafts", MockOutlookPaths.Drafts, MockOutlookPaths.PrimaryRoot, "mock-store-primary");
-            AddFolder(folders, "Deleted Items", MockOutlookPaths.Deleted, MockOutlookPaths.PrimaryRoot, "mock-store-primary");
+            AddFolder(folders, "Sent Items", MockOutlookPaths.Sent, MockOutlookPaths.PrimaryRoot, "mock-store-primary", folderType: OutlookFolderType.Sent);
+            AddFolder(folders, "Drafts", MockOutlookPaths.Drafts, MockOutlookPaths.PrimaryRoot, "mock-store-primary", folderType: OutlookFolderType.Drafts);
+            AddFolder(folders, "Deleted Items", MockOutlookPaths.Deleted, MockOutlookPaths.PrimaryRoot, "mock-store-primary", folderType: OutlookFolderType.Deleted);
 
             AddStore(stores, "mock-store-ops", "營運共享信箱 - Mock Ops", "ost", @"C:\Users\mock\AppData\Local\Microsoft\Outlook\mock.ops@example.test.ost", MockOutlookPaths.OpsRoot);
             AddFolder(folders, "營運共享信箱 - Mock Ops", MockOutlookPaths.OpsRoot, "", "mock-store-ops", true);
             AddFolder(folders, "Ops Queue", MockOutlookPaths.OpsQueue, MockOutlookPaths.OpsRoot, "mock-store-ops");
             AddFolder(folders, "Escalations", MockOutlookPaths.OpsEscalations, MockOutlookPaths.OpsRoot, "mock-store-ops");
+            AddFolder(folders, "Deleted Items", MockOutlookPaths.OpsDeleted, MockOutlookPaths.OpsRoot, "mock-store-ops", folderType: OutlookFolderType.Deleted);
 
             AddStore(stores, "mock-store-legal-cold", "法務冷資料庫.pst", "pst", @"D:\Outlook Archives\法務冷資料庫.pst", MockOutlookPaths.LegalArchiveRoot);
             AddFolder(folders, "法務冷資料庫.pst", MockOutlookPaths.LegalArchiveRoot, "", "mock-store-legal-cold", true);
             AddFolder(folders, "合約保管庫", MockOutlookPaths.Archive, MockOutlookPaths.LegalArchiveRoot, "mock-store-legal-cold");
             AddFolder(folders, "簽核完成 2026", MockOutlookPaths.Archive2026, MockOutlookPaths.Archive, "mock-store-legal-cold");
+            AddFolder(folders, "Deleted Items", MockOutlookPaths.LegalDeleted, MockOutlookPaths.LegalArchiveRoot, "mock-store-legal-cold", folderType: OutlookFolderType.Deleted);
 
             AddStore(stores, "mock-store-vendor-ledger", "供應商票據倉.pst", "pst", @"E:\MailBackup\供應商票據倉.pst", MockOutlookPaths.VendorArchiveRoot);
             AddFolder(folders, "供應商票據倉.pst", MockOutlookPaths.VendorArchiveRoot, "", "mock-store-vendor-ledger", true);
             AddFolder(folders, "票據入口", MockOutlookPaths.LegacyInbox, MockOutlookPaths.VendorArchiveRoot, "mock-store-vendor-ledger");
             AddFolder(folders, "供應商對帳", MockOutlookPaths.LegacyVendors, MockOutlookPaths.VendorArchiveRoot, "mock-store-vendor-ledger");
+            AddFolder(folders, "Deleted Items", MockOutlookPaths.VendorDeleted, MockOutlookPaths.VendorArchiveRoot, "mock-store-vendor-ledger", folderType: OutlookFolderType.Deleted);
 
             var mails = new List<MailItemDto>
             {
@@ -100,8 +103,11 @@ namespace SmartOffice.Hub.Services
                     Start = now.Date.AddHours(15),
                     End = now.Date.AddHours(15).AddMinutes(30),
                     Location = "Teams",
-                    Organizer = "mock.user@example.test",
-                    RequiredAttendees = "ada.chen@example.test",
+                    Organizer = Recipient("organizer", "Mock User", "mock.user@example.test"),
+                    RequiredAttendees = new List<OutlookRecipientDto>
+                    {
+                        Recipient("required", "Ada Chen", "ada.chen@example.test"),
+                    },
                     BusyStatus = "busy",
                 },
                 new()
@@ -111,8 +117,12 @@ namespace SmartOffice.Hub.Services
                     Start = now.Date.AddDays(2).AddHours(10),
                     End = now.Date.AddDays(2).AddHours(11),
                     Location = "會議室 3A",
-                    Organizer = "ada.chen@example.test",
-                    RequiredAttendees = "mock.user@example.test; dana.hsu@example.test",
+                    Organizer = Recipient("organizer", "Ada Chen", "ada.chen@example.test"),
+                    RequiredAttendees = new List<OutlookRecipientDto>
+                    {
+                        Recipient("required", "Mock User", "mock.user@example.test"),
+                        Recipient("required", "Dana Hsu", "dana.hsu@example.test"),
+                    },
                     BusyStatus = "tentative",
                 },
                 new()
@@ -122,8 +132,11 @@ namespace SmartOffice.Hub.Services
                     Start = now.Date.AddDays(6).AddHours(9),
                     End = now.Date.AddDays(6).AddHours(9).AddMinutes(45),
                     Location = "Teams",
-                    Organizer = "mock.user@example.test",
-                    RequiredAttendees = "product@example.test",
+                    Organizer = Recipient("organizer", "Mock User", "mock.user@example.test"),
+                    RequiredAttendees = new List<OutlookRecipientDto>
+                    {
+                        Group("required", "Product Team", "product@example.test", "Ada Chen", "Ben Lin"),
+                    },
                     IsRecurring = true,
                     BusyStatus = "busy",
                 },
@@ -134,8 +147,12 @@ namespace SmartOffice.Hub.Services
                     Start = now.Date.AddDays(14).AddHours(14),
                     End = now.Date.AddDays(14).AddHours(15),
                     Location = "Teams",
-                    Organizer = "chris.wang@example.test",
-                    RequiredAttendees = "mock.user@example.test; ada.chen@example.test",
+                    Organizer = Recipient("organizer", "Chris Wang", "chris.wang@example.test"),
+                    RequiredAttendees = new List<OutlookRecipientDto>
+                    {
+                        Recipient("required", "Mock User", "mock.user@example.test"),
+                        Recipient("required", "Ada Chen", "ada.chen@example.test"),
+                    },
                     BusyStatus = "busy",
                 },
                 new()
@@ -145,8 +162,11 @@ namespace SmartOffice.Hub.Services
                     Start = now.Date.AddDays(24).AddHours(16),
                     End = now.Date.AddDays(24).AddHours(17),
                     Location = "會議室 2B",
-                    Organizer = "mock.user@example.test",
-                    RequiredAttendees = "qa@example.test",
+                    Organizer = Recipient("organizer", "Mock User", "mock.user@example.test"),
+                    RequiredAttendees = new List<OutlookRecipientDto>
+                    {
+                        Group("required", "QA Lab", "qa@example.test", "QA Lab Member"),
+                    },
                     BusyStatus = "free",
                 }
             };
@@ -164,7 +184,14 @@ namespace SmartOffice.Hub.Services
             });
         }
 
-        private static void AddFolder(List<FolderDto> folders, string name, string folderPath, string parentFolderPath, string storeId, bool isStoreRoot = false)
+        private static void AddFolder(
+            List<FolderDto> folders,
+            string name,
+            string folderPath,
+            string parentFolderPath,
+            string storeId,
+            bool isStoreRoot = false,
+            OutlookFolderType folderType = OutlookFolderType.Mail)
         {
             folders.Add(new FolderDto
             {
@@ -175,7 +202,7 @@ namespace SmartOffice.Hub.Services
                 ParentFolderPath = parentFolderPath,
                 StoreId = storeId,
                 IsStoreRoot = isStoreRoot,
-                FolderType = isStoreRoot ? OutlookFolderType.StoreRoot : OutlookFolderType.Mail,
+                FolderType = isStoreRoot ? OutlookFolderType.StoreRoot : folderType,
                 DefaultItemType = isStoreRoot ? -1 : 0,
                 DiscoveryState = "partial",
             });
@@ -189,8 +216,8 @@ namespace SmartOffice.Hub.Services
         private static MailItemDto Mail(
             string id,
             string subject,
-            string senderName,
-            string senderEmail,
+            string senderDisplayName,
+            string senderSmtpAddress,
             DateTime receivedTime,
             string folderPath,
             bool isRead,
@@ -205,8 +232,13 @@ namespace SmartOffice.Hub.Services
             {
                 Id = id,
                 Subject = subject,
-                SenderName = senderName,
-                SenderEmail = senderEmail,
+                Sender = Recipient("sender", senderDisplayName, senderSmtpAddress),
+                ToRecipients = new List<OutlookRecipientDto>
+                {
+                    id == "mock-001"
+                        ? Group("to", "Product Team", "product@example.test", "Ada Chen", "Ben Lin", "Chris Wang")
+                        : Recipient("to", "Mock User", "mock.user@example.test"),
+                },
                 ReceivedTime = receivedTime,
                 Body = body,
                 BodyHtml = bodyHtml ?? $"<article><h2>{subject}</h2><p>Mock 郵件內容，用於本機測試 Web UI 與 Outlook contract。</p></article>",
@@ -222,6 +254,38 @@ namespace SmartOffice.Hub.Services
             };
             ApplyMockAttachmentSummary(mail);
             return mail;
+        }
+
+        private static OutlookRecipientDto Recipient(string kind, string displayName, string smtpAddress)
+        {
+            return new OutlookRecipientDto
+            {
+                RecipientKind = kind,
+                DisplayName = displayName,
+                SmtpAddress = smtpAddress,
+                RawAddress = smtpAddress,
+                AddressType = "SMTP",
+                EntryUserType = "olExchangeUserAddressEntry",
+                IsResolved = true,
+            };
+        }
+
+        private static OutlookRecipientDto Group(string kind, string displayName, string smtpAddress, params string[] memberNames)
+        {
+            return new OutlookRecipientDto
+            {
+                RecipientKind = kind,
+                DisplayName = displayName,
+                SmtpAddress = smtpAddress,
+                RawAddress = smtpAddress,
+                AddressType = "SMTP",
+                EntryUserType = "olExchangeDistributionListAddressEntry",
+                IsGroup = true,
+                IsResolved = true,
+                Members = memberNames
+                    .Select(name => Recipient("member", name, $"{name.ToLowerInvariant().Replace(" ", ".")}@example.test"))
+                    .ToList(),
+            };
         }
 
         private static void ApplyMockAttachmentSummary(MailItemDto mail)

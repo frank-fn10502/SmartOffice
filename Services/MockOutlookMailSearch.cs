@@ -64,8 +64,9 @@ namespace SmartOffice.Hub.Services
             if (textFields.Any(field => string.Equals(field, "subject", StringComparison.OrdinalIgnoreCase))) yield return mail.Subject;
             if (textFields.Any(field => string.Equals(field, "sender", StringComparison.OrdinalIgnoreCase)))
             {
-                yield return mail.SenderName;
-                yield return mail.SenderEmail;
+                yield return mail.Sender.DisplayName;
+                yield return mail.Sender.SmtpAddress;
+                yield return mail.Sender.RawAddress;
             }
             if (textFields.Any(field => string.Equals(field, "body", StringComparison.OrdinalIgnoreCase)))
             {
@@ -106,8 +107,10 @@ namespace SmartOffice.Hub.Services
             {
                 Id = mail.Id,
                 Subject = mail.Subject,
-                SenderName = mail.SenderName,
-                SenderEmail = mail.SenderEmail,
+                Sender = CloneRecipient(mail.Sender),
+                ToRecipients = CloneRecipients(mail.ToRecipients),
+                CcRecipients = CloneRecipients(mail.CcRecipients),
+                BccRecipients = CloneRecipients(mail.BccRecipients),
                 ReceivedTime = mail.ReceivedTime,
                 Body = mail.Body,
                 BodyHtml = mail.BodyHtml,
@@ -124,6 +127,27 @@ namespace SmartOffice.Hub.Services
                 TaskCompletedDate = mail.TaskCompletedDate,
                 Importance = mail.Importance,
                 Sensitivity = mail.Sensitivity,
+            };
+        }
+
+        private static List<OutlookRecipientDto> CloneRecipients(List<OutlookRecipientDto> recipients)
+        {
+            return recipients.Select(CloneRecipient).ToList();
+        }
+
+        private static OutlookRecipientDto CloneRecipient(OutlookRecipientDto recipient)
+        {
+            return new OutlookRecipientDto
+            {
+                RecipientKind = recipient.RecipientKind,
+                DisplayName = recipient.DisplayName,
+                SmtpAddress = recipient.SmtpAddress,
+                RawAddress = recipient.RawAddress,
+                AddressType = recipient.AddressType,
+                EntryUserType = recipient.EntryUserType,
+                IsGroup = recipient.IsGroup,
+                IsResolved = recipient.IsResolved,
+                Members = CloneRecipients(recipient.Members),
             };
         }
     }

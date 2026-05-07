@@ -56,6 +56,10 @@ function estimatedAttachmentExportRoot() {
   return '$HOME/SmartOffice/Attachments'
 }
 
+const manualOutlookDeleteMessage = 'SmartOffice API 不會永久刪除 Outlook 郵件或 folder。此項目已在 Outlook 刪除資料夾內；若要永久刪除，請到 Outlook 手動操作。'
+const mailFetchDelayMs = 500
+const mailFetchCountdownTickMs = 100
+
 export function useOutlookDashboard() {
   const activeView = ref<AppView>('outlook')
   const signalRState = ref<SignalRState>('disconnected')
@@ -99,6 +103,7 @@ export function useOutlookDashboard() {
   const exportingAttachmentIds = ref<Set<string>>(new Set())
   const mailRange = ref('1m')
   const mailCount = ref(30)
+  const lastMailFetchAt = ref<Date | null>(null)
   const scheduledMailFetchAt = ref(0)
   const mailFetchCountdownTick = ref(Date.now())
   const loadingMailSearch = ref(false)
@@ -337,6 +342,12 @@ export function useOutlookDashboard() {
   const mailFetchCountdownText = computed(() => {
     if (!scheduledMailFetchAt.value) return ''
     return `${mailFetchCountdownSeconds.value.toFixed(1)} 秒後自動抓取`
+  })
+
+  const mailFetchStatusText = computed(() => {
+    if (mailFetchCountdownText.value) return `已選取 ${selectedFolderName.value}，${mailFetchCountdownText.value}；按「立即抓取」可提早執行。`
+    if (lastMailFetchAt.value) return `上次抓取：${lastMailFetchAt.value.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+    return '尚未抓取郵件。'
   })
 
   const contextFolderName = computed(() => {
@@ -801,14 +812,14 @@ function categoryTagStyle(name: string) {
   function scheduleMailFetch() {
     cancelScheduledMailFetch()
     if (!selectedFolderPath.value) return
-    scheduledMailFetchAt.value = Date.now() + 1500
+    scheduledMailFetchAt.value = Date.now() + mailFetchDelayMs
     mailFetchCountdownTick.value = Date.now()
     mailFetchCountdownIntervalId = window.setInterval(() => {
       mailFetchCountdownTick.value = Date.now()
-    }, 100)
+    }, mailFetchCountdownTickMs)
     mailFetchTimeoutId = window.setTimeout(() => {
       void requestMails()
-    }, 1500)
+    }, mailFetchDelayMs)
   }
 
   function cancelScheduledMailFetch() {
@@ -897,6 +908,7 @@ function categoryTagStyle(name: string) {
       })
       await waitForCommandResult(response.commandId)
       await loadCachedMails()
+      lastMailFetchAt.value = new Date()
       pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
       updateOutlookFirstLoadCompleted()
@@ -1414,6 +1426,21 @@ function categoryTagStyle(name: string) {
     creatingFolderName.value = ''
   }
 
+  function deletedFolderForPath(path: string) {
+    if (!path) return null
+    const exactFolder = folderOptions.value.find((folder) => folder.folderPath === path)
+    const storeId = exactFolder?.storeId
+    return folderOptions.value.find((folder) =>
+      folder.folderType === 'Deleted'
+      && (!storeId || folder.storeId === storeId)
+      && (path === folder.folderPath || path.startsWith(`${folder.folderPath}/`))
+    ) ?? null
+  }
+
+  function isInDeletedFolder(path: string) {
+    return deletedFolderForPath(path) !== null
+  }
+
   async function createFolder(parentPath = creatingFolderParentPath.value, name = creatingFolderName.value) {
     const folderName = name.trim()
     if (!parentPath || !folderName || outlookBusy.value) return
@@ -1435,7 +1462,11 @@ function categoryTagStyle(name: string) {
   async function deleteFolder(targetPath: string) {
     if (!targetPath || outlookBusy.value) return
     const targetName = folderOptions.value.find((folder) => folder.folderPath === targetPath)?.label.trim() ?? targetPath
-    const confirmed = window.confirm(`刪除 Folder「${targetName}」？`)
+    if (isInDeletedFolder(targetPath)) {
+      ElMessage.warning(manualOutlookDeleteMessage)
+      return
+    }
+    const confirmed = window.confirm(`將 Folder「${targetName}」移到 Outlook 刪除資料夾？`)
     if (!confirmed) return
     operationLoading.value = true
     try {
@@ -1555,7 +1586,11 @@ function categoryTagStyle(name: string) {
 
   async function deleteMail(mail: MailItemDto) {
     if (!mail?.id?.trim() || outlookBusy.value) return
-    const deletedFolder = folderOptions.value.find((folder) => folderType(folder.name) === 'deleted')
+    if (isInDeletedFolder(mail.folderPath)) {
+      ElMessage.warning(manualOutlookDeleteMessage)
+      return
+    }
+    const deletedFolder = deletedFolderForPath(mail.folderPath) ?? folderOptions.value.find((folder) => folder.folderType === 'Deleted')
     const targetName = deletedFolder?.label.trim() || '刪除的郵件 / Deleted Items'
     const confirmed = window.confirm(`將郵件「${mail.subject || mail.id}」移到「${targetName}」？`)
     if (!confirmed) return
@@ -1866,6 +1901,7 @@ function categoryTagStyle(name: string) {
     fetchedMailFolderName,
     mailListNeedsFetch,
     mailFetchCountdownText,
+    mailFetchStatusText,
     selectedFolderName,
     selectedCalendarEvent,
     selectedFolderPath,

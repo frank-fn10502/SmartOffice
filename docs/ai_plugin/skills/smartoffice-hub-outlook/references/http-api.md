@@ -250,7 +250,7 @@ Agent 預設 request 範例應像這樣指定單一 Inbox path：
 }
 ```
 
-使用空 scope 時，回覆使用者必須說明範圍是「目前 Hub folder cache 中已載入的可搜尋 mail folders」，不是保證完整 Outlook mailbox。
+使用空 scope 時，回覆使用者必須說明範圍是「目前 SmartOffice API folder cache 中已載入的可搜尋 mail folders」，不是保證完整 Outlook mailbox。
 
 Progress：
 
@@ -319,6 +319,8 @@ Request:
 }
 ```
 
+語意是將 folder 移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不接受目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱。若目標已經在 default Deleted Items folder 內，API 會回 `409 manual_delete_required` 與說明文字；請使用者自行到 Outlook 永久刪除。
+
 ### `POST /api/outlook/request-move-mail`
 
 ```json
@@ -362,7 +364,7 @@ Request:
 }
 ```
 
-語意是移到 Deleted Items，不是永久刪除。
+語意是移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不接受 `destinationFolderPath`；AddIn 必須用 Outlook default folder identity 定位目的 folder，不得用 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱猜測。若目標已經在 default Deleted Items folder 內，API 會回 `409 manual_delete_required` 與說明文字；請使用者自行到 Outlook 永久刪除。
 
 ## Chat
 
@@ -384,7 +386,9 @@ Chat text 可能含敏感 business data。
 
 ### `MailItemDto`
 
-`id`, `subject`, `senderName`, `senderEmail`, `receivedTime`, `body`, `bodyHtml`, `folderPath`, `categories`, `isRead`, `isMarkedAsTask`, `attachmentCount`, `attachmentNames`, `flagRequest`, `flagInterval`, `taskStartDate`, `taskDueDate`, `taskCompletedDate`, `importance`, `sensitivity`。
+`id`, `subject`, `sender`, `toRecipients`, `ccRecipients`, `bccRecipients`, `receivedTime`, `body`, `bodyHtml`, `folderPath`, `categories`, `isRead`, `isMarkedAsTask`, `attachmentCount`, `attachmentNames`, `flagRequest`, `flagInterval`, `taskStartDate`, `taskDueDate`, `taskCompletedDate`, `importance`, `sensitivity`。
+
+`sender` 與 recipients 使用 `OutlookRecipientDto`：`recipientKind`, `displayName`, `smtpAddress`, `rawAddress`, `addressType`, `entryUserType`, `isGroup`, `isResolved`, `members`。Web UI / client 應以 `displayName` 作為預設顯示名稱；`rawAddress` 可能是 Exchange legacyDN，不應直接當人名顯示。group 可用 `isGroup=true` 表示，若 AddIn 已展開成員則放在 `members`。
 
 ### `FolderDto`
 
@@ -406,4 +410,4 @@ Chat text 可能含敏感 business data。
 
 ### `CalendarEventDto`
 
-`id`, `subject`, `start`, `end`, `location`, `organizer`, `requiredAttendees`, `isRecurring`, `busyStatus`。
+`id`, `subject`, `start`, `end`, `location`, `organizer`, `requiredAttendees`, `isRecurring`, `busyStatus`。`organizer` 是 `OutlookRecipientDto`，`requiredAttendees` 是 `OutlookRecipientDto[]`。

@@ -22,7 +22,7 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-folder-children"] = new(
                 "Outlook Commands",
                 "要求單一 folder 的 children",
-                "Dispatch `fetch_folder_children`。HTTP API 的 folder path 使用 `/主要信箱 - User/Inbox`。`parentEntryId` 優先，`parentFolderPath` 可作為 fallback；Hub 會限制 `maxDepth` 1-3、`maxChildren` 1-200。完成後讀取 `GET /api/outlook/folders`。",
+                "Dispatch `fetch_folder_children`。HTTP API 的 folder path 使用 `/主要信箱 - User/Inbox`。`parentEntryId` 優先，`parentFolderPath` 可作為 fallback；SmartOffice API 會限制 `maxDepth` 1-3、`maxChildren` 1-200。完成後讀取 `GET /api/outlook/folders`。",
                 typeof(CommandDispatchResponse),
                 FolderChildrenExample()),
             ["POST api/outlook/request-mails"] = new(
@@ -46,24 +46,24 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-export-mail-attachment"] = new(
                 "Attachments",
                 "要求匯出郵件附件",
-                "Dispatch `export_mail_attachment` 給 Outlook AddIn。`exportRootPath` 可留空，Hub 會使用目前 attachment export settings。完成後使用 `exportedAttachmentId` 呼叫 `open-exported-attachment`。",
+                "Dispatch `export_mail_attachment` 給 Outlook AddIn。`exportRootPath` 可留空，SmartOffice API 會使用目前 attachment export settings。完成後使用 `exportedAttachmentId` 呼叫 `open-exported-attachment`。",
                 typeof(CommandDispatchResponse),
                 ExportAttachmentExample()),
             ["POST api/outlook/open-exported-attachment"] = new(
                 "Attachments",
                 "開啟已匯出的附件",
-                "只接受 Hub 已記錄的 `exportedAttachmentId`，不接受任意檔案路徑，避免 Swagger 使用者誤把這個 endpoint 當成本機檔案 opener。",
+                "只接受 SmartOffice API 已記錄的 `exportedAttachmentId`，不接受任意檔案路徑，避免 Swagger 使用者誤把這個 endpoint 當成本機檔案 opener。",
                 typeof(OpenExportedAttachmentResponse),
                 OpenExportedAttachmentExample()),
             ["GET api/outlook/attachment-export-settings"] = new(
                 "Attachments",
                 "讀取附件匯出根目錄",
-                "讀取 Hub 要求 AddIn 匯出附件時使用的 root path。避免在共用環境暴露敏感本機路徑。",
+                "讀取 SmartOffice API 要求 AddIn 匯出附件時使用的 root path。避免在共用環境暴露敏感本機路徑。",
                 typeof(AttachmentExportSettingsDto)),
             ["POST api/outlook/attachment-export-settings"] = new(
                 "Attachments",
                 "更新附件匯出根目錄",
-                "更新 Hub 要求 AddIn 匯出附件時使用的 root path。避免在共用環境暴露敏感本機路徑。",
+                "更新 SmartOffice API 要求 AddIn 匯出附件時使用的 root path。避免在共用環境暴露敏感本機路徑。",
                 typeof(AttachmentExportSettingsDto),
                 AttachmentExportSettingsExample()),
             ["POST api/outlook/request-rules"] = new(
@@ -79,7 +79,7 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-signalr-ping"] = new(
                 "Diagnostics",
                 "測試 Outlook AddIn SignalR channel",
-                "透過正式 AddIn channel dispatch `ping` command。用於確認 Hub 能否聯絡目前連線的 Outlook AddIn。",
+                "透過正式 AddIn channel dispatch `ping` command。用於確認 SmartOffice API 能否聯絡目前連線的 Outlook AddIn。",
                 typeof(CommandDispatchResponse)),
             ["POST api/outlook/request-calendar"] = new(
                 "Outlook Commands",
@@ -107,8 +107,8 @@ namespace SmartOffice.Hub.Swagger
                 CreateFolderExample()),
             ["POST api/outlook/request-delete-folder"] = new(
                 "Outlook Commands",
-                "刪除 Outlook folder",
-                "要求 AddIn 刪除指定 folder。這是 destructive operation；呼叫前請確認 folder path 來自 `GET /api/outlook/folders`。",
+                "移動 Outlook folder 到刪除資料夾",
+                "要求 AddIn 將指定 folder 移到 Outlook default Deleted Items folder；不得永久刪除。若目標已在 Deleted Items 內，API 會回 `manual_delete_required`，請使用者自行到 Outlook 刪除。呼叫前請確認 folder path 來自 `GET /api/outlook/folders`。",
                 typeof(CommandDispatchResponse),
                 DeleteFolderExample()),
             ["POST api/outlook/request-move-mail"] = new(
@@ -126,19 +126,19 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-delete-mail"] = new(
                 "Outlook Commands",
                 "刪除單封郵件",
-                "要求 AddIn 將 mail 移到 Deleted Items，不應永久刪除。完成後讀取 `GET /api/outlook/mails` 與 `GET /api/outlook/folders`。",
+                "要求 AddIn 將 mail 移到 Outlook default Deleted Items folder，不會永久刪除。若目標已在 Deleted Items 內，API 會回 `manual_delete_required`，請使用者自行到 Outlook 刪除。完成後讀取 `GET /api/outlook/mails` 與 `GET /api/outlook/folders`。",
                 typeof(CommandDispatchResponse),
                 DeleteMailExample()),
             ["POST api/outlook/request-mail-search"] = new(
                 "Mail Search",
                 "搜尋 Outlook mails",
-                "Hub 會先確保 folder cache，展開 store/folder scope，再分成單 folder slices dispatch 給 AddIn。使用 `searchId` 查 `GET /api/outlook/mail-search/progress/{searchId}`，完成或累積結果後讀取 `GET /api/outlook/mail-search`。",
+                "SmartOffice API 會先確保 folder cache，展開 store/folder scope，再分成單 folder slices dispatch 給 AddIn。使用 `searchId` 查 `GET /api/outlook/mail-search/progress/{searchId}`，完成或累積結果後讀取 `GET /api/outlook/mail-search`。",
                 typeof(MailSearchDispatchResponse),
                 MailSearchExample()),
             ["GET api/outlook/mail-search"] = new(
                 "Mail Search",
                 "取得 cached mail search results",
-                "只讀取最近一次 mail search 累積在 Hub 的結果，不會觸發 Outlook 搜尋。若需要最新結果，先呼叫 `POST /api/outlook/request-mail-search`。",
+                "只讀取最近一次 mail search 累積在 SmartOffice API 的結果，不會觸發 Outlook 搜尋。若需要最新結果，先呼叫 `POST /api/outlook/request-mail-search`。",
                 typeof(List<MailItemDto>)),
             ["GET api/outlook/mail-search/progress/{searchId}"] = new(
                 "Mail Search",
@@ -153,37 +153,37 @@ namespace SmartOffice.Hub.Swagger
             ["GET api/outlook/mails"] = new(
                 "Cached Snapshots",
                 "取得 cached mails",
-                "只讀取 Hub 目前記憶體中的 mail snapshot，不會呼叫 Outlook。若需要刷新，先呼叫 `POST /api/outlook/request-mails` 或 `POST /api/outlook/request-mail-search`。",
+                "只讀取 SmartOffice API 目前記憶體中的 mail snapshot，不會呼叫 Outlook。若需要刷新，先呼叫 `POST /api/outlook/request-mails` 或 `POST /api/outlook/request-mail-search`。",
                 typeof(List<MailItemDto>)),
             ["GET api/outlook/mail-attachments"] = new(
                 "Attachments",
                 "取得單封郵件的 cached attachment metadata",
-                "只讀取 Hub 目前記憶體中的 attachment metadata。若需要刷新，先呼叫 `POST /api/outlook/request-mail-attachments`，等待 command 完成後用 query string `mailId` 查詢。",
+                "只讀取 SmartOffice API 目前記憶體中的 attachment metadata。若需要刷新，先呼叫 `POST /api/outlook/request-mail-attachments`，等待 command 完成後用 query string `mailId` 查詢。",
                 typeof(MailAttachmentsDto)),
             ["GET api/outlook/folders"] = new(
                 "Cached Snapshots",
                 "取得 cached folders",
-                "只讀取 Hub 目前記憶體中的 folder snapshot。HTTP API 回傳的 folder path 使用 `/主要信箱 - User/Inbox`。若 folder tree 不完整，先呼叫 `request-folders` 或 `request-folder-children`。",
+                "只讀取 SmartOffice API 目前記憶體中的 folder snapshot。HTTP API 回傳的 folder path 使用 `/主要信箱 - User/Inbox`。若 folder tree 不完整，先呼叫 `request-folders` 或 `request-folder-children`。",
                 typeof(FolderSnapshotDto)),
             ["GET api/outlook/rules"] = new(
                 "Cached Snapshots",
                 "取得 cached Outlook rules",
-                "只讀取 Hub cache；若需要刷新，先呼叫 `POST /api/outlook/request-rules`。",
+                "只讀取 SmartOffice API cache；若需要刷新，先呼叫 `POST /api/outlook/request-rules`。",
                 typeof(List<OutlookRuleDto>)),
             ["GET api/outlook/categories"] = new(
                 "Cached Snapshots",
                 "取得 cached Outlook master categories",
-                "只讀取 Hub cache；若需要刷新，先呼叫 `POST /api/outlook/request-categories`。",
+                "只讀取 SmartOffice API cache；若需要刷新，先呼叫 `POST /api/outlook/request-categories`。",
                 typeof(List<OutlookCategoryDto>)),
             ["GET api/outlook/calendar"] = new(
                 "Cached Snapshots",
                 "取得 cached calendar events",
-                "只讀取 Hub cache；若需要刷新，先呼叫 `POST /api/outlook/request-calendar`。",
+                "只讀取 SmartOffice API cache；若需要刷新，先呼叫 `POST /api/outlook/request-calendar`。",
                 typeof(List<CalendarEventDto>)),
             ["GET api/outlook/chat"] = new(
                 "Chat",
                 "取得 chat messages",
-                "只讀取 Hub chat cache。chat text 可能含敏感 business data。",
+                "只讀取 SmartOffice API chat cache。chat text 可能含敏感 business data。",
                 typeof(List<ChatMessageDto>)),
             ["POST api/outlook/chat"] = new(
                 "Chat",
@@ -204,12 +204,12 @@ namespace SmartOffice.Hub.Swagger
             ["GET api/outlook/admin/status"] = new(
                 "Diagnostics",
                 "取得 Outlook AddIn 連線狀態",
-                "讀取 Hub 對目前 AddIn SignalR 連線與最後 push/poll 的觀測狀態。",
+                "讀取 SmartOffice API 對目前 AddIn SignalR 連線與最後 push/poll 的觀測狀態。",
                 typeof(AddinStatusDto)),
             ["GET api/outlook/admin/logs"] = new(
                 "Diagnostics",
                 "取得 AddIn logs",
-                "讀取 Hub 記錄的 AddIn diagnostic logs。",
+                "讀取 SmartOffice API 記錄的 AddIn diagnostic logs。",
                 typeof(List<AddinLogEntry>)),
             ["POST api/outlook/admin/log"] = new(
                 "Diagnostics",

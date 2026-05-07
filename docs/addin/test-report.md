@@ -108,8 +108,20 @@ Method: `PushMails`
   {
     "id": "[redacted Outlook EntryID]",
     "subject": "[redacted]",
-    "senderName": "Sample Sender",
-    "senderEmail": "sender@example.invalid",
+    "sender": {
+      "recipientKind": "sender",
+      "displayName": "Sample Sender",
+      "smtpAddress": "sender@example.invalid",
+      "rawAddress": "sender@example.invalid",
+      "addressType": "SMTP",
+      "entryUserType": "olExchangeUserAddressEntry",
+      "isGroup": false,
+      "isResolved": true,
+      "members": []
+    },
+    "toRecipients": [],
+    "ccRecipients": [],
+    "bccRecipients": [],
     "receivedTime": "2026-04-29T09:30:00+08:00",
     "body": "",
     "bodyHtml": "",

@@ -553,8 +553,10 @@ namespace SmartOffice.Hub.Services
             {
                 Id = mail.Id,
                 Subject = mail.Subject,
-                SenderName = mail.SenderName,
-                SenderEmail = mail.SenderEmail,
+                Sender = CloneRecipient(mail.Sender),
+                ToRecipients = CloneRecipients(mail.ToRecipients),
+                CcRecipients = CloneRecipients(mail.CcRecipients),
+                BccRecipients = CloneRecipients(mail.BccRecipients),
                 ReceivedTime = mail.ReceivedTime,
                 Body = mail.Body,
                 BodyHtml = mail.BodyHtml,
@@ -571,6 +573,27 @@ namespace SmartOffice.Hub.Services
                 TaskCompletedDate = mail.TaskCompletedDate,
                 Importance = mail.Importance,
                 Sensitivity = mail.Sensitivity,
+            };
+        }
+
+        private static List<OutlookRecipientDto> CloneRecipients(List<OutlookRecipientDto> recipients)
+        {
+            return recipients.Select(CloneRecipient).ToList();
+        }
+
+        private static OutlookRecipientDto CloneRecipient(OutlookRecipientDto recipient)
+        {
+            return new OutlookRecipientDto
+            {
+                RecipientKind = recipient.RecipientKind,
+                DisplayName = recipient.DisplayName,
+                SmtpAddress = recipient.SmtpAddress,
+                RawAddress = recipient.RawAddress,
+                AddressType = recipient.AddressType,
+                EntryUserType = recipient.EntryUserType,
+                IsGroup = recipient.IsGroup,
+                IsResolved = recipient.IsResolved,
+                Members = CloneRecipients(recipient.Members),
             };
         }
 
