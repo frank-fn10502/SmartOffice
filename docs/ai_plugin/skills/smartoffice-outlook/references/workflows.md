@@ -4,8 +4,8 @@
 
 ## 通用規則
 
-- Base URL 預設為 `http://localhost:2805`；只有使用者明確提供其他 Hub URL 時才改用該 URL。
-- 呼叫任何 `POST /api/outlook/request-*` 後，從 request response 取出 `requestId`。response 沒有 `success` 欄位，`accepted` 只代表 Hub 已收下 request，不可在這一步判斷已成功。
+- Base URL 預設為 `http://localhost:2805`；只有使用者明確提供其他 API URL 時才改用該 URL。
+- 呼叫任何 `POST /api/outlook/request-*` 後，從 request response 取出 `requestId`。response 沒有 `success` 欄位，`accepted` 只代表 SmartOffice API 已收下 request，不可在這一步判斷已成功。
 - 查 `POST /api/outlook/fetch-result-*`，直到 `state=completed`；若 `next.hasMore=true`，下一次 request 帶 `next.cursor`。
 - `fetch-result-* .state` 可能是 `running`、`completed`、`failed`、`unavailable`、`timeout` 等；失敗狀態要回報使用者。
 - HTTP 409 / 400 / 502 / 504 的 response body 也可能有 `requestId`、`state` 與 `message`；解析後回報，不要靠猜測重試。
@@ -105,6 +105,34 @@ Folder data 形狀範例：
 
 找不到 Inbox 時，不要改成全域搜尋；回報目前 folder data 無法定位主要 Inbox。
 
+## Locate Named Folders
+
+使用者指定 folder 名稱或路徑時，先定位正式 `folderPath`，不要自行組 path。
+
+1. 先執行 Folder Scope 的 folder 載入流程，至少取得主要 store root 與第一層 children。
+2. 若使用者提供完整路徑，優先用 `folderPath` 做大小寫不敏感的完全比對。
+3. 若使用者只提供顯示名稱，例如 `folderA`，在已載入的 `data.folders` 中用 `name` 做大小寫不敏感完全比對。
+4. 若找不到且相關 parent folder `childrenLoaded=false`，逐層呼叫 `request-folder-children` 載入 children，再重新比對。
+5. 若找到多個同名 folder，不要任選；列出必要的 `folderPath` 與 store 顯示名稱，請使用者確認。
+6. 若仍找不到，回報目前 folder data 無法定位該 folder；不要改用 Inbox、空 scope 或自行猜測 `/Mailbox/folderA`。
+
+目的 folder 也必須同樣定位成唯一 `folderPath`。移動郵件時，來源與目的 folder 必須不同；若相同，停止並回報。
+
+## Relative Date Ranges
+
+使用者用相對日期時，轉成明確 `receivedFrom` / `receivedTo` 後再送 request，並在回覆中說明實際範圍。日期以 SmartOffice API / 使用者所在地時區為準；目前工作環境是 Asia/Taipei。
+
+- `今天`：今天 00:00 到目前時間。
+- `昨天`：昨天 00:00 到今天 00:00。
+- `這週` / `本週`：本週一 00:00 到目前時間。
+- `上週`：上週一 00:00 到本週一 00:00。
+- `這個月` / `本月`：本月 1 日 00:00 到目前時間。
+- `最近 N 天`：目前時間往前推 N 天到目前時間。
+- `最近 N 個月`：目前時間往前推 N 個月到目前時間。
+- `這兩個月`：若使用者未補充，預設按「最近兩個月」處理。
+
+若使用者要求完整自然週或完整自然月，而不是「到目前為止」，才把 `receivedTo` 設為下一個週期開始時間。回覆時使用具體日期，例如「範圍：2026-05-04 00:00 到目前時間」。
+
 ## Recent Mails
 
 用 folder data 中的實際 Inbox `folderPath` 呼叫：
@@ -123,6 +151,36 @@ Request body 重點欄位：
 ```
 
 回覆使用者時摘要 `subject`、`sender.displayName`、`receivedTime`、`categories`、`flagInterval` 等 metadata，並說明「範圍：主要 mailbox 的 Inbox」或實際指定 folder。
+
+## Date Range Mail Lookup
+
+使用者要求「這週的郵件」、「這兩個月有附件的郵件」或任何需要完整日期範圍的查找時，使用 `request-mail-search`，不要用 `request-mails`。`request-mails` 是最近列表 API，可能受 `maxCount` 限制而漏掉符合日期的郵件。
+
+呼叫：
+
+- `POST /api/outlook/request-mail-search`
+- `POST /api/outlook/fetch-result-mail-search`
+
+Request body 範例：
+
+```json
+{
+  "searchId": "",
+  "storeId": "",
+  "scopeFolderPaths": ["/主要信箱 - User/收件匣"],
+  "includeSubFolders": true,
+  "keyword": "",
+  "textFields": ["subject"],
+  "categoryNames": [],
+  "hasAttachments": null,
+  "flagState": "any",
+  "readState": "any",
+  "receivedFrom": "2026-05-04T00:00:00+08:00",
+  "receivedTo": null
+}
+```
+
+有附件條件時設定 `hasAttachments=true`。若使用者未指定 folder，仍只查主要 mailbox 的 Inbox，並在回覆中說明範圍。
 
 ## Mail Search
 
@@ -187,6 +245,14 @@ Request body 重點欄位：
 
 若 `fetch-result-* data.mails` 中有多封 mail 符合同一 subject 或 sender，不要任選一封。先向使用者列出必要 metadata，例如 `receivedTime`、`sender.displayName`、短 subject，請使用者確認目標。
 
+使用者用 subject 指定刪除目標，例如「刪除 `Re:xxxx` 這封郵件」時：
+
+1. 未指定 folder 時，先用 Golden Path 定位主要 Inbox。
+2. 用 `request-mail-search` 搜尋 subject，`keyword` 放使用者提供的 subject 片段，`textFields=["subject"]`。
+3. 從 `fetch-result-mail-search data.mails` 中再做精準比對；優先找 `subject` 完整等於使用者提供文字的 mail。
+4. 若只有一封唯一目標，才呼叫 `request-delete-mail`。
+5. 若有多封或沒有精準命中，列出必要 metadata 請使用者確認或回報找不到，不要猜。
+
 常用 endpoint：
 
 - `POST /api/outlook/request-update-mail-properties`
@@ -196,11 +262,45 @@ Request body 重點欄位：
 
 `request-delete-mail` 代表移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不提供目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴顯示名稱或本地化名稱。若目標已經在 default Deleted Items folder 內，paired fetch result 會回 `state=failed` / `message=manual_delete_required`，此時請使用者自行到 Outlook 永久刪除。mutation 完成後用 paired fetch result 或重新送出必要 request 確認結果。
 
+### Bulk Move Folder Mails
+
+當使用者要求「將 folderA 的郵件都搬到 folderB」時，預設只處理 folderA 直接包含的郵件，不包含 subfolders；只有使用者明確說「包含子資料夾」、「底下所有 folder」或「folder tree」時才包含 subfolders。不要用 `request-mails` 蒐集目標郵件，因為它是近期列表 API，受 `lookbackHours` / `maxCount` 限制。
+
+1. 用 Locate Named Folders 定位來源 folderA 與 destination folderB 的唯一 `folderPath`；不要自行組 path。
+2. 用 `request-folder-mails` 取得來源範圍的 mail metadata：
+
+```json
+{
+  "folderPath": "/Mailbox - User/folderA",
+  "includeSubFolders": false,
+  "receivedFrom": null,
+  "receivedTo": null
+}
+```
+
+3. 用 `fetch-result-folder-mails` loop 到 `state=completed`，只取 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
+4. 若沒有 mails，回報來源 folder 沒有可搬移郵件並停止。
+5. 將結果依最多 500 封切 batch。`POST /api/outlook/request-move-mails` 單次超過 500 會回 `400 too_many_mail_ids`。
+6. 逐批呼叫 `request-move-mails`，每批都用 `fetch-result-move-mails` 等到 `state=completed` 後再送下一批：
+
+```json
+{
+  "mailIds": ["id-1", "id-2"],
+  "sourceFolderPath": "/Mailbox - User/folderA",
+  "sourceFolderPaths": ["/Mailbox - User/folderA"],
+  "destinationFolderPath": "/Mailbox - User/folderB",
+  "continueOnError": true
+}
+```
+
+7. 回報進度與完成數量。若某批失敗，停止後回報失敗批次與已完成數量。
+8. 全部批次完成後，重新讀必要的 folders 或 folder mails 確認結果。
+
 ### Bulk Move Folder Tree
 
 當使用者要求「將 folderA 與底下 subfolder 的郵件都搬到 folderOther」或「搬空某個 folder tree」時，使用這個流程。不要用 `request-mails` 蒐集目標郵件，因為它是近期列表 API，受 `lookbackHours` / `maxCount` 限制。
 
-1. 讀取 folders，定位來源 folderA 與 destination folderOther 的真實 `folderPath`；不要自行組 path。
+1. 用 Locate Named Folders 定位來源 folderA 與 destination folderOther 的真實 `folderPath`；不要自行組 path。
 2. 用 `request-folder-mails` 取得來源範圍的 mail metadata：
 
 ```json
@@ -212,9 +312,9 @@ Request body 重點欄位：
 }
 ```
 
-3. 用 `fetch-result-*` loop 到 `state=completed`，只取 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
+3. 用 `fetch-result-folder-mails` loop 到 `state=completed`，只取 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
 4. 將結果依最多 500 封切 batch。`POST /api/outlook/request-move-mails` 單次超過 500 會回 `400 too_many_mail_ids`。
-5. 逐批呼叫 `request-move-mails`，每批都用 `fetch-result-*` 等到 `state=completed` 後再送下一批：
+5. 逐批呼叫 `request-move-mails`，每批都用 `fetch-result-move-mails` 等到 `state=completed` 後再送下一批：
 
 ```json
 {

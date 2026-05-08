@@ -2,4 +2,4 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "$SCRIPT_DIR/docs/ai_plugin/skills/smartoffice-hub-outlook/scripts/install.sh" "$@"
+exec "$SCRIPT_DIR/docs/ai_plugin/skills/smartoffice-outlook/scripts/install.sh" "$@"

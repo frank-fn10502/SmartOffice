@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKILL_NAME="smartoffice-hub-outlook"
-SKILL_ID="smartoffice-hub-outlook.skill.smartoffice-hub.2026-05"
+SKILL_NAME="smartoffice-outlook"
+SKILL_ID="smartoffice-outlook.skill.smartoffice.2026-05"
 MARKER_FILE=".smartoffice-skill-id"
 
 usage() {
@@ -10,24 +10,24 @@ usage() {
 安裝 SmartOffice Outlook Agents SKILL。
 
 用法:
-  ./install-smartoffice-hub-outlook-skill.sh [options]
+  ./install-smartoffice-outlook-skill.sh [options]
 
 直接呼叫 skill 內部 installer:
-  ./docs/ai_plugin/skills/smartoffice-hub-outlook/scripts/install.sh [options]
+  ./docs/ai_plugin/skills/smartoffice-outlook/scripts/install.sh [options]
 
 預設:
   同時複製 SKILL folder 到 codex、copilot、opencode 的 user skill 位置。
   不會產生或修改 AGENTS.md、copilot-instructions.md、*.instructions.md 等規則檔。
 
 User-level 目標:
-  codex:   ${CODEX_HOME:-$HOME/.codex}/skills/smartoffice-hub-outlook
-  copilot: $HOME/.copilot/skills/smartoffice-hub-outlook
-  opencode:${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/smartoffice-hub-outlook
+  codex:   ${CODEX_HOME:-$HOME/.codex}/skills/smartoffice-outlook
+  copilot: $HOME/.copilot/skills/smartoffice-outlook
+  opencode:${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/smartoffice-outlook
 
 Project-level 目標:
-  codex:   <project>/.codex/skills/smartoffice-hub-outlook
-  copilot: <project>/.github/skills/smartoffice-hub-outlook
-  opencode:<project>/.opencode/skills/smartoffice-hub-outlook
+  codex:   <project>/.codex/skills/smartoffice-outlook
+  copilot: <project>/.github/skills/smartoffice-outlook
+  opencode:<project>/.opencode/skills/smartoffice-outlook
 
 Options:
   --user
@@ -45,8 +45,8 @@ Options:
 
   --dest <path>
       只安裝 Codex skill 到指定 skills root 或完整 skill folder。
-      若 path basename 是 smartoffice-hub-outlook，會直接使用該 path；
-      否則會安裝到 <path>/smartoffice-hub-outlook。
+      若 path basename 是 smartoffice-outlook，會直接使用該 path；
+      否則會安裝到 <path>/smartoffice-outlook。
 
   --force
       保留相容參數；目前安裝預設就是全新重裝。
@@ -58,10 +58,10 @@ Options:
       顯示說明。
 
 範例:
-  ./install-smartoffice-hub-outlook-skill.sh
-  ./install-smartoffice-hub-outlook-skill.sh --project /path/to/project
-  ./install-smartoffice-hub-outlook-skill.sh --tools codex,opencode
-  ./install-smartoffice-hub-outlook-skill.sh --tool copilot --project /path/to/project
+  ./install-smartoffice-outlook-skill.sh
+  ./install-smartoffice-outlook-skill.sh --project /path/to/project
+  ./install-smartoffice-outlook-skill.sh --tools codex,opencode
+  ./install-smartoffice-outlook-skill.sh --tool copilot --project /path/to/project
 USAGE
 }
 

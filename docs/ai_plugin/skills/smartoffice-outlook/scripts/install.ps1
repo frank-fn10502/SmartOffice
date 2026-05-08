@@ -10,8 +10,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$SkillName = "smartoffice-hub-outlook"
-$SkillId = "smartoffice-hub-outlook.skill.smartoffice-hub.2026-05"
+$SkillName = "smartoffice-outlook"
+$SkillId = "smartoffice-outlook.skill.smartoffice.2026-05"
 $MarkerFile = ".smartoffice-skill-id"
 
 function Show-Usage {
@@ -19,24 +19,24 @@ function Show-Usage {
 安裝 SmartOffice Outlook Agents SKILL。
 
 用法:
-  pwsh ./install-smartoffice-hub-outlook-skill.ps1 [options]
+  pwsh ./install-smartoffice-outlook-skill.ps1 [options]
 
 直接呼叫 skill 內部 installer:
-  pwsh ./docs/ai_plugin/skills/smartoffice-hub-outlook/scripts/install.ps1 [options]
+  pwsh ./docs/ai_plugin/skills/smartoffice-outlook/scripts/install.ps1 [options]
 
 預設:
   同時複製 SKILL folder 到 codex、copilot、opencode 的 user skill 位置。
   不會產生或修改 AGENTS.md、copilot-instructions.md、*.instructions.md 等規則檔。
 
 User-level 目標:
-  codex:   `$env:CODEX_HOME\skills\smartoffice-hub-outlook 或 `$HOME\.codex\skills\smartoffice-hub-outlook
-  copilot: `$HOME\.copilot\skills\smartoffice-hub-outlook
-  opencode:`$env:XDG_CONFIG_HOME\opencode\skills\smartoffice-hub-outlook 或 `$HOME\.config\opencode\skills\smartoffice-hub-outlook
+  codex:   `$env:CODEX_HOME\skills\smartoffice-outlook 或 `$HOME\.codex\skills\smartoffice-outlook
+  copilot: `$HOME\.copilot\skills\smartoffice-outlook
+  opencode:`$env:XDG_CONFIG_HOME\opencode\skills\smartoffice-outlook 或 `$HOME\.config\opencode\skills\smartoffice-outlook
 
 Project-level 目標:
-  codex:   <project>\.codex\skills\smartoffice-hub-outlook
-  copilot: <project>\.github\skills\smartoffice-hub-outlook
-  opencode:<project>\.opencode\skills\smartoffice-hub-outlook
+  codex:   <project>\.codex\skills\smartoffice-outlook
+  copilot: <project>\.github\skills\smartoffice-outlook
+  opencode:<project>\.opencode\skills\smartoffice-outlook
 
 Options:
   -User
@@ -54,8 +54,8 @@ Options:
 
   -Dest <path>
       只安裝 Codex skill 到指定 skills root 或完整 skill folder。
-      若 path basename 是 smartoffice-hub-outlook，會直接使用該 path；
-      否則會安裝到 <path>\smartoffice-hub-outlook。
+      若 path basename 是 smartoffice-outlook，會直接使用該 path；
+      否則會安裝到 <path>\smartoffice-outlook。
 
   -Force
       保留相容參數；目前安裝預設就是全新重裝。
@@ -67,10 +67,10 @@ Options:
       顯示說明。
 
 範例:
-  pwsh ./install-smartoffice-hub-outlook-skill.ps1
-  pwsh ./install-smartoffice-hub-outlook-skill.ps1 -Project C:\path\to\project
-  pwsh ./install-smartoffice-hub-outlook-skill.ps1 -Tools codex,opencode
-  pwsh ./install-smartoffice-hub-outlook-skill.ps1 -Tool copilot -Project C:\path\to\project
+  pwsh ./install-smartoffice-outlook-skill.ps1
+  pwsh ./install-smartoffice-outlook-skill.ps1 -Project C:\path\to\project
+  pwsh ./install-smartoffice-outlook-skill.ps1 -Tools codex,opencode
+  pwsh ./install-smartoffice-outlook-skill.ps1 -Tool copilot -Project C:\path\to\project
 "@
 }
 

@@ -1,9 +1,9 @@
 ---
-name: smartoffice-hub-outlook
+name: smartoffice-outlook
 description: Use when an AI agent needs to operate Outlook through the SmartOffice Outlook HTTP API, including reading folders, mails, mail body, attachments, calendar, categories, rules, mail search, and safe mail or folder mutations. Default base URL is http://localhost:2805. Use this skill for Outlook client workflows, not for implementing the API itself.
 metadata:
   owner: "SmartOffice"
-  skill_id: "smartoffice-hub-outlook.skill.smartoffice-hub.2026-05"
+  skill_id: "smartoffice-outlook.skill.smartoffice.2026-05"
 ---
 
 # SmartOffice Outlook
@@ -11,9 +11,9 @@ metadata:
 ## 邊界
 
 - 一律透過 Outlook HTTP API 操作 Outlook；不要繞過 API 使用其他通道。
-- 預設 base URL 是 `http://localhost:2805`；若使用者明確提供其他 Hub URL，才改用該 URL。
+- 預設 base URL 是 `http://localhost:2805`；若使用者明確提供其他 API URL，才改用該 URL。
 - 可用任何可呼叫 HTTP 與解析 JSON 的工具；不要把 `curl`、PowerShell 或特定 shell 視為必要條件。
-- 每次 `request-*` 後，先解析 request response 的固定欄位：`requestId`、`request`、`state`、`message`、`data`。`data` 是各 request 自己的 struct；response 沒有 `success` 欄位，`accepted` 只代表 Hub 已收下 request，不代表 Outlook 操作已成功。
+- 每次 `request-*` 後，先解析 request response 的固定欄位：`requestId`、`request`、`state`、`message`、`data`。`data` 是各 request 自己的 struct；response 沒有 `success` 欄位，`accepted` 只代表 SmartOffice API 已收下 request，不代表 Outlook 操作已成功。
 - 取得 `requestId` 後呼叫配對的 `POST /api/outlook/fetch-result-*`；回應固定提供 `requestId`、`request`、`state`、`message`、`next`、`data`。
 - 使用者或 AI 只需要 loop paired `fetch-result-*` 到 `state=completed`；若 `next.hasMore=true`，下一次 body 帶 `cursor=next.cursor`。
 - 若 `request-*` 回 HTTP 409 / 400 / 502 / 504，仍先解析 body 的 `state`、`message` 與可能存在的 `requestId`；不要靠猜測重試，也不要改用更大的搜尋範圍。
@@ -25,6 +25,8 @@ metadata:
 - HTTP API 的 `folderPath` 一律使用 `/主要信箱 - User/收件匣` 這種普通斜線格式。
 - `scopeFolderPaths: []` 代表目前已載入的全部可搜尋 mail folders；使用者未明確要求全域搜尋時禁止送空陣列。
 - 回覆使用者時必須說明本次 folder 範圍，避免使用者誤以為已搜尋全信箱。
+- 使用者指定 folder 顯示名稱時，必須先從 folder fetch result 定位唯一 `folderPath`；若同名 folder 超過一個，列出必要路徑請使用者確認，不可任選。
+- 相對日期要轉成明確 `receivedFrom` / `receivedTo` 並在回覆中說明，例如「這週」代表本週一 00:00 到目前時間；「最近兩個月」代表從目前時間往前推兩個月到目前時間。若使用者說「這兩個月」且語意不明，預設按最近兩個月處理。
 - 大型 response 可暫存於 skill folder 的 `tmp/<run>/`，但不可提交或長期保留。
 
 ## Golden Path
@@ -45,13 +47,14 @@ metadata:
 
 ## 操作流程速查
 
-- 最近郵件：Golden Path 取得 Inbox path -> `request-mails` -> `fetch-result-*`。
+- 最近 N 封郵件：Golden Path 取得 Inbox path -> `request-mails` -> `fetch-result-mails`。
+- 日期範圍郵件：Golden Path 取得 Inbox path -> `request-mail-search`，用空 `keyword` 搭配 `receivedFrom` / `receivedTo` -> `fetch-result-mail-search`。
 - 指定 folder 內所有 mails：取得 folder path -> `request-folder-mails` -> `fetch-result-*`。
-- 郵件搜尋：Golden Path 取得 Inbox path -> `request-mail-search` 且 `scopeFolderPaths` 放該 path -> `fetch-result-*`。
+- 郵件搜尋：Golden Path 取得 Inbox path -> `request-mail-search` 且 `scopeFolderPaths` 放該 path -> `fetch-result-mail-search`。
 - 讀 body：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-body` -> `fetch-result-mail-body data.mails` 找同 id 的 `body` / `bodyHtml`。
 - 讀附件：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-attachments` -> `fetch-result-*`，必要時讀 `mail-attachments?mailId={id}`。
 - 修改、移動、刪除郵件：先從 `fetch-result-* data.mails` 確認唯一目標的 `id` 與 `folderPath` -> mutation endpoint -> `fetch-result-*`。
-- 大量搬移整個 folder 或含 subfolders 的郵件：用 `request-folder-mails` 取得 ids，再以每批最多 500 封逐批呼叫 `request-move-mails`。詳細流程見 `references/workflows.md` 的「Bulk Move Folder Tree」。
+- 大量搬移 folder 內郵件：先定位來源與目的 `folderPath`，用 `request-folder-mails` 取得 ids，再以每批最多 500 封逐批呼叫 `request-move-mails`。只有使用者明確說包含 subfolders / folder tree 時才設定 `includeSubFolders=true`。詳細流程見 `references/workflows.md`。
 
 ## 何時讀 references
 
@@ -68,6 +71,7 @@ metadata:
 - 不要自行組 folder path；一律使用 folder fetch result 回傳的 `/Mailbox/Inbox` 形式。
 - 對同一封 mail 呼叫 `request-mail-body` 完成後，若同 id 的 `body` 與 `bodyHtml` 仍為空，不要重複呼叫同一 endpoint；將該封內容視為目前不可用，回報限制或改用 metadata。
 - `request-move-mails` 單次最多 500 個 `mailIds`。遇到「搬移 folderA 和所有 subfolder」這類任務時，必須分批慢慢送，不可把 8000+ ids 放進單一 request。
+- Outlook master category 顏色必須使用 Outlook `OlCategoryColor` enum name 與 numeric value；黑色是 `olCategoryColorBlack` / `15`。
 
 ## API 設計反思
 

@@ -109,7 +109,7 @@ Response:
 
 ## Diagnostic Command Results
 
-`command-results` 是 Hub/AddIn 診斷入口，不是 AI / MCP / Web UI 的主要 workflow。
+`command-results` 是 SmartOffice API / AddIn 診斷入口，不是 AI / MCP / Web UI 的主要 workflow。
 
 - `GET /api/outlook/command-results/{commandId}`：查單一內部 command。
 - `GET /api/outlook/command-results`：查最近 commands。
@@ -202,7 +202,7 @@ Request:
 }
 ```
 
-`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。`lookbackHours` 是以小時為單位的簡易相對時間，例如 `12` 代表過去 12 小時、`24` 代表過去 1 天、`168` 代表過去 7 天。也可直接傳入 `receivedFrom` / `receivedTo` date-time 邊界；Hub 會在 dispatch 前補齊給 AddIn。完成後用 `POST /api/outlook/fetch-result-mails` 讀 `data.mails`。mail list 只應包含 metadata，完整 body 需另請求。
+`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。`lookbackHours` 是以小時為單位的簡易相對時間，例如 `12` 代表過去 12 小時、`24` 代表過去 1 天、`168` 代表過去 7 天。也可直接傳入 `receivedFrom` / `receivedTo` date-time 邊界；SmartOffice API 會在 dispatch 前補齊給 AddIn。完成後用 `POST /api/outlook/fetch-result-mails` 讀 `data.mails`。mail list 只應包含 metadata，完整 body 需另請求。
 
 ### `POST /api/outlook/request-folder-mails`
 
@@ -225,7 +225,7 @@ Request:
 POST /api/outlook/fetch-result-folder-mails
 ```
 
-`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。`includeSubFolders=true` 時，Hub 會負責規劃 folder 範圍；caller 不需要理解 Hub 內部如何收集結果。
+`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。`includeSubFolders=true` 時，SmartOffice API 會負責規劃 folder 範圍；caller 不需要理解內部如何收集結果。
 
 ### `POST /api/outlook/request-mail-body`
 
@@ -369,6 +369,38 @@ Result：
   "name": "Project",
   "color": "olCategoryColorGreen",
   "colorValue": 5,
+  "shortcutKey": ""
+}
+```
+
+常用 Outlook category color：
+
+| 使用者顏色 | `color` | `colorValue` |
+| --- | --- | --- |
+| 無色 | `olCategoryColorNone` | `0` |
+| 紅色 | `olCategoryColorRed` | `1` |
+| 橘色 | `olCategoryColorOrange` | `2` |
+| 桃色 | `olCategoryColorPeach` | `3` |
+| 黃色 | `olCategoryColorYellow` | `4` |
+| 綠色 | `olCategoryColorGreen` | `5` |
+| 青色 | `olCategoryColorTeal` | `6` |
+| 橄欖 | `olCategoryColorOlive` | `7` |
+| 藍色 | `olCategoryColorBlue` | `8` |
+| 紫色 | `olCategoryColorPurple` | `9` |
+| 栗色 | `olCategoryColorMaroon` | `10` |
+| 鋼藍 | `olCategoryColorSteel` | `11` |
+| 深鋼藍 | `olCategoryColorDarkSteel` | `12` |
+| 灰色 | `olCategoryColorGray` | `13` |
+| 深灰 | `olCategoryColorDarkGray` | `14` |
+| 黑色 | `olCategoryColorBlack` | `15` |
+
+若使用者要求黑色 category，request body 應使用：
+
+```json
+{
+  "name": "xxxx",
+  "color": "olCategoryColorBlack",
+  "colorValue": 15,
   "shortcutKey": ""
 }
 ```
