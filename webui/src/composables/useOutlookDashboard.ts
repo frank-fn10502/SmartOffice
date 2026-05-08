@@ -1004,6 +1004,7 @@ function categoryTagStyle(name: string) {
         searchId,
         storeId,
         scopeFolderPaths,
+        allowGlobalScope: mailSearchDraft.value.scopeMode === 'global',
         includeSubFolders: true,
         keyword: mailSearchDraft.value.keyword,
         textFields: mailSearchDraft.value.textFields,

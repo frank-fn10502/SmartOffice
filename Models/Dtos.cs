@@ -45,7 +45,7 @@ namespace SmartOffice.Hub.Models
     public class ChatMessageDto
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Source { get; set; } = "outlook"; // 目前預期值："outlook" 或 "web"。
+        public string Source { get; set; } = string.Empty; // 目前預期值："outlook" 或 "web"。
         public string Text { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }

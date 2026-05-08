@@ -10,7 +10,7 @@
 - 第三方文章只能作為輔助，不應作為 AddIn contract 或 Outlook 行為依據。
 - Office 2016 desktop 是主要目標環境；不要只看最新 API 文件就假設 Office 2016 可用。
 - 如果工作機實測結果與文件描述不一致，或 Outlook API 行為會影響 AddIn mapping、檔案寫入或 DTO 欄位，請用 `docs/addin/test-report.md` 的格式回報。
-- 除非 Microsoft 官方文件明確指出某個 API 呼叫方式可改善效能，否則 AddIn 應選擇最簡單的 Outlook object model 流程；不要為了預想的效能優化加入額外排程、cache 或 legacy fallback。
+- 除非 Microsoft 官方文件明確指出某個 API 呼叫方式可改善效能，否則 AddIn 應選擇最簡單的 Outlook object model 流程；不要為了預想的效能優化加入額外排程、快取或 legacy fallback。
 
 ## VSTO / COM Add-in
 
@@ -24,19 +24,19 @@ Office 2016 desktop 深度整合通常會碰到 VSTO、COM automation 或 Outloo
 - [Folders object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folders)：同一層 folder collection。
 - [Folder.Folders property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.folders)：讀取子資料夾。
 - [Store.GetRootFolder method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.store.getrootfolder)：從單一 Store root 列舉 folder tree；Microsoft 文件也指出這不同於 `NameSpace.Folders` 直接拿目前 profile 所有 stores 的 folders。
-- [Store.GetDefaultFolder method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.store.getdefaultfolder)：依 `OlDefaultFolders` 回傳該 store 的 well-known folder；Hub 會用 AddIn 回報的 EntryID 對照表排除不可操作的 special folders。
+- [Store.GetDefaultFolder method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.store.getdefaultfolder)：依 `OlDefaultFolders` 回傳該 store 的 well-known folder；AddIn 應用 Outlook identity 判定 well-known folders，不用本地化顯示名稱猜測。
 - [OlDefaultFolders enumeration (Outlook)](https://learn.microsoft.com/office/vba/api/Outlook.OlDefaultFolders)：包含 `olFolderSyncIssues`、`olFolderConflicts`、`olFolderLocalFailures`、`olFolderServerFailures` 等 Exchange special folders。
-- [Folder.DefaultItemType property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.defaultitemtype)：回報 folder 預設 Outlook item type；Hub search planning 只接受 `olMailItem` / `0`。
+- [Folder.DefaultItemType property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.defaultitemtype)：回報 folder 預設 Outlook item type；mail command 只應處理 `olMailItem` / `0` folder。
 - [OlItemType enumeration (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.olitemtype)：`olMailItem = 0`、`olJournalItem = 4`、`olNoteItem = 5` 等。
 - [Folder.PropertyAccessor property (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.folder.propertyaccessor)：讀取 Outlook object model 未直接 exposed 的 folder MAPI properties，例如 hidden/system flags。
 - [Default folder is missing in Outlook and Outlook on the web](https://learn.microsoft.com/en-us/troubleshoot/outlook/user-interface/default-folder-is-missing)：Microsoft support 文件說明 `PR_ATTR_HIDDEN` 與 `PR_ATTR_SYSTEM` 這兩個 folder 屬性。
 - [MailItem object (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem)：郵件 item、subject、sender、body、received time 等欄位。
-- [Application.AdvancedSearch method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearch)：非同步搜尋；scope 可含同一個 store 內的多個 folder，不能跨 store。Microsoft 文件提醒大量 simultaneous search 會造成顯著搜尋活動並影響 Outlook performance；AddIn 實作時只處理 Hub 給定的單一 search slice。
+- [Application.AdvancedSearch method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearch)：非同步搜尋；scope 可含同一個 store 內的多個 folder，不能跨 store。Microsoft 文件提醒大量 simultaneous search 會造成顯著搜尋活動並影響 Outlook performance；AddIn 收到 `fetch_mail_search_slice` 時只處理 request 指定的單一 folder。
 - [Application.AdvancedSearchComplete event (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearchcomplete)：`AdvancedSearch` 完成事件，避免以 blocking loop 等待。
 - [Search the Inbox for Items with Subject Containing Office](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/search-and-filter/search-the-inbox-for-items-with-subject-containing-office)：Microsoft 的 Subject contains 範例，示範以 DASL `ci_phrasematch` 查詢 Subject 內含關鍵字；正式搜尋應參考這類 Outlook 內建搜尋流程。
 - [Items.Restrict method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict)：在單一 folder items 內做條件篩選，適合搭配日期、分類、已讀狀態等條件縮小結果。Microsoft 文件指出 `Restrict` 適合大型 collection 先縮小結果，但也明確說明不能做 Subject contains；文字 contains 請優先使用 Outlook 內建搜尋 / DASL content index。
 - [Managing Rules in the Outlook Object Model](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/rules/managing-rules-in-the-outlook-object-model)：官方說明 Rules object model 支援 programmatic adding、editing、deleting rules；也說明 `Store.GetRules`、`Rules.Create`、`Rules.Remove`、`Rules.Save`、`Rule.Enabled` 與 `Rule.ExecutionOrder` 的行為。
-- [Specifying Rule Conditions](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/rules/specifying-rule-conditions)：列出哪些 rule conditions 可由 object model 建立；特殊條件只能列舉或啟用/停用，不應在 Web UI 承諾可完整建立。
+- [Specifying Rule Conditions](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/rules/specifying-rule-conditions)：列出哪些 rule conditions 可由 object model 建立；特殊條件只能列舉或啟用/停用，不應承諾可完整建立。
 - [Specifying Rule Actions](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/rules/specifying-rule-actions)：列出哪些 rule actions 可由 object model 建立；例如 move/copy、assign category、mark as task 與 stop processing more rules 可建立，run script、server reply、print 等不可建立。
 - [Rules.Save method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.rules.save)：保存 rules collection；官方文件提醒 slow Exchange connection 可能昂貴，且不相容或定義不完整的 rule 會造成 save error。
 

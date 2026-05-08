@@ -210,13 +210,13 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-mail-search"] = new(
                 "Mail Search",
                 "搜尋 Outlook mails",
-                "SmartOffice API 會先確保 folder data，展開 store/folder scope，再分成單 folder slices 送給 AddIn。使用 `paired fetch-result-* data` 查進度，完成或累積結果後讀取 `paired fetch-result-* data`。",
+                "搜尋或篩選 Outlook mails。`scopeFolderPaths` 或 `storeId` 必須至少提供一個；只有明確全域搜尋時才設定 `allowGlobalScope=true`。完成後用 paired fetch-result endpoint 讀取 `data.searchId` 與 `data.mails`。",
                 typeof(OutlookRequestResponse),
                 MailSearchExample()),
             ["POST api/outlook/request-folder-mails"] = new(
                 "Mail Search",
                 "列出指定 folder 範圍的 mails",
-                "列出指定 `folderPath` 範圍內的 mail metadata，適合批次搬移或統計前枚舉 ids。`folderPath` 必須來自 folder fetch result。`includeSubFolders` 預設為 `true`；只有使用者明確排除 subfolders 時才設為 `false`。完成後用 `paired POST /api/outlook/fetch-result-folder-mails` 讀 `data.searchId` 與 `data.mails`。",
+                "列出指定 `folderPath` 範圍內的 mail metadata，適合批次搬移或統計前枚舉 ids。這是直接列出 folder mails，不是文字搜尋。`folderPath` 必須來自 folder fetch result。`includeSubFolders` 預設為 `true`；只有使用者明確排除 subfolders 時才設為 `false`。完成後用 paired fetch-result endpoint 讀 `data.folderMailsId` 與 `data.mails`。",
                 typeof(OutlookRequestResponse),
                 FolderMailsExample()),
             ["POST api/outlook/fetch-result-mail-search"] = FetchResultDocs(
@@ -275,12 +275,12 @@ namespace SmartOffice.Hub.Swagger
             ["GET api/outlook/chat"] = new(
                 "Chat",
                 "取得 chat messages",
-                "只讀取 SmartOffice API chat cache。chat text 可能含敏感 business data。",
+                "讀取目前已記錄的 chat messages。chat text 可能含敏感 business data。",
                 typeof(List<ChatMessageDto>)),
             ["POST api/outlook/chat"] = new(
                 "Chat",
                 "送出 chat message",
-                "廣播 chat message 並可能觸發 mock Outlook 回覆。chat text 可能含敏感 business data。",
+                "送出 chat message。chat text 可能含敏感 business data。",
                 typeof(ChatMessageDto),
                 ChatExample()),
             ["GET api/outlook/command-results/{commandId}"] = new(
@@ -504,6 +504,7 @@ namespace SmartOffice.Hub.Swagger
             ["searchId"] = new OpenApiString("6fb66d3a-7f4f-4a6d-9b3f-7e1e8c2f2d84"),
             ["storeId"] = new OpenApiString(""),
             ["scopeFolderPaths"] = new OpenApiArray { new OpenApiString("/主要信箱 - User/Inbox") },
+            ["allowGlobalScope"] = new OpenApiBoolean(false),
             ["includeSubFolders"] = new OpenApiBoolean(true),
             ["keyword"] = new OpenApiString("客戶"),
             ["textFields"] = new OpenApiArray { new OpenApiString("subject"), new OpenApiString("sender"), new OpenApiString("body") },

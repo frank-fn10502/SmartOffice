@@ -49,6 +49,7 @@ namespace SmartOffice.Hub.Models
     /// <summary>
     /// Web UI / AI 要求 Hub 以 Outlook 內建搜尋查詢郵件的 request。
     /// Hub 會將此 request 展開成 AddIn 實際處理的 MailSearchSliceRequest。
+    /// 直接列出 folder mails 請使用 FolderMailsRequest，不走 search。
     /// </summary>
     public class SearchMailsRequest
     {
@@ -56,8 +57,10 @@ namespace SmartOffice.Hub.Models
         public string SearchId { get; set; } = Guid.NewGuid().ToString();
         /// <summary>限制在指定 Outlook store 搜尋；空字串代表全部 store。</summary>
         public string StoreId { get; set; } = string.Empty;
-        /// <summary>限制搜尋範圍的 folder path；空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folder。</summary>
+        /// <summary>限制搜尋範圍的 folder path；空陣列只允許搭配 storeId 或 allowGlobalScope 使用。</summary>
         public List<string> ScopeFolderPaths { get; set; } = new();
+        /// <summary>允許空 storeId 與空 scopeFolderPaths 時搜尋全部已載入的可搜尋 mail folder。</summary>
+        public bool AllowGlobalScope { get; set; }
         /// <summary>ScopeFolderPaths 有值時是否包含子資料夾。</summary>
         public bool IncludeSubFolders { get; set; } = true;
         /// <summary>文字搜尋關鍵字；空白時只套用其他篩選條件。</summary>
@@ -86,6 +89,7 @@ namespace SmartOffice.Hub.Models
         public string StoreId { get; set; } = string.Empty;
         public string FolderEntryId { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
+        public string ExecutionMode { get; set; } = "items_filter";
         public string Keyword { get; set; } = string.Empty;
         public List<string> TextFields { get; set; } = new() { "subject" };
         public List<string> CategoryNames { get; set; } = new();
@@ -99,6 +103,23 @@ namespace SmartOffice.Hub.Models
         public int ResultBatchSize { get; set; } = 5;
         public bool ResetSearchResults { get; set; } = true;
         public bool CompleteSearchOnSlice { get; set; } = true;
+    }
+
+    public class FolderMailsSliceRequest
+    {
+        public string FolderMailsId { get; set; } = string.Empty;
+        public string CommandId { get; set; } = string.Empty;
+        public string ParentCommandId { get; set; } = string.Empty;
+        public string StoreId { get; set; } = string.Empty;
+        public string FolderEntryId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public DateTime? ReceivedFrom { get; set; }
+        public DateTime? ReceivedTo { get; set; }
+        public int SliceIndex { get; set; }
+        public int SliceCount { get; set; }
+        public int ResultBatchSize { get; set; } = 5;
+        public bool ResetResults { get; set; } = true;
+        public bool CompleteOnSlice { get; set; } = true;
     }
 
     public class MailSearchSliceResultDto
@@ -119,6 +140,32 @@ namespace SmartOffice.Hub.Models
     public class MailSearchCompleteDto
     {
         public string SearchId { get; set; } = string.Empty;
+        public string CommandId { get; set; } = string.Empty;
+        public string ParentCommandId { get; set; } = string.Empty;
+        public int TotalCount { get; set; }
+        public bool Success { get; set; } = true;
+        public string Message { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    public class FolderMailsSliceResultDto
+    {
+        public string FolderMailsId { get; set; } = string.Empty;
+        public string CommandId { get; set; } = string.Empty;
+        public string ParentCommandId { get; set; } = string.Empty;
+        public int Sequence { get; set; }
+        public int SliceIndex { get; set; }
+        public int SliceCount { get; set; }
+        public bool Reset { get; set; }
+        public bool IsFinal { get; set; }
+        public bool IsSliceComplete { get; set; } = true;
+        public List<MailItemDto> Mails { get; set; } = new();
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class FolderMailsCompleteDto
+    {
+        public string FolderMailsId { get; set; } = string.Empty;
         public string CommandId { get; set; } = string.Empty;
         public string ParentCommandId { get; set; } = string.Empty;
         public int TotalCount { get; set; }
@@ -256,6 +303,7 @@ namespace SmartOffice.Hub.Models
         public FetchMailsRequest? MailsRequest { get; set; }
         public SearchMailsRequest? SearchMailsRequest { get; set; }
         public MailSearchSliceRequest? MailSearchSliceRequest { get; set; }
+        public FolderMailsSliceRequest? FolderMailsSliceRequest { get; set; }
         public FetchMailBodyRequest? MailBodyRequest { get; set; }
         public FetchMailAttachmentsRequest? MailAttachmentsRequest { get; set; }
         public ExportMailAttachmentRequest? ExportMailAttachmentRequest { get; set; }

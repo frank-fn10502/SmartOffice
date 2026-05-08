@@ -26,7 +26,21 @@ Default: `http://localhost:2805`.
 }
 ```
 
-`request-mail-search` 與 `request-folder-mails` 另有：
+`request-folder-mails` 另有：
+
+```json
+{
+  "requestId": "request-id",
+  "request": "request-folder-mails",
+  "state": "accepted",
+  "message": "Request accepted. Poll the paired fetch-result-* endpoint for state and data.",
+  "data": {
+    "folderMailsId": "folder-mails-id"
+  }
+}
+```
+
+`request-mail-search` 另有：
 
 ```json
 {
@@ -67,7 +81,7 @@ Response:
     "hasMore": true
   },
   "data": {
-    "searchId": "search-id",
+    "folderMailsId": "folder-mails-id",
     "mails": []
   }
 }
@@ -92,7 +106,7 @@ Response:
 | `POST /api/outlook/request-folder-children` | `POST /api/outlook/fetch-result-folder-children` | `stores`, `folders` |
 | `POST /api/outlook/request-find-folder` | `POST /api/outlook/fetch-result-find-folder` | `query`, `matchCount`, `isAmbiguous`, `folders` |
 | `POST /api/outlook/request-mails` | `POST /api/outlook/fetch-result-mails` | `mails` |
-| `POST /api/outlook/request-folder-mails` | `POST /api/outlook/fetch-result-folder-mails` | `searchId`, `mails` |
+| `POST /api/outlook/request-folder-mails` | `POST /api/outlook/fetch-result-folder-mails` | `folderMailsId`, `mails` |
 | `POST /api/outlook/request-mail-search` | `POST /api/outlook/fetch-result-mail-search` | `searchId`, `mails` |
 | `POST /api/outlook/request-mail-body` | `POST /api/outlook/fetch-result-mail-body` | `mails` |
 | `POST /api/outlook/request-mail-attachments` | `POST /api/outlook/fetch-result-mail-attachments` | `mailId`, `folderPath`, `attachments` |
@@ -110,9 +124,9 @@ Response:
 
 ## Diagnostic Command Results
 
-`command-results` 是 SmartOffice API / AddIn 診斷入口，不是 AI / MCP / Web UI 的主要 workflow。
+`command-results` 是 SmartOffice API / AddIn 診斷入口，不是一般 client 的主要 workflow。
 
-- `GET /api/outlook/command-results/{commandId}`：查單一內部 command。
+- `GET /api/outlook/command-results/{commandId}`：查單一 request 狀態。
 - `GET /api/outlook/command-results`：查最近 commands。
 
 `OutlookCommandStatusDto`：
@@ -123,7 +137,7 @@ Response:
 - `success`: boolean 或 null
 - `message`: string
 - `payload`: string；只當簡短診斷，不要期待完整 mail body。
-- `dispatchTimestamp`: DateTime
+- `createdAt`: DateTime
 - `resultTimestamp`: DateTime 或 null
 
 ## API Status
@@ -245,7 +259,7 @@ POST /api/outlook/fetch-result-find-folder
 - `query`: 本次查找條件。
 - `matchCount`: 符合條件的 folder 數。
 - `isAmbiguous`: `matchCount > 1` 時為 true；caller 必須請使用者確認。
-- `discoveryComplete`: Hub 是否已載入目前已知 folder tree 的 pending children。
+- `discoveryComplete`: 目前 folder tree 是否已完成可用範圍載入。
 - `pendingDiscoveryTargets`: 仍待載入的 folder discovery target 數量。
 - `folders`: 候選 `FolderDto[]`，其 `folderPath` 是後續 API 要使用的正式 path。
 
@@ -272,11 +286,11 @@ Request:
 }
 ```
 
-`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。`lookbackHours` 是以小時為單位的簡易相對時間，例如 `12` 代表過去 12 小時、`24` 代表過去 1 天、`168` 代表過去 7 天。也可直接傳入 `receivedFrom` / `receivedTo` date-time 邊界；SmartOffice API 會在 dispatch 前補齊給 AddIn。完成後用 `POST /api/outlook/fetch-result-mails` 讀 `data.mails`。mail list 只應包含 metadata，完整 body 需另請求。
+`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。`lookbackHours` 是以小時為單位的簡易相對時間，例如 `12` 代表過去 12 小時、`24` 代表過去 1 天、`168` 代表過去 7 天。也可直接傳入 `receivedFrom` / `receivedTo` date-time 邊界。完成後用 `POST /api/outlook/fetch-result-mails` 讀 `data.mails`。mail list 只應包含 metadata，完整 body 需另請求。
 
 ### `POST /api/outlook/request-folder-mails`
 
-列出指定 folder 範圍內的所有 mail metadata。這是 Web UI、AI 與 MCP 要做批次操作時的簡單入口；不要用近期 mail list API 來枚舉整個 folder。
+列出指定 folder 範圍內的所有 mail metadata。這是 client 要做批次操作時的簡單入口；不要用近期 mail list API 來枚舉整個 folder。
 
 Request:
 
@@ -295,7 +309,12 @@ Request:
 POST /api/outlook/fetch-result-folder-mails
 ```
 
-`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。AI agent 預設應使用 `includeSubFolders=true`，讓指定 folder 底下的子資料夾也納入範圍；只有使用者明確排除 subfolders 時才設為 `false`。`includeSubFolders=true` 時，SmartOffice API 會負責規劃 folder 範圍；caller 不需要理解內部如何收集結果。
+`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。AI agent 預設應使用 `includeSubFolders=true`，讓指定 folder 底下的子資料夾也納入範圍；只有使用者明確排除 subfolders 時才設為 `false`。這是直接列出 folder mails 的 API，不是文字搜尋；不要改用 `request-mail-search` 取代。
+
+`fetch-result-folder-mails.data` 包含：
+
+- `folderMailsId`: 本次 folder mails request 的 id。
+- `mails`: 指定 folder 範圍內的 mail metadata；每筆 `id` 是後續 move / delete / update 使用的 mail id。
 
 ### `POST /api/outlook/request-mail-body`
 
@@ -323,7 +342,7 @@ Request:
 
 完成後用 `POST /api/outlook/fetch-result-mail-attachments` 讀 `data.attachments`。
 
-診斷或舊工具也可讀取 cached attachment metadata：
+診斷時也可讀取 attachment metadata：
 
 ```text
 GET /api/outlook/mail-attachments?mailId={mailId}
@@ -369,6 +388,7 @@ Request:
   "searchId": "optional-client-search-id",
   "storeId": "",
   "scopeFolderPaths": ["/主要信箱 - User/收件匣"],
+  "allowGlobalScope": false,
   "includeSubFolders": true,
   "keyword": "customer",
   "textFields": ["subject"],
@@ -381,10 +401,12 @@ Request:
 }
 ```
 
-- `scopeFolderPaths` 空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders；AI agent 不可在使用者未要求全域搜尋時送空陣列。
+- `scopeFolderPaths` 空陣列且 `storeId` 有值時，代表指定 store 內目前已載入的可搜尋 mail folders。
+- `scopeFolderPaths` 空陣列且 `storeId` 也空白時，必須同時設定 `allowGlobalScope=true`，代表全部目前已載入的可搜尋 mail folders；AI agent 不可在使用者未要求全域搜尋時設定此值。
 - 使用者未指定 folder 時，使用主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值；此值必須取自 folder result 的 `data.folders[].folderPath`，不能硬寫英文 `Inbox`。預設 `includeSubFolders=true`，只有使用者明確排除 subfolders 時才設為 `false`。
 - 若 `state=failed` 且 message 或 progress 顯示 `no_searchable_folder`，代表指定 scope 目前無法搜尋；先重新讀 folders 並改用回傳的實際 `folderPath`。
 - `textFields`: `subject`、`sender`、`body`；API 會 normalize，不合法時回到 `subject`。
+- `textFields` 包含 `body` 且 `keyword` 有值時，會使用 Outlook 內容搜尋。其他 subject、sender、category、attachment、flag、read state 與 received time 條件屬於 metadata filter。
 - `categoryNames`: Outlook category names；多個值代表任一 category 符合即可。只用 category 搜尋時，讓 `keyword` 保持空字串。
 - `flagState`: `any`、`flagged`、`unflagged`。
 - `readState`: `any`、`unread`、`read`。
@@ -397,6 +419,7 @@ Agent 預設 request 範例應像這樣指定單一 Inbox path：
   "searchId": "",
   "storeId": "",
   "scopeFolderPaths": ["/主要信箱 - User/收件匣"],
+  "allowGlobalScope": false,
   "includeSubFolders": true,
   "keyword": "customer",
   "textFields": ["subject"],
@@ -413,7 +436,8 @@ Agent 預設 request 範例應像這樣指定單一 Inbox path：
 
 ```json
 {
-  "scopeFolderPaths": []
+  "scopeFolderPaths": [],
+  "allowGlobalScope": true
 }
 ```
 
@@ -608,7 +632,7 @@ Chat text 可能含敏感 business data。
 
 `id`, `subject`, `sender`, `toRecipients`, `ccRecipients`, `bccRecipients`, `receivedTime`, `body`, `bodyHtml`, `folderPath`, `categories`, `isRead`, `isMarkedAsTask`, `attachmentCount`, `attachmentNames`, `flagRequest`, `flagInterval`, `taskStartDate`, `taskDueDate`, `taskCompletedDate`, `importance`, `sensitivity`。
 
-`sender` 與 recipients 使用 `OutlookRecipientDto`：`recipientKind`, `displayName`, `smtpAddress`, `rawAddress`, `addressType`, `entryUserType`, `isGroup`, `isResolved`, `members`。Web UI / client 應以 `displayName` 作為預設顯示名稱；`rawAddress` 可能是 Exchange legacyDN，不應直接當人名顯示。group 可用 `isGroup=true` 表示，若 AddIn 已展開成員則放在 `members`。
+`sender` 與 recipients 使用 `OutlookRecipientDto`：`recipientKind`, `displayName`, `smtpAddress`, `rawAddress`, `addressType`, `entryUserType`, `isGroup`, `isResolved`, `members`。client 應以 `displayName` 作為預設顯示名稱；`rawAddress` 可能是 Exchange legacyDN，不應直接當人名顯示。group 可用 `isGroup=true` 表示，若 AddIn 已展開成員則放在 `members`。
 
 ### `FolderDto`
 

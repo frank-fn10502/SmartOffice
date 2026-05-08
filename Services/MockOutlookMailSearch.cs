@@ -35,6 +35,16 @@ namespace SmartOffice.Hub.Services
             return query.Select(CloneMailMetadata).ToList();
         }
 
+        public static List<MailItemDto> FetchFolderMailsSlice(List<MailItemDto> mails, FolderMailsSliceRequest request)
+        {
+            return mails
+                .Where(mail => string.Equals(mail.FolderPath, request.FolderPath, StringComparison.OrdinalIgnoreCase))
+                .Where(mail => InReceivedTime(mail, request.ReceivedFrom, request.ReceivedTo))
+                .OrderByDescending(mail => mail.ReceivedTime)
+                .Select(CloneMailMetadata)
+                .ToList();
+        }
+
         private static bool MatchesOutlookIndexSearch(MailItemDto mail, MailSearchSliceRequest request)
         {
             var keyword = request.Keyword.Trim();

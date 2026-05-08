@@ -2,7 +2,7 @@
 
 本文件規範工作機實測資料、差異與錯誤要如何回傳。回報目標很單純：讓 AddIn contract、Outlook API mapping、檔案寫入或 DTO 欄位能依據真實 Office 2016 行為修正。
 
-請避免把此文件寫成 Web UI、mock 或 Hub 內部設計回報。若回報內容需要開發機調整其他層，請只描述「哪個 AddIn command / DTO 欄位受到影響」與匿名化的實測證據。
+請避免把此文件寫成外部 client、測試替身或服務端設計回報。若回報內容需要開發機調整其他層，請只描述「哪個 AddIn command / DTO 欄位受到影響」與匿名化的實測證據。
 
 ## 何時需要回報
 
@@ -30,7 +30,7 @@ workstation-report-YYYYMMDD-HHMM-command-type.md
 
 - 測試日期、工作機代號、Office application、Office 版本與 bitness。
 - AddIn 類型：VSTO / COM / Office.js / mixed。
-- Hub commit 或版本、Hub URL、測試 route。
+- SmartOffice service 版本、API URL、測試 route。
 - 收到的 `OutlookCommand` JSON。
 - AddIn 呼叫的 Office API、物件類型與官方文件連結。
 - 轉換前的 Office 實測資料結構摘要。
@@ -60,8 +60,8 @@ workstation-report-YYYYMMDD-HHMM-command-type.md
 - Office version / build: 16.0.xxxxx.xxxxx
 - Office bitness: 32-bit
 - AddIn type: VSTO
-- Hub commit: abc1234
-- Hub URL: http://dev-machine:2805
+- SmartOffice service version: abc1234
+- API URL: http://dev-machine:2805
 - Scenario: fetch_mails
 
 ## OutlookCommand
@@ -171,7 +171,7 @@ Use this sample to clarify `MailItemDto.bodyHtml` behavior in the AddIn contract
 
 - 不要因工作機單次測試就 rename JSON field；若 contract 必須改，請同步移除舊欄位與舊 handler，不做雙軌相容。
 - 不要把真實 mail body、folder name、PST/OST path 或客戶資訊 commit 到 repo。
-- 不要用 mock 的假資料反向定義 Office 2016 真實格式。
+- 不要用測試替身的假資料反向定義 Office 2016 真實格式。
 - 不要因回報不是錯誤就忽略；代表性實測資料也可以是調整 AddIn mapping 與檔案輸出行為的依據。
 - 不要在沒有官方文件或實測回報的情況下假設 Office.js 最新文件適用於 Office 2016。
 - 不要為了預想的舊版相容保留未使用 command、HTTP endpoint 或 fallback。

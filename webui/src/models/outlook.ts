@@ -123,6 +123,7 @@ export interface SearchMailsRequest {
   searchId: string
   storeId: string
   scopeFolderPaths: string[]
+  allowGlobalScope: boolean
   includeSubFolders: boolean
   keyword: string
   textFields: Array<'subject' | 'sender' | 'body'>

@@ -722,7 +722,6 @@ namespace SmartOffice.Hub.Controllers
                     }, page.Next);
                 }
                 case "fetch_mails":
-                case "fetch_mail_body":
                 case "update_mail_properties":
                 case "move_mail":
                 case "move_mails":
@@ -731,14 +730,27 @@ namespace SmartOffice.Hub.Controllers
                     var page = Page(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails()), offset, take);
                     return (new { mails = page.Items }, page.Next);
                 }
+                case "fetch_mail_body":
+                {
+                    var mails = OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails());
+                    var mail = FindRequestedMail(
+                        mails,
+                        command?.MailBodyRequest?.MailId,
+                        command?.MailBodyRequest?.FolderPath);
+                    var result = mail is null ? new List<MailItemDto>() : new List<MailItemDto> { mail };
+                    return (new { mails = result }, new FetchResultNext());
+                }
                 case "fetch_mail_attachments":
                 {
                     var mailId = command?.MailAttachmentsRequest?.MailId ?? string.Empty;
                     var attachments = string.IsNullOrWhiteSpace(mailId)
                         ? null
                         : _mailStore.GetMailAttachments(mailId);
-                    var page = Page(attachments?.Attachments ?? new List<MailAttachmentDto>(), offset, take);
-                    return (new { mailId, folderPath = attachments?.FolderPath ?? string.Empty, attachments = page.Items }, page.Next);
+                    var apiAttachments = attachments is null
+                        ? null
+                        : OutlookFolderPathMapper.ToApiAttachments(attachments);
+                    var page = Page(apiAttachments?.Attachments ?? new List<MailAttachmentDto>(), offset, take);
+                    return (new { mailId, folderPath = apiAttachments?.FolderPath ?? string.Empty, attachments = page.Items }, page.Next);
                 }
                 case "export_mail_attachment":
                     return (new { }, new FetchResultNext());
@@ -762,6 +774,20 @@ namespace SmartOffice.Hub.Controllers
                 default:
                     return (new { }, new FetchResultNext());
             }
+        }
+
+        private static MailItemDto? FindRequestedMail(List<MailItemDto> mails, string? mailId, string? folderPath)
+        {
+            if (string.IsNullOrWhiteSpace(mailId))
+                return null;
+
+            var apiFolderPath = OutlookFolderPathMapper.ToApiPath(folderPath ?? string.Empty);
+            return mails.FirstOrDefault(mail =>
+                string.Equals(mail.Id, mailId, StringComparison.OrdinalIgnoreCase)
+                && (
+                    string.IsNullOrWhiteSpace(apiFolderPath)
+                    || string.Equals(mail.FolderPath, apiFolderPath, StringComparison.OrdinalIgnoreCase)
+                ));
         }
 
         private static (List<T> Items, FetchResultNext Next) Page<T>(List<T> source, int offset, int take)
@@ -989,6 +1015,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("chat")]
         public async Task<IActionResult> PostChat([FromBody] ChatMessageDto msg, CancellationToken ct)
         {
+            if (string.IsNullOrWhiteSpace(msg.Source))
+                msg.Source = "web";
+
             msg.Timestamp = DateTime.Now;
             _chatStore.Add(msg);
             await _hub.Clients.All.SendAsync("NewChatMessage", msg, ct);

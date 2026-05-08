@@ -145,6 +145,26 @@ namespace SmartOffice.Hub.Hubs
             return HandleCompleteMailSearchSliceAsync(info);
         }
 
+        public Task BeginFolderMails(FolderMailsSliceResultDto batch)
+        {
+            return HandleBeginFolderMailsAsync(batch);
+        }
+
+        public Task PushFolderMailsSliceResult(FolderMailsSliceResultDto batch)
+        {
+            return HandleFolderMailsSliceResultAsync(batch);
+        }
+
+        public Task CompleteFolderMailsSlice(FolderMailsCompleteDto info)
+        {
+            return HandleCompleteFolderMailsSliceAsync(info);
+        }
+
+        public Task CompleteFolderMails(FolderMailsCompleteDto info)
+        {
+            return HandleCompleteFolderMailsSliceAsync(info);
+        }
+
         private async Task HandleBeginMailSearchAsync(MailSearchSliceResultDto batch)
         {
             _mailStore.BeginMailSearch(batch.Reset, batch.SearchId);
@@ -222,6 +242,87 @@ namespace SmartOffice.Hub.Hubs
             });
             _addinStatus.AddLog(info.Success ? "info" : "warn", $"Mail search completed: {info.TotalCount} mails. {info.Message}");
             await _notifications.Clients.All.SendAsync("MailSearchCompleted", info);
+            await _notifications.Clients.All.SendAsync("MailSearchProgress", progress);
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        private async Task HandleBeginFolderMailsAsync(FolderMailsSliceResultDto batch)
+        {
+            _mailStore.BeginFolderMails(batch.Reset, batch.FolderMailsId);
+            var progress = _mailStore.UpdateMailSearchProgress(new MailSearchProgressDto
+            {
+                SearchId = batch.FolderMailsId,
+                Status = "running",
+                Phase = "folder",
+                ResultCount = _mailStore.GetFolderMailResultCount(batch.FolderMailsId),
+                Message = string.IsNullOrWhiteSpace(batch.Message) ? "Folder mails listing started." : batch.Message,
+                Timestamp = DateTime.Now,
+            });
+            _addinStatus.AddLog("info", $"Folder mails listing started: {batch.FolderMailsId}");
+            await _notifications.Clients.All.SendAsync("FolderMailsStarted", batch);
+            await _notifications.Clients.All.SendAsync("MailSearchProgress", progress);
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        private async Task HandleFolderMailsSliceResultAsync(FolderMailsSliceResultDto batch)
+        {
+            _mailStore.ApplyFolderMailsSliceResult(batch);
+            var progress = _mailStore.GetMailSearchProgress(batch.FolderMailsId);
+            if (!string.IsNullOrWhiteSpace(batch.CommandId) && batch.IsSliceComplete)
+            {
+                _commandResults.RecordResult(new OutlookCommandResult
+                {
+                    CommandId = batch.CommandId,
+                    Success = true,
+                    Message = string.IsNullOrWhiteSpace(batch.Message) ? "Folder mails slice completed." : batch.Message,
+                    Timestamp = DateTime.Now,
+                });
+            }
+            _addinStatus.RecordPush("folder mails", batch.Mails.Count);
+            await _notifications.Clients.All.SendAsync("FolderMailsPatched", batch);
+            if (progress is not null)
+                await _notifications.Clients.All.SendAsync("MailSearchProgress", progress);
+
+            if (batch.IsFinal)
+            {
+                var complete = new FolderMailsCompleteDto
+                {
+                    FolderMailsId = batch.FolderMailsId,
+                    TotalCount = _mailStore.GetFolderMailResultCount(batch.FolderMailsId),
+                    Message = string.IsNullOrWhiteSpace(batch.Message) ? "Folder mails completed by final batch" : batch.Message,
+                };
+                await _notifications.Clients.All.SendAsync("FolderMailsCompleted", complete);
+            }
+
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        private async Task HandleCompleteFolderMailsSliceAsync(FolderMailsCompleteDto info)
+        {
+            if (info.TotalCount <= 0)
+                info.TotalCount = _mailStore.GetFolderMailResultCount(info.FolderMailsId);
+
+            if (!string.IsNullOrWhiteSpace(info.CommandId))
+            {
+                _commandResults.RecordResult(new OutlookCommandResult
+                {
+                    CommandId = info.CommandId,
+                    Success = info.Success,
+                    Message = info.Message,
+                    Timestamp = info.Timestamp,
+                });
+            }
+            var progress = _mailStore.UpdateMailSearchProgress(new MailSearchProgressDto
+            {
+                SearchId = info.FolderMailsId,
+                Status = info.Success ? "completed" : "failed",
+                Phase = "completed",
+                ResultCount = info.TotalCount,
+                Message = info.Message,
+                Timestamp = info.Timestamp,
+            });
+            _addinStatus.AddLog(info.Success ? "info" : "warn", $"Folder mails completed: {info.TotalCount} mails. {info.Message}");
+            await _notifications.Clients.All.SendAsync("FolderMailsCompleted", info);
             await _notifications.Clients.All.SendAsync("MailSearchProgress", progress);
             await BroadcastStatusAndLogsAsync();
         }

@@ -52,6 +52,8 @@ namespace SmartOffice.Hub.Services
                 NormalizeSearchRequest(command.SearchMailsRequest);
             if (command.MailSearchSliceRequest is not null)
                 command.MailSearchSliceRequest.FolderPath = ToAddinPath(command.MailSearchSliceRequest.FolderPath);
+            if (command.FolderMailsSliceRequest is not null)
+                command.FolderMailsSliceRequest.FolderPath = ToAddinPath(command.FolderMailsSliceRequest.FolderPath);
             if (command.MailBodyRequest is not null)
                 command.MailBodyRequest.FolderPath = ToAddinPath(command.MailBodyRequest.FolderPath);
             if (command.MailAttachmentsRequest is not null)

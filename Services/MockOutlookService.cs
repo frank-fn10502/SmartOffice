@@ -61,7 +61,9 @@ namespace SmartOffice.Hub.Services
 
             FolderSyncBatchDto? folderBatch = null;
             List<MailSearchSliceResultDto>? mailSearchSliceResults = null;
+            List<FolderMailsSliceResultDto>? folderMailsSliceResults = null;
             MailSearchCompleteDto? mailSearchComplete = null;
+            FolderMailsCompleteDto? folderMailsComplete = null;
             List<MailItemDto>? mails = null;
             MailItemDto? mail = null;
             MailBodyDto? mailBody = null;
@@ -111,6 +113,26 @@ namespace SmartOffice.Hub.Services
                                 ParentCommandId = request.ParentCommandId,
                                 TotalCount = _mailStore.GetMailSearchResultCount(request.SearchId),
                                 Message = "Mock mail search completed",
+                                Timestamp = DateTime.Now,
+                            };
+                        }
+                        break;
+                    case "fetch_folder_mails_slice":
+                        var folderMailsRequest = command.FolderMailsSliceRequest ?? new FolderMailsSliceRequest();
+                        var folderMailsResults = MockOutlookMailSearch.FetchFolderMailsSlice(_mockMails, folderMailsRequest);
+                        folderMailsSliceResults = BuildFolderMailsResultBatches(command.Id, folderMailsRequest, folderMailsResults);
+                        _mailStore.BeginFolderMails(folderMailsRequest.ResetResults, folderMailsRequest.FolderMailsId);
+                        foreach (var batch in folderMailsSliceResults)
+                            _mailStore.ApplyFolderMailsSliceResult(batch);
+                        if (folderMailsRequest.CompleteOnSlice)
+                        {
+                            folderMailsComplete = new FolderMailsCompleteDto
+                            {
+                                FolderMailsId = folderMailsRequest.FolderMailsId,
+                                CommandId = command.Id,
+                                ParentCommandId = folderMailsRequest.ParentCommandId,
+                                TotalCount = _mailStore.GetFolderMailResultCount(folderMailsRequest.FolderMailsId),
+                                Message = "Mock folder mails completed",
                                 Timestamp = DateTime.Now,
                             };
                         }
@@ -234,6 +256,19 @@ namespace SmartOffice.Hub.Services
                     await _notifications.Clients.All.SendAsync("MailSearchPatched", batch, ct);
             }
             if (mailSearchComplete is not null) await _notifications.Clients.All.SendAsync("MailSearchCompleted", mailSearchComplete, ct);
+            if (folderMailsSliceResults is not null)
+            {
+                var firstBatch = folderMailsSliceResults.FirstOrDefault();
+                await _notifications.Clients.All.SendAsync("FolderMailsStarted", new FolderMailsSliceResultDto
+                {
+                    FolderMailsId = firstBatch?.FolderMailsId ?? string.Empty,
+                    Reset = firstBatch?.Reset ?? false,
+                    Sequence = firstBatch?.Sequence ?? 0,
+                }, ct);
+                foreach (var batch in folderMailsSliceResults)
+                    await _notifications.Clients.All.SendAsync("FolderMailsPatched", batch, ct);
+            }
+            if (folderMailsComplete is not null) await _notifications.Clients.All.SendAsync("FolderMailsCompleted", folderMailsComplete, ct);
             if (mail is not null) await _notifications.Clients.All.SendAsync("MailUpdated", mail, ct);
             if (mailBody is not null) await _notifications.Clients.All.SendAsync("MailBodyUpdated", mailBody, ct);
             if (mailAttachments is not null) await _notifications.Clients.All.SendAsync("MailAttachmentsUpdated", mailAttachments, ct);
@@ -278,6 +313,34 @@ namespace SmartOffice.Hub.Services
                 IsSliceComplete = index == chunks.Count - 1,
                 Mails = chunk,
                 Message = index == chunks.Count - 1 ? "Mock mail search slice completed" : "Mock mail search batch",
+            }).ToList();
+        }
+
+        private static List<FolderMailsSliceResultDto> BuildFolderMailsResultBatches(
+            string commandId,
+            FolderMailsSliceRequest request,
+            List<MailItemDto> mails)
+        {
+            var batchSize = Math.Clamp(request.ResultBatchSize <= 0 ? 5 : request.ResultBatchSize, 3, 5);
+            var chunks = mails
+                .Chunk(batchSize)
+                .Select(chunk => chunk.ToList())
+                .ToList();
+            if (chunks.Count == 0) chunks.Add(new List<MailItemDto>());
+
+            return chunks.Select((chunk, index) => new FolderMailsSliceResultDto
+            {
+                FolderMailsId = request.FolderMailsId,
+                CommandId = commandId,
+                ParentCommandId = request.ParentCommandId,
+                Sequence = (request.SliceIndex * 100000) + index + 1,
+                SliceIndex = request.SliceIndex,
+                SliceCount = request.SliceCount,
+                Reset = request.ResetResults && index == 0,
+                IsFinal = request.CompleteOnSlice && index == chunks.Count - 1,
+                IsSliceComplete = index == chunks.Count - 1,
+                Mails = chunk,
+                Message = index == chunks.Count - 1 ? "Mock folder mails slice completed" : "Mock folder mails batch",
             }).ToList();
         }
 
