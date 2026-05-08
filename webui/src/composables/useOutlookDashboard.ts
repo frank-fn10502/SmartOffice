@@ -422,6 +422,18 @@ export function useOutlookDashboard() {
     return folderOptions.value.find((folder) => folder.folderPath === path)?.label.trim() ?? path
   }
 
+  function storeForFolderPath(path: string) {
+    if (!path) return undefined
+    return folderStores.value.find((store) => {
+      const root = store.rootFolderPath
+      return root && (
+        path === root
+        || path.startsWith(`${root}/`)
+        || path.startsWith(`${root}\\`)
+      )
+    })
+  }
+
   function folderLeafName(path: string) {
     const parts = path.split(/[\\/]+/).map((part) => part.trim()).filter(Boolean)
     return parts.at(-1) || path || 'Unknown folder'
@@ -430,6 +442,7 @@ export function useOutlookDashboard() {
   function mailSource(mail: MailItemDto) {
     const folder = folderOptions.value.find((item) => item.folderPath === mail.folderPath)
     const store = folderStores.value.find((item) => item.storeId === folder?.storeId)
+      ?? storeForFolderPath(mail.folderPath)
     const storeLabel = searchStoreLabel(store, folder?.storeId)
     const folderLabel = folder?.name || folderLeafName(mail.folderPath)
     return {
@@ -1016,6 +1029,7 @@ function categoryTagStyle(name: string) {
         receivedTo: localDateTimeToIso(mailSearchDraft.value.receivedTo),
       })
       await waitForRequest(response)
+      await loadCachedFolders({ preserveExistingCounts: true })
       try {
         const result = await outlookApi.fetchResult<{ searchId?: string }>(fetchResultEndpoint(response), {
           requestId: requestIdFromResponse(response),

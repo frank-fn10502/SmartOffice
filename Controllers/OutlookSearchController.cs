@@ -557,6 +557,7 @@ namespace SmartOffice.Hub.Controllers
         private void NormalizeMailSearchRequest(SearchMailsRequest req)
         {
             req.ScopeFolderPaths ??= new List<string>();
+            req.Keyword = req.Keyword.Trim();
             req.TextFields = NormalizeMailSearchTextFields(req.TextFields);
             req.CategoryNames = NormalizeMailSearchCategoryNames(req.CategoryNames);
             req.FlagState = NormalizeMailSearchState(req.FlagState, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "any", "flagged", "unflagged" });
