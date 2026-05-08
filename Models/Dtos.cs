@@ -168,10 +168,13 @@ namespace SmartOffice.Hub.Models
 
     public class OutlookRuleDto
     {
+        public string StoreId { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public bool Enabled { get; set; }
         public int ExecutionOrder { get; set; }
         public string RuleType { get; set; } = "receive";
+        public bool IsLocalRule { get; set; }
+        public bool CanModifyDefinition { get; set; } = true;
         public List<string> Conditions { get; set; } = new();
         public List<string> Actions { get; set; } = new();
         public List<string> Exceptions { get; set; } = new();

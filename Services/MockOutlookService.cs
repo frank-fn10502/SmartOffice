@@ -135,6 +135,11 @@ namespace SmartOffice.Hub.Services
                         rules = new List<OutlookRuleDto>(_mockRules);
                         _mailStore.SetRules(rules);
                         break;
+                    case "manage_rule":
+                        ManageRule(command.RuleRequest);
+                        rules = new List<OutlookRuleDto>(_mockRules);
+                        _mailStore.SetRules(rules);
+                        break;
                     case "fetch_calendar":
                         calendar = FilterCalendar(command.CalendarRequest);
                         _mailStore.SetCalendarEvents(calendar);
@@ -274,6 +279,88 @@ namespace SmartOffice.Hub.Services
                 Mails = chunk,
                 Message = index == chunks.Count - 1 ? "Mock mail search slice completed" : "Mock mail search batch",
             }).ToList();
+        }
+
+        private void ManageRule(OutlookRuleCommandRequest? request)
+        {
+            if (request is null) return;
+            var originalName = string.IsNullOrWhiteSpace(request.OriginalRuleName)
+                ? request.RuleName
+                : request.OriginalRuleName;
+            var index = _mockRules.FindIndex(rule =>
+                string.Equals(rule.Name, originalName, StringComparison.OrdinalIgnoreCase)
+                && (
+                    request.OriginalExecutionOrder is null
+                    || rule.ExecutionOrder == request.OriginalExecutionOrder.Value
+                ));
+
+            if (string.Equals(request.Operation, "delete", StringComparison.OrdinalIgnoreCase))
+            {
+                if (index >= 0) _mockRules.RemoveAt(index);
+                ReorderMockRules();
+                return;
+            }
+
+            if (string.Equals(request.Operation, "set_enabled", StringComparison.OrdinalIgnoreCase))
+            {
+                if (index >= 0) _mockRules[index].Enabled = request.Enabled;
+                return;
+            }
+
+            var next = BuildMockRule(request);
+            if (index >= 0) _mockRules[index] = next;
+            else _mockRules.Insert(0, next);
+            ReorderMockRules();
+        }
+
+        private static OutlookRuleDto BuildMockRule(OutlookRuleCommandRequest request)
+        {
+            return new OutlookRuleDto
+            {
+                StoreId = request.StoreId,
+                Name = request.RuleName,
+                Enabled = request.Enabled,
+                ExecutionOrder = request.ExecutionOrder ?? 1,
+                RuleType = request.RuleType,
+                CanModifyDefinition = true,
+                Conditions = BuildRuleConditionSummaries(request.Conditions),
+                Actions = BuildRuleActionSummaries(request.Actions),
+                Exceptions = new List<string>(),
+            };
+        }
+
+        private static List<string> BuildRuleConditionSummaries(OutlookRuleConditionsRequest conditions)
+        {
+            var result = new List<string>();
+            if (conditions.SubjectContains.Count > 0) result.Add($"subject contains {string.Join(", ", conditions.SubjectContains)}");
+            if (conditions.BodyContains.Count > 0) result.Add($"body contains {string.Join(", ", conditions.BodyContains)}");
+            if (conditions.SenderAddressContains.Count > 0) result.Add($"sender address contains {string.Join(", ", conditions.SenderAddressContains)}");
+            if (conditions.Categories.Count > 0) result.Add($"category is {string.Join(", ", conditions.Categories)}");
+            if (conditions.HasAttachment is not null) result.Add(conditions.HasAttachment.Value ? "has attachment" : "has no attachment");
+            return result;
+        }
+
+        private static List<string> BuildRuleActionSummaries(OutlookRuleActionsRequest actions)
+        {
+            var result = new List<string>();
+            if (!string.IsNullOrWhiteSpace(actions.MoveToFolderPath)) result.Add($"move to {actions.MoveToFolderPath}");
+            if (actions.AssignCategories.Count > 0) result.Add($"assign category {string.Join(", ", actions.AssignCategories)}");
+            if (actions.MarkAsTask) result.Add("mark as task");
+            if (actions.StopProcessingMoreRules) result.Add("stop processing more rules");
+            return result;
+        }
+
+        private void ReorderMockRules()
+        {
+            _mockRules = _mockRules
+                .OrderBy(rule => rule.ExecutionOrder <= 0 ? int.MaxValue : rule.ExecutionOrder)
+                .ThenBy(rule => rule.Name)
+                .Select((rule, index) =>
+                {
+                    rule.ExecutionOrder = index + 1;
+                    return rule;
+                })
+                .ToList();
         }
 
         public async Task<bool> TryReplyToChatAsync(ChatMessageDto message, CancellationToken ct = default)

@@ -271,6 +271,20 @@ namespace SmartOffice.Hub.Controllers
             return await DispatchCommandAsync(new PendingCommand { Type = "fetch_rules" }, ct);
         }
 
+        [HttpPost("request-manage-rule")]
+        public async Task<IActionResult> RequestManageRule([FromBody] OutlookRuleCommandRequest req, CancellationToken ct)
+        {
+            var error = ValidateRuleRequest(req);
+            if (error is not null) return error;
+
+            var cmd = new PendingCommand
+            {
+                Type = "manage_rule",
+                RuleRequest = req,
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
         /// <summary>
         /// Web UI、AI 或 MCP client 要求 Outlook master category list。
         /// </summary>
@@ -575,6 +589,12 @@ namespace SmartOffice.Hub.Controllers
             return FetchResult(req, "fetch_rules");
         }
 
+        [HttpPost("fetch-result-manage-rule")]
+        public IActionResult FetchResultManageRule([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "manage_rule");
+        }
+
         [HttpPost("fetch-result-categories")]
         public IActionResult FetchResultCategories([FromBody] FetchResultRequest req)
         {
@@ -723,6 +743,7 @@ namespace SmartOffice.Hub.Controllers
                 case "export_mail_attachment":
                     return (new { }, new FetchResultNext());
                 case "fetch_rules":
+                case "manage_rule":
                 {
                     var page = Page(_mailStore.GetRules(), offset, take);
                     return (new { rules = page.Items }, page.Next);
@@ -777,6 +798,7 @@ namespace SmartOffice.Hub.Controllers
                 "fetch_mail_attachments" => "request-mail-attachments",
                 "export_mail_attachment" => "request-export-mail-attachment",
                 "fetch_rules" => "request-rules",
+                "manage_rule" => "request-manage-rule",
                 "fetch_categories" => "request-categories",
                 "ping" => "request-signalr-ping",
                 "fetch_calendar" => "request-calendar",
@@ -799,11 +821,66 @@ namespace SmartOffice.Hub.Controllers
                 or "fetch_mail_attachments"
                 or "export_mail_attachment"
                 or "update_mail_properties"
+                or "manage_rule"
                 or "create_folder"
                 or "delete_folder"
                 or "move_mail"
                 or "move_mails"
                 or "delete_mail";
+        }
+
+        private IActionResult? ValidateRuleRequest(OutlookRuleCommandRequest? req)
+        {
+            if (req is null)
+                return BadRequest(new { status = "missing_rule_request", message = "rule request is required." });
+
+            req.Operation = string.IsNullOrWhiteSpace(req.Operation) ? "upsert" : req.Operation.Trim().ToLowerInvariant();
+            req.RuleType = string.IsNullOrWhiteSpace(req.RuleType) ? "receive" : req.RuleType.Trim().ToLowerInvariant();
+            req.RuleName = req.RuleName.Trim();
+            req.OriginalRuleName = req.OriginalRuleName.Trim();
+            req.Conditions ??= new OutlookRuleConditionsRequest();
+            req.Actions ??= new OutlookRuleActionsRequest();
+            NormalizeRuleList(req.Conditions.SubjectContains);
+            NormalizeRuleList(req.Conditions.BodyContains);
+            NormalizeRuleList(req.Conditions.SenderAddressContains);
+            NormalizeRuleList(req.Conditions.Categories);
+            NormalizeRuleList(req.Actions.AssignCategories);
+            req.Actions.MoveToFolderPath = OutlookFolderPathMapper.ToAddinPath(req.Actions.MoveToFolderPath.Trim());
+
+            if (req.Operation is not "upsert" and not "delete" and not "set_enabled")
+                return BadRequest(new { status = "invalid_rule_operation", message = "operation must be upsert, delete, or set_enabled." });
+            if (req.RuleType is not "receive" and not "send")
+                return BadRequest(new { status = "invalid_rule_type", message = "ruleType must be receive or send." });
+            if (string.IsNullOrWhiteSpace(req.RuleName) && string.IsNullOrWhiteSpace(req.OriginalRuleName))
+                return BadRequest(new { status = "missing_rule_name", message = "ruleName or originalRuleName is required." });
+
+            if (req.Operation is "delete" or "set_enabled") return null;
+
+            var hasCondition = req.Conditions.SubjectContains.Count > 0
+                || req.Conditions.BodyContains.Count > 0
+                || req.Conditions.SenderAddressContains.Count > 0
+                || req.Conditions.Categories.Count > 0
+                || req.Conditions.HasAttachment is not null;
+            var hasAction = !string.IsNullOrWhiteSpace(req.Actions.MoveToFolderPath)
+                || req.Actions.AssignCategories.Count > 0
+                || req.Actions.MarkAsTask
+                || req.Actions.StopProcessingMoreRules;
+            if (!hasCondition)
+                return BadRequest(new { status = "missing_rule_condition", message = "至少需要一個可由 Outlook object model 建立的條件。" });
+            if (!hasAction)
+                return BadRequest(new { status = "missing_rule_action", message = "至少需要一個可由 Outlook object model 建立的動作。" });
+            return null;
+        }
+
+        private static void NormalizeRuleList(List<string> values)
+        {
+            var normalized = values
+                .Select(value => value.Trim())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            values.Clear();
+            values.AddRange(normalized);
         }
 
         private static List<FolderDto> FindFolderMatches(List<OutlookStoreDto> stores, List<FolderDto> folders, FindFolderRequest? request)

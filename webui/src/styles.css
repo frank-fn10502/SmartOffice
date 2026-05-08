@@ -84,6 +84,106 @@ select {
   font-weight: 800;
 }
 
+.rules-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 16px;
+  min-height: calc(100vh - 116px);
+  padding: 16px;
+}
+
+.rules-list-panel,
+.rule-editor-panel {
+  min-width: 0;
+  border: 1px solid #d9e2ec;
+  background: #fff;
+}
+
+.rules-list-panel {
+  overflow: hidden;
+}
+
+.rule-editor-panel {
+  align-self: start;
+  max-height: calc(100vh - 148px);
+  overflow: auto;
+}
+
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5edf5;
+}
+
+.panel-header.compact {
+  display: block;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.panel-header p,
+.rule-meta {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+.panel-actions,
+.rule-row-actions,
+.rule-name-cell,
+.rule-chip-row,
+.rule-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.rule-name-cell {
+  min-width: 0;
+}
+
+.rule-name-cell strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-chip-row {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.rule-row-actions {
+  justify-content: flex-end;
+}
+
+.rule-form {
+  padding: 16px;
+}
+
+.rule-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.rule-editor-actions {
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
 .admin-layout {
   display: grid;
   gap: 14px;

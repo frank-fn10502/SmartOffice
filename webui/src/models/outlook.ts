@@ -320,13 +320,44 @@ export interface CategoryCommandRequest {
 }
 
 export interface OutlookRuleDto {
+  storeId: string
   name: string
   enabled: boolean
   executionOrder: number
   ruleType: string
+  isLocalRule: boolean
+  canModifyDefinition: boolean
   conditions: string[]
   actions: string[]
   exceptions: string[]
+}
+
+export interface OutlookRuleConditionsRequest {
+  subjectContains: string[]
+  bodyContains: string[]
+  senderAddressContains: string[]
+  categories: string[]
+  hasAttachment?: boolean
+}
+
+export interface OutlookRuleActionsRequest {
+  moveToFolderPath: string
+  assignCategories: string[]
+  markAsTask: boolean
+  stopProcessingMoreRules: boolean
+}
+
+export interface OutlookRuleCommandRequest {
+  operation: 'upsert' | 'delete' | 'set_enabled'
+  storeId: string
+  ruleName: string
+  originalRuleName: string
+  originalExecutionOrder?: number
+  ruleType: 'receive' | 'send'
+  enabled: boolean
+  executionOrder?: number
+  conditions: OutlookRuleConditionsRequest
+  actions: OutlookRuleActionsRequest
 }
 
 export interface CalendarEventDto {
@@ -361,6 +392,6 @@ export interface AddinLogEntry {
   timestamp: string
 }
 
-export type AppView = 'outlook' | 'search' | 'chat' | 'calendar'
+export type AppView = 'outlook' | 'search' | 'rules' | 'chat' | 'calendar'
 export type HubPage = 'outlook' | 'admin' | 'swagger'
 export type SignalRState = 'connected' | 'reconnecting' | 'disconnected'

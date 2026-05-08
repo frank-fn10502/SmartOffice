@@ -39,7 +39,7 @@ AddIn 的角色必須保持單純：listen `OutlookCommand`、呼叫 Outlook obj
 | 移動郵件 | `move_mail`、`move_mails` | `PushMails`、folder 增量同步 |
 | 刪除郵件 | `delete_mail` | `PushMails`、folder 增量同步；實作為 move to Outlook default Deleted Items folder |
 | Master categories | `fetch_categories`、`upsert_category` | `PushCategories` |
-| Rules snapshot | `fetch_rules` | `PushRules` |
+| Rules snapshot / mutation | `fetch_rules`、`manage_rule` | `PushRules` |
 | 月曆 | `fetch_calendar` | `PushCalendar` |
 | Chat | `SendChatMessage` SignalR server method | `ReportCommandResult` 不適用；method invoke 成功即可 |
 | Folder 建立 / 刪除 | `create_folder`、`delete_folder` | folder 增量同步，必要時 `PushMails`；`delete_folder` 是 move to Outlook default Deleted Items folder |
@@ -241,15 +241,27 @@ AddIn 收到的是單一 Outlook folder search slice；AddIn 不負責跨 folder
 - [ ] 回推的 event 落在 requested date range 內。
 - [ ] Event 欄位包含 subject、時間、location、organizer、attendees、busy status。
 
-### 9. Rules Snapshot
+### 9. Rules Snapshot / Mutation
 
 - [ ] AddIn 收到 `fetch_rules`。
 - [ ] 讀取 Outlook rules snapshot。
 - [ ] 回推 `PushRules(rules)`。
+- [ ] AddIn 收到 `manage_rule`。
+- [ ] `operation = "upsert"` 時，使用 Outlook `Rules.Create` 新增 rule，或用 `originalRuleName` + `originalExecutionOrder` 定位既有 rule 後修改支援的 definition。
+- [ ] `operation = "set_enabled"` 時，只修改既有 rule 的 `Enabled`。
+- [ ] `operation = "delete"` 時，使用 Outlook `Rules.Remove` 刪除指定 rule。
+- [ ] 支援建立的條件只包含 subject contains、body contains、sender address contains、category 與 has attachment。
+- [ ] 支援建立的動作只包含 move to folder、assign categories、mark as task 與 stop processing more rules。
+- [ ] 既有 rule 含 Rules object model 無法建立的特殊條件或動作時，仍可回推 snapshot，但 `canModifyDefinition = false`；AddIn 不得嘗試以自訂掃描或其他 automation 假裝支援。
+- [ ] 任何 rule 變更後都呼叫 `Rules.Save(false)` 或等效流程保存，並回推最新 `PushRules(rules)`。
+- [ ] `Rules.Save` 失敗時回 `ReportCommandResult(success=false)`，message 可診斷且不含敏感資料。
 
 驗收：
 
 - [ ] 回推的 rules 包含 rule name、enabled、order、conditions、actions、exceptions。
+- [ ] Web UI 可新增一條 subject/sender/category/attachment 條件搭配 move/category/task/stop 動作的 receive rule。
+- [ ] Web UI 可啟用/停用、刪除既有 rule。
+- [ ] 對 `canModifyDefinition = false` 的特殊 rule，Web UI 不會送完整 definition 修改。
 
 ### 10. Chat
 

@@ -180,6 +180,37 @@ namespace SmartOffice.Hub.Models
         public string ShortcutKey { get; set; } = string.Empty;
     }
 
+    public class OutlookRuleConditionsRequest
+    {
+        public List<string> SubjectContains { get; set; } = new();
+        public List<string> BodyContains { get; set; } = new();
+        public List<string> SenderAddressContains { get; set; } = new();
+        public List<string> Categories { get; set; } = new();
+        public bool? HasAttachment { get; set; }
+    }
+
+    public class OutlookRuleActionsRequest
+    {
+        public string MoveToFolderPath { get; set; } = string.Empty;
+        public List<string> AssignCategories { get; set; } = new();
+        public bool MarkAsTask { get; set; }
+        public bool StopProcessingMoreRules { get; set; } = true;
+    }
+
+    public class OutlookRuleCommandRequest
+    {
+        public string Operation { get; set; } = "upsert"; // upsert、delete、set_enabled。
+        public string StoreId { get; set; } = string.Empty;
+        public string RuleName { get; set; } = string.Empty;
+        public string OriginalRuleName { get; set; } = string.Empty;
+        public int? OriginalExecutionOrder { get; set; }
+        public string RuleType { get; set; } = "receive";
+        public bool Enabled { get; set; } = true;
+        public int? ExecutionOrder { get; set; }
+        public OutlookRuleConditionsRequest Conditions { get; set; } = new();
+        public OutlookRuleActionsRequest Actions { get; set; } = new();
+    }
+
     public class CreateFolderRequest
     {
         public string ParentFolderPath { get; set; } = string.Empty;
@@ -231,6 +262,7 @@ namespace SmartOffice.Hub.Models
         public FetchCalendarRequest? CalendarRequest { get; set; }
         public MailPropertiesCommandRequest? MailPropertiesRequest { get; set; }
         public CategoryCommandRequest? CategoryRequest { get; set; }
+        public OutlookRuleCommandRequest? RuleRequest { get; set; }
         public CreateFolderRequest? CreateFolderRequest { get; set; }
         public DeleteFolderRequest? DeleteFolderRequest { get; set; }
         public MoveMailRequest? MoveMailRequest { get; set; }

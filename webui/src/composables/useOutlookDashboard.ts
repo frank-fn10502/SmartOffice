@@ -25,6 +25,7 @@ import type {
   OutlookStoreDto,
   OutlookCategoryDto,
   OutlookRuleDto,
+  OutlookRuleCommandRequest,
   SignalRState,
 } from '../models/outlook'
 import {
@@ -71,6 +72,23 @@ export function useOutlookDashboard() {
   const mailSearchResults = ref<MailItemDto[]>([])
   const mailListMode = ref<'folder' | 'search'>('folder')
   const rules = ref<OutlookRuleDto[]>([])
+  const selectedRuleIndex = ref<number | null>(null)
+  const ruleDraft = ref({
+    ruleName: '',
+    originalRuleName: '',
+    originalExecutionOrder: undefined as number | undefined,
+    ruleType: 'receive' as 'receive' | 'send',
+    enabled: true,
+    subjectContains: '',
+    bodyContains: '',
+    senderAddressContains: '',
+    categories: [] as string[],
+    hasAttachment: 'any' as 'any' | 'yes' | 'no',
+    moveToFolderPath: '',
+    assignCategories: [] as string[],
+    markAsTask: false,
+    stopProcessingMoreRules: true,
+  })
   const categories = ref<OutlookCategoryDto[]>([])
   const calendarEvents = ref<CalendarEventDto[]>([])
   const calendarMonthDate = ref(monthStart(new Date()))
@@ -259,6 +277,7 @@ export function useOutlookDashboard() {
   const navOptions = computed(() => [
     { label: 'Outlook', value: 'outlook' },
     { label: 'Search', value: 'search', disabled: outlookDependentViewsLocked.value },
+    { label: 'Rules', value: 'rules', disabled: outlookDependentViewsLocked.value },
     { label: 'Chat', value: 'chat', disabled: outlookDependentViewsLocked.value },
     { label: 'Calendar', value: 'calendar', disabled: outlookDependentViewsLocked.value },
   ])
@@ -355,6 +374,12 @@ export function useOutlookDashboard() {
   const dialogMailAttachments = computed(() => {
     return dialogMail.value?.id ? mailAttachmentsByMailId.value[dialogMail.value.id] ?? [] : []
   })
+
+  const selectedRule = computed(() => {
+    return selectedRuleIndex.value === null ? null : rules.value[selectedRuleIndex.value] ?? null
+  })
+
+  const ruleDraftIsEditing = computed(() => Boolean(ruleDraft.value.originalRuleName))
 
   const dialogLoading = computed(() => {
     const mail = dialogMail.value
@@ -1029,6 +1054,148 @@ function categoryTagStyle(name: string) {
     }
   }
 
+  function splitRuleInput(value: string) {
+    return value
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+
+  function resetRuleDraft(rule: OutlookRuleDto | null = null) {
+    if (!rule) {
+      ruleDraft.value = {
+        ruleName: '',
+        originalRuleName: '',
+        originalExecutionOrder: undefined,
+        ruleType: 'receive',
+        enabled: true,
+        subjectContains: '',
+        bodyContains: '',
+        senderAddressContains: '',
+        categories: [],
+        hasAttachment: 'any',
+        moveToFolderPath: '',
+        assignCategories: [],
+        markAsTask: false,
+        stopProcessingMoreRules: true,
+      }
+      selectedRuleIndex.value = null
+      return
+    }
+
+    ruleDraft.value = {
+      ruleName: rule.name,
+      originalRuleName: rule.name,
+      originalExecutionOrder: rule.executionOrder,
+      ruleType: rule.ruleType?.toLowerCase() === 'send' ? 'send' : 'receive',
+      enabled: rule.enabled,
+      subjectContains: '',
+      bodyContains: '',
+      senderAddressContains: '',
+      categories: [],
+      hasAttachment: 'any',
+      moveToFolderPath: '',
+      assignCategories: [],
+      markAsTask: rule.actions.some((action) => action.toLowerCase().includes('task')),
+      stopProcessingMoreRules: rule.actions.some((action) => action.toLowerCase().includes('stop')),
+    }
+  }
+
+  function editRule(index: number) {
+    const rule = rules.value[index]
+    if (!rule) return
+    selectedRuleIndex.value = index
+    resetRuleDraft(rule)
+  }
+
+  function buildRulePayload(operation: 'upsert' | 'delete' | 'set_enabled'): OutlookRuleCommandRequest {
+    const draft = ruleDraft.value
+    const hasAttachment = draft.hasAttachment === 'any' ? undefined : draft.hasAttachment === 'yes'
+    return {
+      operation,
+      storeId: '',
+      ruleName: draft.ruleName.trim() || draft.originalRuleName.trim(),
+      originalRuleName: draft.originalRuleName.trim(),
+      originalExecutionOrder: draft.originalExecutionOrder,
+      ruleType: draft.ruleType,
+      enabled: draft.enabled,
+      executionOrder: draft.originalExecutionOrder,
+      conditions: {
+        subjectContains: splitRuleInput(draft.subjectContains),
+        bodyContains: splitRuleInput(draft.bodyContains),
+        senderAddressContains: splitRuleInput(draft.senderAddressContains),
+        categories: draft.categories,
+        hasAttachment,
+      },
+      actions: {
+        moveToFolderPath: draft.moveToFolderPath,
+        assignCategories: draft.assignCategories,
+        markAsTask: draft.markAsTask,
+        stopProcessingMoreRules: draft.stopProcessingMoreRules,
+      },
+    }
+  }
+
+  async function saveRule() {
+    if (outlookBusy.value || !ruleDraft.value.ruleName.trim()) return
+    const hasCondition = splitRuleInput(ruleDraft.value.subjectContains).length > 0
+      || splitRuleInput(ruleDraft.value.bodyContains).length > 0
+      || splitRuleInput(ruleDraft.value.senderAddressContains).length > 0
+      || ruleDraft.value.categories.length > 0
+      || ruleDraft.value.hasAttachment !== 'any'
+    const hasAction = Boolean(ruleDraft.value.moveToFolderPath)
+      || ruleDraft.value.assignCategories.length > 0
+      || ruleDraft.value.markAsTask
+      || ruleDraft.value.stopProcessingMoreRules
+    if (!hasCondition || !hasAction) {
+      ElMessage.warning('Rule 需要至少一個條件與一個動作。')
+      return
+    }
+
+    await runMailOperation(
+      () => outlookApi.requestManageRule(buildRulePayload('set_enabled')),
+      async () => {
+        await loadCachedRules()
+        resetRuleDraft()
+      },
+    )
+  }
+
+  async function deleteRule(rule = selectedRule.value) {
+    if (!rule || outlookBusy.value) return
+    const confirmed = window.confirm(`刪除 Outlook rule「${rule.name}」？`)
+    if (!confirmed) return
+    ruleDraft.value.originalRuleName = rule.name
+    ruleDraft.value.ruleName = rule.name
+    ruleDraft.value.originalExecutionOrder = rule.executionOrder
+    await runMailOperation(
+      () => outlookApi.requestManageRule(buildRulePayload('delete')),
+      async () => {
+        await loadCachedRules()
+        resetRuleDraft()
+      },
+    )
+  }
+
+  async function toggleRuleEnabled(rule: OutlookRuleDto, enabled: boolean) {
+    if (outlookBusy.value) return
+    ruleDraft.value = {
+      ...ruleDraft.value,
+      ruleName: rule.name,
+      originalRuleName: rule.name,
+      originalExecutionOrder: rule.executionOrder,
+      ruleType: rule.ruleType?.toLowerCase() === 'send' ? 'send' : 'receive',
+      enabled,
+      stopProcessingMoreRules: rule.actions.some((action) => action.toLowerCase().includes('stop')),
+    }
+    await runMailOperation(
+      () => outlookApi.requestManageRule(buildRulePayload('upsert')),
+      async () => {
+        await loadCachedRules()
+      },
+    )
+  }
+
   async function requestCategories(force = false) {
     if (outlookBusy.value && !force) return
     loadingCategories.value = true
@@ -1690,7 +1857,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function switchView(view: AppView) {
-    if (outlookDependentViewsLocked.value && ['search', 'chat', 'calendar'].includes(view)) return
+    if (outlookDependentViewsLocked.value && ['search', 'rules', 'chat', 'calendar'].includes(view)) return
     activeView.value = view
     if (view === 'outlook') {
       mailListMode.value = 'folder'
@@ -1705,6 +1872,7 @@ function categoryTagStyle(name: string) {
       selectedMailIndex.value = null
       lastSelectedMailIndex = -1
     }
+    if (view === 'rules' && rules.value.length === 0) void requestRules()
   }
 
   async function scrollChatToBottom() {
@@ -1886,10 +2054,12 @@ function categoryTagStyle(name: string) {
     requestCalendar,
     requestCategories,
     requestFolders,
+    requestRules,
     requestSignalRPing,
     requestMails,
     requestMailSearch,
     resetMailPropertiesDraft,
+    resetRuleDraft,
     resetAttachmentExportRoot,
     removeMailCategoryDraft,
     saveAttachmentExportSettings,
@@ -1906,10 +2076,15 @@ function categoryTagStyle(name: string) {
     selectedMailCategories,
     selectedMailIndex,
     selectedMailIds,
+    selectedRule,
+    selectedRuleIndex,
     selectFolder,
     selectCalendarEvent,
     selectMail,
     sendChat,
+    saveRule,
+    deleteRule,
+    editRule,
     showFolderMails,
     goToCurrentCalendarMonth,
     setDragOverFolder,
@@ -1922,7 +2097,13 @@ function categoryTagStyle(name: string) {
     toggleSearchResultFolder,
     toggleSearchResultStore,
     updateCategoryColor,
+    toggleRuleEnabled,
     visibleFolders,
+    folderOptions,
+    ruleDraft,
+    ruleDraftIsEditing,
+    rules,
+    loadingRules,
     visibleMasterCategories,
     hiddenMasterCategoryCount,
     toggleMasterCategoryList,

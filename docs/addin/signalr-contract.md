@@ -73,6 +73,7 @@ Payload：
   "calendarRequest": null,
   "mailPropertiesRequest": null,
   "categoryRequest": null,
+  "ruleRequest": null,
   "createFolderRequest": null,
   "deleteFolderRequest": null,
   "moveMailRequest": null,
@@ -95,6 +96,7 @@ Payload：
 | `fetch_mail_attachments` | `mailAttachmentsRequest` | 讀取單封 mail 的附件 metadata |
 | `export_mail_attachment` | `exportMailAttachmentRequest` | 將指定 attachment 匯出到約定的本機 attachment root |
 | `fetch_rules` | 無 | 讀取 Outlook rules |
+| `manage_rule` | `ruleRequest` | 新增、刪除、啟用/停用或修改 Outlook rules 中 Rules object model 可建立的條件與動作 |
 | `fetch_categories` | 無 | 讀取 Outlook master category list |
 | `ping` | 無 | readiness probe；只有 Outlook object model 可正常呼叫時才回成功 |
 | `fetch_calendar` | `calendarRequest` | 讀取 calendar events |
@@ -180,6 +182,49 @@ AddIn 只需要依 `receivedFrom` / `receivedTo` date-time 邊界篩選。
 ```
 
 `startDate` 含當日，`endDate` 不含當日。`daysForward` 不再作為舊 AddIn fallback；若同時收到 date range 與 `daysForward`，以 `startDate` / `endDate` 為準。
+
+### OutlookRuleCommandRequest
+
+Hub 只提供 Microsoft Outlook Rules object model 明確支援的 rule 管理面向。AddIn 不得承諾或自行模擬 Rules and Alerts Wizard 中無法 programmatically create 的特殊條件與動作。
+
+`manage_rule` sample：
+
+```json
+{
+  "operation": "upsert",
+  "storeId": "",
+  "ruleName": "客戶郵件標記",
+  "originalRuleName": "",
+  "originalExecutionOrder": null,
+  "ruleType": "receive",
+  "enabled": true,
+  "executionOrder": null,
+  "conditions": {
+    "subjectContains": ["報價"],
+    "bodyContains": [],
+    "senderAddressContains": ["example.com"],
+    "categories": ["客戶"],
+    "hasAttachment": true
+  },
+  "actions": {
+    "moveToFolderPath": "\\\\主要信箱 - User\\Inbox\\客戶",
+    "assignCategories": ["客戶"],
+    "markAsTask": false,
+    "stopProcessingMoreRules": true
+  }
+}
+```
+
+- `operation`: `upsert`、`delete` 或 `set_enabled`。
+- `ruleName`: 新增或更新後的 rule name；Outlook rules collection 的 rule name 不保證唯一，因此更新與刪除時也應帶 `originalExecutionOrder`。
+- `originalRuleName` / `originalExecutionOrder`: 更新、刪除或啟用/停用既有 rule 時用於定位原 rule；AddIn 可用 `Rules.Item(index)` 優先定位，必要時用 name fallback。
+- `ruleType`: `receive` 或 `send`，對應 Outlook `OlRuleType`。
+- `conditions`: 只包含 AddIn 必須支援建立的條件：subject contains、body contains、sender address contains、category 與 has attachment。
+- `actions`: 只包含 AddIn 必須支援建立的動作：move to folder、assign categories、mark as task、stop processing more rules。
+
+AddIn 實作時應使用 `Store.GetRules()` 取得 rules collection。新增 rule 使用 `Rules.Create`；更新既有 rule 可修改 `Rule.Enabled`、`Rule.Name`、`Rule.ExecutionOrder`、支援的 `Rule.Conditions` 與 `Rule.Actions`；刪除 rule 使用 `Rules.Remove`；任何變更都必須呼叫 `Rules.Save(false)` 或等效流程保存。`Rules.Save` 可能因 Exchange 規則限制、空白條件/動作或使用者同時開啟 Rules and Alerts Wizard 而失敗；失敗時回 `ReportCommandResult(success=false)`，message 不得包含敏感資料。
+
+若既有 rule 含 Rules object model 無法建立的特殊條件或動作，AddIn 仍可列舉並回推 snapshot；但 `OutlookRuleDto.canModifyDefinition` 應回 `false`，Web UI 只會允許啟用/停用或刪除，不會要求完整修改 definition。
 
 ### FolderDiscoveryRequest
 

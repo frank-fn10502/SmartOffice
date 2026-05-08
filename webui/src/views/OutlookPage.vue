@@ -7,6 +7,7 @@ import MailDetailDialog from '../components/outlook/MailDetailDialog.vue'
 import OutlookCalendarView from '../components/outlook/OutlookCalendarView.vue'
 import OutlookChatView from '../components/outlook/OutlookChatView.vue'
 import OutlookHomeView from '../components/outlook/OutlookHomeView.vue'
+import OutlookRulesView from '../components/outlook/OutlookRulesView.vue'
 import OutlookSearchView from '../components/outlook/OutlookSearchView.vue'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
 import type { AppView } from '../models/outlook'
@@ -61,6 +62,7 @@ const {
 
     <OutlookHomeView v-if="activeView === 'outlook'" :dashboard="dashboard" />
     <OutlookSearchView v-else-if="activeView === 'search'" :dashboard="dashboard" />
+    <OutlookRulesView v-else-if="activeView === 'rules'" :dashboard="dashboard" />
     <OutlookChatView v-else-if="activeView === 'chat'" :dashboard="dashboard" />
     <OutlookCalendarView v-else-if="activeView === 'calendar'" :dashboard="dashboard" />
 

@@ -44,6 +44,7 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `POST /api/outlook/request-folder-mails`：列出指定 folder 範圍內的所有 mail metadata；Hub 負責規劃 folder scope，底層可重用 mail search slice。
 - `POST /api/outlook/request-mail-search`：建立 mail search operation；Hub 必須先確保 folder data 可用、展開 store/folder scope、切成單 folder slices，並節流送給 AddIn。搜尋由 Outlook 內建搜尋執行，條件包含文字搜尋與篩選條件。
 - `POST /api/outlook/request-rules`：建立 Outlook rule fetch operation。
+- `POST /api/outlook/request-manage-rule`：建立 Outlook rule mutation operation；只支援 Microsoft Rules object model 可建立的條件與動作，特殊 rule 只允許啟用/停用或刪除。
 - `POST /api/outlook/request-categories`：建立 Outlook master category fetch operation。
 - `POST /api/outlook/request-signalr-ping`：透過正式 AddIn channel 建立 `ping` 測試 operation。
 - `POST /api/outlook/request-calendar`：建立 Outlook calendar fetch operation。

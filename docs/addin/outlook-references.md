@@ -2,7 +2,7 @@
 
 本文件只紀錄 Office 2016 AddIn 實作時可查的線上文件入口。SignalR payload 與 DTO 格式請看 `docs/addin/signalr-contract.md`；工作機實測資料、差異與錯誤回報格式請看 `docs/addin/test-report.md`。
 
-最後確認日期：2026-04-29。
+最後確認日期：2026-05-08。
 
 ## 使用原則
 
@@ -35,6 +35,10 @@ Office 2016 desktop 深度整合通常會碰到 VSTO、COM automation 或 Outloo
 - [Application.AdvancedSearchComplete event (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.application.advancedsearchcomplete)：`AdvancedSearch` 完成事件，避免以 blocking loop 等待。
 - [Search the Inbox for Items with Subject Containing Office](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/search-and-filter/search-the-inbox-for-items-with-subject-containing-office)：Microsoft 的 Subject contains 範例，示範以 DASL `ci_phrasematch` 查詢 Subject 內含關鍵字；正式搜尋應參考這類 Outlook 內建搜尋流程。
 - [Items.Restrict method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict)：在單一 folder items 內做條件篩選，適合搭配日期、分類、已讀狀態等條件縮小結果。Microsoft 文件指出 `Restrict` 適合大型 collection 先縮小結果，但也明確說明不能做 Subject contains；文字 contains 請優先使用 Outlook 內建搜尋 / DASL content index。
+- [Managing Rules in the Outlook Object Model](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/rules/managing-rules-in-the-outlook-object-model)：官方說明 Rules object model 支援 programmatic adding、editing、deleting rules；也說明 `Store.GetRules`、`Rules.Create`、`Rules.Remove`、`Rules.Save`、`Rule.Enabled` 與 `Rule.ExecutionOrder` 的行為。
+- [Specifying Rule Conditions](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/rules/specifying-rule-conditions)：列出哪些 rule conditions 可由 object model 建立；特殊條件只能列舉或啟用/停用，不應在 Web UI 承諾可完整建立。
+- [Specifying Rule Actions](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/rules/specifying-rule-actions)：列出哪些 rule actions 可由 object model 建立；例如 move/copy、assign category、mark as task 與 stop processing more rules 可建立，run script、server reply、print 等不可建立。
+- [Rules.Save method (Outlook)](https://learn.microsoft.com/en-us/office/vba/api/outlook.rules.save)：保存 rules collection；官方文件提醒 slow Exchange connection 可能昂貴，且不相容或定義不完整的 rule 會造成 save error。
 
 ## Office JavaScript Add-in / Office.js
 

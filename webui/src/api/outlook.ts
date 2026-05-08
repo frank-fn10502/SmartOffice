@@ -19,6 +19,7 @@ import type {
   OutlookCommandResult,
   OutlookCategoryDto,
   OutlookRuleDto,
+  OutlookRuleCommandRequest,
   FetchResultRequest,
   FetchResultResponse,
   OutlookRequestResponse,
@@ -47,6 +48,10 @@ function readStringList(value: unknown) {
     return value.map((item) => String(item).trim()).filter(Boolean).join(', ')
   }
   return typeof value === 'string' ? value : ''
+}
+
+function readStringArray(value: unknown) {
+  return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : []
 }
 
 function readNumber(source: LooseRecord, camelName: string, pascalName: string, fallback = 0) {
@@ -266,6 +271,26 @@ export function normalizeOutlookCategories(items: unknown): OutlookCategoryDto[]
     : []
 }
 
+export function normalizeOutlookRule(item: unknown): OutlookRuleDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    storeId: readString(source, 'storeId', 'StoreId'),
+    name: readString(source, 'name', 'Name'),
+    enabled: readBoolean(source, 'enabled', 'Enabled'),
+    executionOrder: readNumber(source, 'executionOrder', 'ExecutionOrder'),
+    ruleType: readString(source, 'ruleType', 'RuleType', 'receive'),
+    isLocalRule: readBoolean(source, 'isLocalRule', 'IsLocalRule'),
+    canModifyDefinition: readBoolean(source, 'canModifyDefinition', 'CanModifyDefinition', true),
+    conditions: readStringArray(source.conditions ?? source.Conditions),
+    actions: readStringArray(source.actions ?? source.Actions),
+    exceptions: readStringArray(source.exceptions ?? source.Exceptions),
+  }
+}
+
+export function normalizeOutlookRules(items: unknown): OutlookRuleDto[] {
+  return Array.isArray(items) ? items.map(normalizeOutlookRule).filter((rule) => rule.name.trim()) : []
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`Request failed: ${response.status}`)
@@ -293,7 +318,7 @@ export const outlookApi = {
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/${encodeURIComponent(searchId)}`)),
   getMailSearchProgressByCommandId: async (commandId: string) =>
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/by-command/${encodeURIComponent(commandId)}`)),
-  getRules: () => getJson<OutlookRuleDto[]>('/api/outlook/rules'),
+  getRules: async () => normalizeOutlookRules(await getJson<unknown>('/api/outlook/rules')),
   getCategories: async () => normalizeOutlookCategories(await getJson<unknown>('/api/outlook/categories')),
   getCalendar: async () => normalizeCalendarEvents(await getJson<unknown>('/api/outlook/calendar')),
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
@@ -338,6 +363,8 @@ export const outlookApi = {
   updateAttachmentExportSettings: (body: { rootPath: string }) =>
     postJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings', body),
   requestRules: () => postJson<OutlookRequestResponse>('/api/outlook/request-rules'),
+  requestManageRule: (body: OutlookRuleCommandRequest) =>
+    postJson<OutlookRequestResponse>('/api/outlook/request-manage-rule', body),
   requestCategories: () => postJson<OutlookRequestResponse>('/api/outlook/request-categories'),
   requestSignalRPing: () => postJson<OutlookRequestResponse>('/api/outlook/request-signalr-ping'),
   requestCalendar: (body: { daysForward: number; startDate?: string; endDate?: string }) =>
