@@ -63,6 +63,23 @@ const manualOutlookDeleteMessage = 'SmartOffice API 不會永久刪除 Outlook �
 const mailFetchDelayMs = 300
 const mailFetchCountdownTickMs = 100
 
+type RuleDraft = {
+  ruleName: string
+  originalRuleName: string
+  originalExecutionOrder?: number
+  ruleType: 'receive' | 'send'
+  enabled: boolean
+  subjectContains: string
+  bodyContains: string
+  senderAddressContains: string
+  categories: string[]
+  hasAttachment: 'any' | 'yes' | 'no'
+  moveToFolderPath: string
+  assignCategories: string[]
+  markAsTask: boolean
+  stopProcessingMoreRules: boolean
+}
+
 export function useOutlookDashboard() {
   const activeView = ref<AppView>('outlook')
   const signalRState = ref<SignalRState>('disconnected')
@@ -73,7 +90,7 @@ export function useOutlookDashboard() {
   const mailListMode = ref<'folder' | 'search'>('folder')
   const rules = ref<OutlookRuleDto[]>([])
   const selectedRuleIndex = ref<number | null>(null)
-  const ruleDraft = ref({
+  const ruleDraft = ref<RuleDraft>({
     ruleName: '',
     originalRuleName: '',
     originalExecutionOrder: undefined as number | undefined,
@@ -1108,8 +1125,8 @@ function categoryTagStyle(name: string) {
     resetRuleDraft(rule)
   }
 
-  function buildRulePayload(operation: 'upsert' | 'delete' | 'set_enabled'): OutlookRuleCommandRequest {
-    const draft = ruleDraft.value
+  function buildRulePayload(operation: 'upsert' | 'delete' | 'set_enabled', source: RuleDraft = ruleDraft.value): OutlookRuleCommandRequest {
+    const draft = source
     const hasAttachment = draft.hasAttachment === 'any' ? undefined : draft.hasAttachment === 'yes'
     return {
       operation,
@@ -1136,6 +1153,25 @@ function categoryTagStyle(name: string) {
     }
   }
 
+  function buildRuleOperationDraft(rule: OutlookRuleDto, enabled = rule.enabled): RuleDraft {
+    return {
+      ruleName: rule.name,
+      originalRuleName: rule.name,
+      originalExecutionOrder: rule.executionOrder,
+      ruleType: rule.ruleType?.toLowerCase() === 'send' ? 'send' : 'receive',
+      enabled,
+      subjectContains: '',
+      bodyContains: '',
+      senderAddressContains: '',
+      categories: [],
+      hasAttachment: 'any',
+      moveToFolderPath: '',
+      assignCategories: [],
+      markAsTask: false,
+      stopProcessingMoreRules: false,
+    }
+  }
+
   async function saveRule() {
     if (outlookBusy.value || !ruleDraft.value.ruleName.trim()) return
     const hasCondition = splitRuleInput(ruleDraft.value.subjectContains).length > 0
@@ -1153,7 +1189,7 @@ function categoryTagStyle(name: string) {
     }
 
     await runMailOperation(
-      () => outlookApi.requestManageRule(buildRulePayload('set_enabled')),
+      () => outlookApi.requestManageRule(buildRulePayload('upsert')),
       async () => {
         await loadCachedRules()
         resetRuleDraft()
@@ -1165,11 +1201,9 @@ function categoryTagStyle(name: string) {
     if (!rule || outlookBusy.value) return
     const confirmed = window.confirm(`刪除 Outlook rule「${rule.name}」？`)
     if (!confirmed) return
-    ruleDraft.value.originalRuleName = rule.name
-    ruleDraft.value.ruleName = rule.name
-    ruleDraft.value.originalExecutionOrder = rule.executionOrder
+    const payload = buildRulePayload('delete', buildRuleOperationDraft(rule))
     await runMailOperation(
-      () => outlookApi.requestManageRule(buildRulePayload('delete')),
+      () => outlookApi.requestManageRule(payload),
       async () => {
         await loadCachedRules()
         resetRuleDraft()
@@ -1179,17 +1213,9 @@ function categoryTagStyle(name: string) {
 
   async function toggleRuleEnabled(rule: OutlookRuleDto, enabled: boolean) {
     if (outlookBusy.value) return
-    ruleDraft.value = {
-      ...ruleDraft.value,
-      ruleName: rule.name,
-      originalRuleName: rule.name,
-      originalExecutionOrder: rule.executionOrder,
-      ruleType: rule.ruleType?.toLowerCase() === 'send' ? 'send' : 'receive',
-      enabled,
-      stopProcessingMoreRules: rule.actions.some((action) => action.toLowerCase().includes('stop')),
-    }
+    const payload = buildRulePayload('set_enabled', buildRuleOperationDraft(rule, enabled))
     await runMailOperation(
-      () => outlookApi.requestManageRule(buildRulePayload('upsert')),
+      () => outlookApi.requestManageRule(payload),
       async () => {
         await loadCachedRules()
       },

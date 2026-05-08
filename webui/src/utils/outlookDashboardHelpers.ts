@@ -110,6 +110,18 @@ export function calendarEventSegment(event: CalendarEventDto, weekStart: Date, w
   }
 }
 
+function calendarEventOverlapsDay(event: CalendarEventDto, day: Date) {
+  const start = new Date(event.start)
+  const end = new Date(event.end)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false
+
+  const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate())
+  const dayEnd = new Date(dayStart)
+  dayEnd.setDate(dayStart.getDate() + 1)
+
+  return start < dayEnd && end > dayStart
+}
+
 export function buildCalendarWeeks(calendarMonthDate: Date, calendarEvents: CalendarEventDto[]) {
   const first = monthStart(calendarMonthDate)
   const gridStart = new Date(first)
@@ -131,6 +143,7 @@ export function buildCalendarWeeks(calendarMonthDate: Date, calendarEvents: Cale
         dayNumber: date.getDate(),
         inMonth: date.getMonth() === calendarMonthDate.getMonth(),
         isToday: key === todayKey,
+        eventCount: calendarEvents.filter((event) => calendarEventOverlapsDay(event, date)).length,
       }
     })
 

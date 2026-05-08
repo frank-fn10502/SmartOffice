@@ -21,6 +21,7 @@ const {
   ruleDraftIsEditing,
   rules,
   saveRule,
+  selectedRuleIndex,
   toggleRuleEnabled,
 } = props.dashboard
 
@@ -34,6 +35,10 @@ function ruleState(rule: OutlookRuleDto) {
   if (!rule.enabled) return '停用'
   if (!rule.canModifyDefinition) return '部分可改'
   return '啟用'
+}
+
+function ruleRowClassName({ rowIndex }: { rowIndex: number }) {
+  return selectedRuleIndex.value === rowIndex ? 'selected-rule-row' : ''
 }
 </script>
 
@@ -59,6 +64,7 @@ function ruleState(rule: OutlookRuleDto) {
         height="calc(100vh - 208px)"
         empty-text="尚未同步 Outlook rules"
         class="rules-table"
+        :row-class-name="ruleRowClassName"
       >
         <el-table-column prop="executionOrder" label="#" width="64" />
         <el-table-column label="Rule" min-width="220">
@@ -90,7 +96,7 @@ function ruleState(rule: OutlookRuleDto) {
         </el-table-column>
         <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row, $index }">
-            <div class="rule-row-actions">
+            <div class="rule-row-actions" @click.stop>
               <el-switch
                 :model-value="row.enabled"
                 :disabled="outlookBusy"

@@ -54,7 +54,10 @@ const {
                 class="calendar-day"
                 :class="{ muted: !day.inMonth, today: day.isToday }"
               >
-                <div class="calendar-day-number">{{ day.dayNumber }}</div>
+                <div class="calendar-day-head">
+                  <span class="calendar-day-number">{{ day.dayNumber }}</span>
+                  <span v-if="day.eventCount > 1" class="calendar-day-count">{{ day.eventCount }} 項</span>
+                </div>
               </div>
             </div>
             <div class="calendar-week-events">

@@ -171,81 +171,110 @@ namespace SmartOffice.Hub.Services
 
         private static List<CalendarEventDto> BuildCalendar(DateTime now)
         {
-            return new List<CalendarEventDto>
+            var today = now.Date;
+            var events = new List<CalendarEventDto>
             {
-                new()
-                {
-                    Id = "mock-cal-001",
-                    Subject = "SmartOffice mock sync review",
-                    Start = now.Date.AddHours(15),
-                    End = now.Date.AddHours(15).AddMinutes(30),
-                    Location = "Teams",
-                    Organizer = Recipient("organizer", "Mock User", "mock.user@example.test"),
-                    RequiredAttendees = new List<OutlookRecipientDto>
-                    {
-                        Recipient("required", "Ada Chen", "ada.chen@example.test"),
-                    },
-                    BusyStatus = "busy",
-                },
-                new()
-                {
-                    Id = "mock-cal-002",
-                    Subject = "客戶需求釐清",
-                    Start = now.Date.AddDays(2).AddHours(10),
-                    End = now.Date.AddDays(2).AddHours(11),
-                    Location = "會議室 3A",
-                    Organizer = Recipient("organizer", "Ada Chen", "ada.chen@example.test"),
-                    RequiredAttendees = new List<OutlookRecipientDto>
-                    {
-                        Recipient("required", "Mock User", "mock.user@example.test"),
-                        Recipient("required", "Dana Hsu", "dana.hsu@example.test"),
-                    },
-                    BusyStatus = "tentative",
-                },
-                new()
-                {
-                    Id = "mock-cal-003",
-                    Subject = "每週產品站會",
-                    Start = now.Date.AddDays(6).AddHours(9),
-                    End = now.Date.AddDays(6).AddHours(9).AddMinutes(45),
-                    Location = "Teams",
-                    Organizer = Recipient("organizer", "Mock User", "mock.user@example.test"),
-                    RequiredAttendees = new List<OutlookRecipientDto>
-                    {
-                        Group("required", "Product Team", "product@example.test", "Ada Chen", "Ben Lin"),
-                    },
-                    IsRecurring = true,
-                    BusyStatus = "busy",
-                },
-                new()
-                {
-                    Id = "mock-cal-004",
-                    Subject = "月中客戶回顧",
-                    Start = now.Date.AddDays(14).AddHours(14),
-                    End = now.Date.AddDays(14).AddHours(15),
-                    Location = "Teams",
-                    Organizer = Recipient("organizer", "Chris Wang", "chris.wang@example.test"),
-                    RequiredAttendees = new List<OutlookRecipientDto>
-                    {
-                        Recipient("required", "Mock User", "mock.user@example.test"),
-                        Recipient("required", "Ada Chen", "ada.chen@example.test"),
-                    },
-                    BusyStatus = "busy",
-                },
-                new()
-                {
-                    Id = "mock-cal-005",
-                    Subject = "月底交付檢查",
-                    Start = now.Date.AddDays(24).AddHours(16),
-                    End = now.Date.AddDays(24).AddHours(17),
-                    Location = "會議室 2B",
-                    Organizer = Recipient("organizer", "Mock User", "mock.user@example.test"),
-                    RequiredAttendees = new List<OutlookRecipientDto>
-                    {
-                        Group("required", "QA Lab", "qa@example.test", "QA Lab Member"),
-                    },
-                    BusyStatus = "free",
-                }
+                Calendar("mock-cal-001", "SmartOffice mock sync review", today.AddHours(15), 30, "Teams", "busy", Recipient("required", "Ada Chen", "ada.chen@example.test")),
+                Calendar("mock-cal-002", "客戶需求釐清", today.AddDays(2).AddHours(10), 60, "會議室 3A", "tentative", Recipient("required", "Mock User", "mock.user@example.test"), Recipient("required", "Dana Hsu", "dana.hsu@example.test")),
+                Calendar("mock-cal-003", "每週產品站會", today.AddDays(6).AddHours(9), 45, "Teams", "busy", new[] { Group("required", "Product Team", "product@example.test", "Ada Chen", "Ben Lin") }, true),
+                Calendar("mock-cal-004", "月中客戶回顧", today.AddDays(14).AddHours(14), 60, "Teams", "busy", Recipient("required", "Mock User", "mock.user@example.test"), Recipient("required", "Ada Chen", "ada.chen@example.test")),
+                Calendar("mock-cal-005", "月底交付檢查", today.AddDays(24).AddHours(16), 60, "會議室 2B", "free", Group("required", "QA Lab", "qa@example.test", "QA Lab Member")),
+                Calendar("mock-cal-006", "跨日上線值班", today.AddDays(3).AddHours(22), 600, "War room", "busy", Recipient("required", "Mock User", "mock.user@example.test")),
+                Calendar("mock-cal-007", "跨週專案封版", today.AddDays(10).AddHours(13), 2940, "Teams", "busy", Group("required", "Delivery Team", "delivery@example.test", "Mock User", "Ada Chen", "Chris Wang")),
+            };
+
+            var packedDay = today.AddDays(4);
+            var packedSubjects = new[]
+            {
+                "晨間 triage",
+                "需求 grooming",
+                "供應商電話",
+                "UI review",
+                "合約條款確認",
+                "客服升級案件",
+                "資料彙整",
+                "主管同步",
+                "收尾檢查",
+            };
+
+            for (var i = 0; i < packedSubjects.Length; i++)
+            {
+                var start = packedDay.AddHours(8).AddMinutes(i * 50);
+                events.Add(Calendar(
+                    $"mock-cal-packed-{i + 1:00}",
+                    packedSubjects[i],
+                    start,
+                    i % 3 == 0 ? 45 : 30,
+                    i % 2 == 0 ? "Teams" : "會議室 5C",
+                    i % 4 == 0 ? "tentative" : "busy",
+                    Recipient("required", "Mock User", "mock.user@example.test"),
+                    Recipient("required", "Ada Chen", "ada.chen@example.test")));
+            }
+
+            for (var dayOffset = -6; dayOffset <= 28; dayOffset += 3)
+            {
+                var start = today.AddDays(dayOffset).AddHours(9 + Math.Abs(dayOffset % 5));
+                events.Add(Calendar(
+                    $"mock-cal-rhythm-{dayOffset + 20:00}",
+                    $"例行追蹤 {start:MM/dd}",
+                    start,
+                    25 + Math.Abs(dayOffset % 4) * 10,
+                    dayOffset % 2 == 0 ? "Teams" : "會議室 2A",
+                    dayOffset % 4 == 0 ? "free" : "busy",
+                    Recipient("required", "Mock User", "mock.user@example.test")));
+            }
+
+            for (var i = 0; i < 8; i++)
+            {
+                var start = today.AddDays(12 + (i / 2)).AddHours(10 + (i % 2) * 4);
+                events.Add(Calendar(
+                    $"mock-cal-cluster-{i + 1:00}",
+                    $"客戶專案 block {i + 1}",
+                    start,
+                    90,
+                    i % 2 == 0 ? "客戶現場" : "Teams",
+                    "busy",
+                    Recipient("required", "Mock User", "mock.user@example.test"),
+                    Recipient("required", "Dana Hsu", "dana.hsu@example.test")));
+            }
+
+            return events.OrderBy(item => item.Start).ToList();
+        }
+
+        private static CalendarEventDto Calendar(
+            string id,
+            string subject,
+            DateTime start,
+            int durationMinutes,
+            string location,
+            string busyStatus,
+            OutlookRecipientDto requiredAttendee,
+            params OutlookRecipientDto[] additionalRequiredAttendees)
+        {
+            return Calendar(id, subject, start, durationMinutes, location, busyStatus, new[] { requiredAttendee }.Concat(additionalRequiredAttendees), false);
+        }
+
+        private static CalendarEventDto Calendar(
+            string id,
+            string subject,
+            DateTime start,
+            int durationMinutes,
+            string location,
+            string busyStatus,
+            IEnumerable<OutlookRecipientDto> requiredAttendees,
+            bool recurring)
+        {
+            return new CalendarEventDto
+            {
+                Id = id,
+                Subject = subject,
+                Start = start,
+                End = start.AddMinutes(durationMinutes),
+                Location = location,
+                Organizer = Recipient("organizer", "Mock User", "mock.user@example.test"),
+                RequiredAttendees = requiredAttendees.ToList(),
+                BusyStatus = busyStatus,
+                IsRecurring = recurring,
             };
         }
 
