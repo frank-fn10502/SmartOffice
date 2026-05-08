@@ -17,15 +17,17 @@ metadata:
 - 取得 `requestId` 後呼叫配對的 `POST /api/outlook/fetch-result-*`；回應固定提供 `requestId`、`request`、`state`、`message`、`next`、`data`。
 - 使用者或 AI 只需要 loop paired `fetch-result-*` 到 `state=completed`；若 `next.hasMore=true`，下一次 body 帶 `cursor=next.cursor`。
 - 若 `request-*` 回 HTTP 409 / 400 / 502 / 504，仍先解析 body 的 `state`、`message` 與可能存在的 `requestId`；不要靠猜測重試，也不要改用更大的搜尋範圍。
+- `request-mail-search` 是多數 mail workflow 的前置定位與篩選入口，不只是「文字搜尋」。凡是使用者用 subject、sender、日期、category、附件、已讀、旗標或 folder scope 描述目標 mails，優先用 `request-mail-search` 找出候選 metadata，再決定是否讀 body 或 mutation。
 - 修改郵件前必須先從 `fetch-result-*` 的 `data.mails` 取得 `MailItemDto.id` 與 `folderPath`，不可只用 subject、sender 或 folder name 猜目標。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
 - 使用者只要求最近郵件、郵件清單、統計或 Markdown metadata 報告時，不要呼叫 `request-mail-body`；只有使用者明確要求內容摘要、內文關鍵字判讀，或 metadata 不足以完成任務時才讀 body。
-- `request-delete-mail` 的語意是移到 Outlook default Deleted Items folder，不是永久刪除；目的 folder 由 AddIn 用 Outlook default folder identity 定位，不靠顯示名稱猜測；仍需先確認 `mailId` 來自 `fetch-result-* data.mails[].id`，且 `folderPath` 來自同一筆 mail。若目標已經在 Deleted Items 內，paired fetch result 會回 `state=failed` / `message=manual_delete_required`，此時要求使用者自行到 Outlook 永久刪除。
-- 使用者未指定 folder 時，只查主要 mailbox 的 Inbox；但 Inbox path 必須取自 `fetch-result-folders` / `fetch-result-folder-children` 的 `data.folders`，不可硬寫英文 `Inbox`。
+- `request-delete-mail` 的語意是移到 Outlook default Deleted Items folder，不是永久刪除；目的 folder 由 AddIn 用 Outlook default folder identity 定位，不靠顯示名稱猜測。完成後告知使用者 mail 已移到刪除資料夾；若使用者要永久刪除，請使用者自行到 Outlook 操作。
+- `request-delete-folder` 的語意也是移到 Outlook default Deleted Items folder；若目標 folder 已經位於 default Deleted Items folder 或其子層，SmartOffice API 會以 `manual_delete_required` 阻擋，agent 必須停止並請使用者自行到 Outlook 操作。不要用 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱自行判斷。
+- 使用者未指定 folder 時，預設查主要 mailbox 的 Inbox 與其 subfolders；Inbox path 優先用 `request-find-folder` 搭配 `folderType="Inbox"` 取得，不可硬寫英文 `Inbox`。
 - HTTP API 的 `folderPath` 一律使用 `/主要信箱 - User/收件匣` 這種普通斜線格式。
 - `scopeFolderPaths: []` 代表目前已載入的全部可搜尋 mail folders；使用者未明確要求全域搜尋時禁止送空陣列。
 - 回覆使用者時必須說明本次 folder 範圍，避免使用者誤以為已搜尋全信箱。
-- 使用者指定 folder 顯示名稱時，必須先從 folder fetch result 定位唯一 `folderPath`；若同名 folder 超過一個，列出必要路徑請使用者確認，不可任選。
+- 使用者指定 folder 顯示名稱或要求「拿 folderAAA」時，優先用 `request-find-folder` / `fetch-result-find-folder` 定位候選 folder。若 `matchCount=1`，後續使用該 folder 的真實 `folderPath`；若 `isAmbiguous=true`，列出必要路徑請使用者確認，不可任選。
 - 相對日期要轉成明確 `receivedFrom` / `receivedTo` 並在回覆中說明，例如「這週」代表本週一 00:00 到目前時間；「最近兩個月」代表從目前時間往前推兩個月到目前時間。若使用者說「這兩個月」且語意不明，預設按最近兩個月處理。
 - 大型 response 可暫存於 skill folder 的 `tmp/<run>/`，但不可提交或長期保留。
 
@@ -34,14 +36,13 @@ metadata:
 使用者未指定 folder 時，請照這個最短正確路徑取得主要 mailbox 的 Inbox：
 
 1. 確認 API status。
-2. `POST /api/outlook/request-folders`，取得 `requestId` 後 loop `POST /api/outlook/fetch-result-*` 到 `state=completed`。
-3. 從 `fetch-result-folders .data.stores` 與 `fetch-result-folders .data.folders` 找主要 store/root folder。
-4. 若 root folder `childrenLoaded=false`，呼叫 `POST /api/outlook/request-folder-children`，request 欄位必須是 `storeId=root.storeId`、`parentEntryId=root.entryId`、`parentFolderPath=root.folderPath`。
-5. 再用 `fetch-result-folder-children` 讀 `data.folders`，在主要 store 底下選 `folderType="Inbox"` 的 folder；若沒有，才用 `name` 等於 `收件匣` 或 `Inbox` fallback。
-6. 使用該 folder 的完整 `folderPath` 呼叫 `request-mails` 或放入 `request-mail-search.scopeFolderPaths[0]`。
-7. 取得 `requestId` 後 loop `fetch-result-*`，從 `data` 讀資料。
-8. 摘要必要 metadata；只有任務需要時才讀 body 或 attachment。
-9. mutation 後用該次 `fetch-result-*` 或重新送出必要 request 確認結果。
+2. `POST /api/outlook/request-find-folder`，body 使用 `folderType="Inbox"`、`storeId=""`。未指定 `storeId` 時，SmartOffice API 會在主要 store 查找該 folder type。
+3. 取得 `requestId` 後 loop `POST /api/outlook/fetch-result-find-folder` 到 `state=completed`。
+4. 若 `data.matchCount=1`，使用 `data.folders[0].folderPath` 呼叫 `request-mails` 或放入 `request-mail-search.scopeFolderPaths[0]`。
+5. 若 `matchCount=0` 或 `isAmbiguous=true`，停止並回報目前無法唯一定位主要 Inbox；不要自行改成全信箱或空 scope 搜尋。
+6. 取得後續 request 的 `requestId` 後 loop paired `fetch-result-*`，從 `data` 讀資料。
+7. 摘要必要 metadata；只有任務需要時才讀 body 或 attachment。
+8. mutation 後用該次 `fetch-result-*` 或重新送出必要 request 確認結果。
 
 找不到主要 Inbox 時，停止並回報目前 folder 資料無法定位 Inbox；不要自行改成全信箱或空 scope 搜尋。
 
@@ -49,12 +50,14 @@ metadata:
 
 - 最近 N 封郵件：Golden Path 取得 Inbox path -> `request-mails` -> `fetch-result-mails`。
 - 日期範圍郵件：Golden Path 取得 Inbox path -> `request-mail-search`，用空 `keyword` 搭配 `receivedFrom` / `receivedTo` -> `fetch-result-mail-search`。
-- 指定 folder 內所有 mails：取得 folder path -> `request-folder-mails` -> `fetch-result-*`。
-- 郵件搜尋：Golden Path 取得 Inbox path -> `request-mail-search` 且 `scopeFolderPaths` 放該 path -> `fetch-result-mail-search`。
+- 指定 folder：用 `request-find-folder` -> `fetch-result-find-folder` 定位唯一 `folderPath`。
+- 指定 folder 內所有 mails：先 `request-find-folder` 取得 folder path -> `request-folder-mails` -> `fetch-result-folder-mails`。
+- 郵件定位與篩選：Golden Path 或 `request-find-folder` 取得 scope path -> `request-mail-search`，用 `keyword`、`textFields`、`categoryNames`、`hasAttachments`、`flagState`、`readState`、`receivedFrom` / `receivedTo` 組合條件 -> `fetch-result-mail-search`。
 - 讀 body：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-body` -> `fetch-result-mail-body data.mails` 找同 id 的 `body` / `bodyHtml`。
 - 讀附件：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-attachments` -> `fetch-result-*`，必要時讀 `mail-attachments?mailId={id}`。
 - 修改、移動、刪除郵件：先從 `fetch-result-* data.mails` 確認唯一目標的 `id` 與 `folderPath` -> mutation endpoint -> `fetch-result-*`。
-- 大量搬移 folder 內郵件：先定位來源與目的 `folderPath`，用 `request-folder-mails` 取得 ids，再以每批最多 500 封逐批呼叫 `request-move-mails`。只有使用者明確說包含 subfolders / folder tree 時才設定 `includeSubFolders=true`。詳細流程見 `references/workflows.md`。
+- 大量搬移 folder 內全部郵件：先定位來源與目的 `folderPath`，用 `request-folder-mails` 取得 ids，再以每批最多 500 封逐批呼叫 `request-move-mails`。預設包含 subfolders；只有使用者明確排除 subfolders 時才設定 `includeSubFolders=false`。
+- 大量搬移符合條件的郵件，例如 category、日期、附件、已讀或旗標：先定位來源與目的 `folderPath`，用 `request-mail-search` 篩出目標 mails，再分批 `request-move-mails`。詳細流程見 `references/workflows.md`。
 
 ## 何時讀 references
 
@@ -64,14 +67,16 @@ metadata:
 ## 常見陷阱
 
 - `Inbox` 是範例名稱，不是穩定 contract；中文 Outlook 常見路徑是 `/主要信箱 - User/收件匣`。操作前一定要從 folder fetch result 取實際 `folderPath`。
-- `request-folders` 只保證載入 stores/root folders；若 root 的 `childrenLoaded=false`，要用 `request-folder-children` 展開後再找 Inbox。
+- 一般 folder 查找先用 `request-find-folder`，不要讓 caller 自己重寫每個分支的 traversal。只有需要精細控制載入範圍或診斷 folder discovery 時，才直接使用 `request-folders` / `request-folder-children`。
+- `request-find-folder.folderType="Inbox"` 可用來取得主要 store 的 Inbox；只有需要精細控制載入範圍或診斷時，才用 `request-folders` / `request-folder-children` 展開後再找 Inbox。
 - `request-folder-children` 的 request 欄位是 `storeId`、`parentEntryId`、`parentFolderPath`；值分別取自 folder fetch result 內 root folder 的 `storeId`、`entryId`、`folderPath`。不要送 `entryId` 或 `folderPath` 這兩個錯誤欄位名，也不要只傳 folder display name。
 - `request-mails.folderPath`、`request-folder-mails.folderPath` 與 `request-mail-search.scopeFolderPaths[]` 必須完整等於 folder fetch result 裡的 `folderPath`。
 - `request-mail-search` 或 `request-folder-mails` 回 `no_searchable_folder` 時，通常代表指定 folder path 目前無法搜尋；此時不要改成全域搜尋，應先重新讀 folders 並改用回傳的真實路徑。
 - 不要自行組 folder path；一律使用 folder fetch result 回傳的 `/Mailbox/Inbox` 形式。
 - 對同一封 mail 呼叫 `request-mail-body` 完成後，若同 id 的 `body` 與 `bodyHtml` 仍為空，不要重複呼叫同一 endpoint；將該封內容視為目前不可用，回報限制或改用 metadata。
 - `request-move-mails` 單次最多 500 個 `mailIds`。遇到「搬移 folderA 和所有 subfolder」這類任務時，必須分批慢慢送，不可把 8000+ ids 放進單一 request。
-- Outlook master category 顏色必須使用 Outlook `OlCategoryColor` enum name 與 numeric value；黑色是 `olCategoryColorBlack` / `15`。
+- Outlook master category 顏色必須使用 Outlook `OlCategoryColor` enum name 與 numeric value；黑色是 `olCategoryColorBlack` / `15`。若使用者指定的顏色不在 color table 中，先請使用者改選，不要猜 enum。
+- Category name 比對大小寫不敏感；若 master category 已有同名項目，視為更新而不是新增第二個。套用 category 到 mail 前，仍必須先定位唯一 mail。
 
 ## API 設計反思
 

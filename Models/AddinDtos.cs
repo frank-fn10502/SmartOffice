@@ -221,6 +221,7 @@ namespace SmartOffice.Hub.Models
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Type { get; set; } = string.Empty; // 目前預期值："fetch_folder_roots"、"fetch_folder_children"、"fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"export_mail_attachment"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
         public FolderDiscoveryRequest? FolderDiscoveryRequest { get; set; }
+        public FindFolderRequest? FindFolderRequest { get; set; }
         public FetchMailsRequest? MailsRequest { get; set; }
         public SearchMailsRequest? SearchMailsRequest { get; set; }
         public MailSearchSliceRequest? MailSearchSliceRequest { get; set; }

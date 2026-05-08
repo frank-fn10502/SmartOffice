@@ -22,7 +22,26 @@
 
 ## Folder Scope
 
-未指定 folder 時，預設範圍是主要 mailbox 的 Inbox，但 `Inbox` 不是穩定 path。必須從 folder data 找實際 `folderPath`：
+未指定 folder 時，預設範圍是主要 mailbox 的 Inbox 與其 subfolders，但 `Inbox` 不是穩定 path。優先使用 `request-find-folder` 以 `folderType="Inbox"` 取得實際 `folderPath`：
+
+1. `POST /api/outlook/request-find-folder`
+
+```json
+{
+  "name": "",
+  "folderPath": "",
+  "folderType": "Inbox",
+  "storeId": "",
+  "includeHidden": false,
+  "maxResults": 20
+}
+```
+
+2. 用 `fetch-result-find-folder` 等到 `state=completed`。
+3. 若 `data.matchCount=1`，使用 `data.folders[0].folderPath` 作為主要 Inbox path。
+4. 若 `data.matchCount=0` 或 `data.isAmbiguous=true`，停止並回報目前無法唯一定位主要 Inbox；不要改成全域搜尋。
+
+低階 fallback 流程只用於診斷：
 
 1. `POST /api/outlook/request-folders`
 2. 用 `fetch-result-folders` 等到 `state=completed`，讀取 `data.stores` 與 `data.folders`。
@@ -107,7 +126,42 @@ Folder data 形狀範例：
 
 ## Locate Named Folders
 
-使用者指定 folder 名稱或路徑時，先定位正式 `folderPath`，不要自行組 path。
+使用者指定 folder 名稱或路徑時，優先使用 `request-find-folder` 定位正式 `folderPath`，不要自行組 path，也不要讓 caller 自己重寫每個分支的 traversal。
+
+建議流程：
+
+1. 呼叫 `POST /api/outlook/request-find-folder`：
+
+```json
+{
+  "name": "folderA",
+  "folderPath": "",
+  "folderType": "",
+  "storeId": "",
+  "includeHidden": false,
+  "maxResults": 20
+}
+```
+
+2. 用 `fetch-result-find-folder` 等到 `state=completed`。
+3. 若 `data.matchCount=1`，使用 `data.folders[0].folderPath` 作為正式 `folderPath`。
+4. 若 `data.isAmbiguous=true`，列出必要的 `folderPath` 與 store 顯示名稱，請使用者確認。
+5. 若 `data.matchCount=0`，回報目前 folder data 無法定位該 folder；不要改用 Inbox、空 scope 或自行猜測 `/Mailbox/folderA`。
+
+使用者提供完整路徑時，request body 改用：
+
+```json
+{
+  "name": "",
+  "folderPath": "/主要信箱 - User/Projects/folderA",
+  "folderType": "",
+  "storeId": "",
+  "includeHidden": false,
+  "maxResults": 20
+}
+```
+
+低階 fallback 流程只用於診斷或需要精細控制載入範圍：
 
 1. 先執行 Folder Scope 的 folder 載入流程，至少取得主要 store root 與第一層 children。
 2. 若使用者提供完整路徑，優先用 `folderPath` 做大小寫不敏感的完全比對。
@@ -180,11 +234,13 @@ Request body 範例：
 }
 ```
 
-有附件條件時設定 `hasAttachments=true`。若使用者未指定 folder，仍只查主要 mailbox 的 Inbox，並在回覆中說明範圍。
+有附件條件時設定 `hasAttachments=true`。若使用者未指定 folder，仍只查主要 mailbox 的 Inbox 與其 subfolders，並在回覆中說明範圍。
 
 ## Mail Search
 
-使用者未指定 folder 時，`scopeFolderPaths` 只放主要 mailbox 的實際 Inbox path。只有使用者明確要求其他 folder、子資料夾或全域搜尋時，才擴大 scope。
+`request-mail-search` 是 mail 操作的主要定位與篩選入口，不只是文字搜尋。當使用者用 subject、sender、日期、category、附件、已讀狀態、旗標狀態或 folder scope 描述一批 mails 時，先用 search 取得候選 metadata，再進行摘要、讀 body、更新、移動或刪除。
+
+使用者未指定 folder 時，`scopeFolderPaths` 只放主要 mailbox 的實際 Inbox path，並預設 `includeSubFolders=true`。只有使用者明確要求其他 folder 或全域搜尋時，才擴大 scope；只有使用者明確排除 subfolders 時，才把 `includeSubFolders` 設為 `false`。
 
 禁止把空陣列當作「預設 Inbox」。`scopeFolderPaths: []` 代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders；這會放大搜尋範圍。
 
@@ -214,9 +270,31 @@ Request body 重點欄位：
 
 `hasAttachments=true` 代表只找有附件；`false` 代表只找無附件；`null` 代表不限。`keyword` 可為空字串，表示只套用日期、附件、已讀、旗標等條件。
 
+常見組合：
+
+- 只用 category：`keyword=""`、`categoryNames=["待處理"]`。
+- 指定 folder 裡某 category：`scopeFolderPaths` 放該 folder 的真實 path、`includeSubFolders=true`、`categoryNames=["待處理"]`。
+- 最近兩個月有附件：`keyword=""`、`hasAttachments=true`、`receivedFrom` 設為目前時間往前兩個月。
+- 未讀且有旗標：`readState="unread"`、`flagState="flagged"`。
+- subject 或 sender 文字：`keyword` 放使用者詞彙，`textFields` 依使用者語意設為 `["subject"]`、`["sender"]` 或兩者。
+
 若 `state=failed` 且 message 或 progress 顯示 `no_searchable_folder`，先檢查 `scopeFolderPaths` 是否完全等於 folder result 中的真實 `folderPath`，並在必要時要求載入 children；不要用猜測路徑重試，也不要自行改成全域搜尋。
 
 若使用者明確要求全信箱搜尋，才可以送空 `scopeFolderPaths`；回覆時必須說明本次搜尋範圍是目前 SmartOffice API 已知的可搜尋 mail folders，而不是保證完整 Outlook mailbox。
+
+## Categories
+
+讀取 master category list：
+
+- `POST /api/outlook/request-categories`
+- `POST /api/outlook/fetch-result-categories`
+
+新增或更新 master category：
+
+- `POST /api/outlook/request-upsert-category`
+- `POST /api/outlook/fetch-result-upsert-category`
+
+Agent 必須用 Outlook `OlCategoryColor` enum name 與 numeric value 建立或更新 category；若使用者指定的顏色不在 `http-api.md` color table 中，請使用者改選，不要猜 enum。Category name 比對大小寫不敏感；若 master category list 已有同名 category，視為更新。套用 category 到 mail 時，先定位唯一 mail，再用 `request-update-mail-properties.categories`；若需要同時建立新 category，可先 `request-upsert-category` 或在 mail update request 使用 `newCategories`。
 
 ## Read Body Or Attachments
 
@@ -260,11 +338,13 @@ Request body 重點欄位：
 - `POST /api/outlook/request-move-mails`
 - `POST /api/outlook/request-delete-mail`
 
-`request-delete-mail` 代表移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不提供目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴顯示名稱或本地化名稱。若目標已經在 default Deleted Items folder 內，paired fetch result 會回 `state=failed` / `message=manual_delete_required`，此時請使用者自行到 Outlook 永久刪除。mutation 完成後用 paired fetch result 或重新送出必要 request 確認結果。
+`request-delete-mail` 代表移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不提供目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴顯示名稱或本地化名稱。完成後告知使用者 mail 已移到刪除資料夾；若使用者要永久刪除，請使用者自行到 Outlook 操作。mutation 完成後用 paired fetch result 或重新送出必要 request 確認結果。
+
+刪除 folder 前，先定位唯一 `folderPath`，再呼叫 `request-delete-folder` 並讀 `fetch-result-delete-folder`。`request-delete-folder` 也是移到 Outlook default Deleted Items folder，不是永久刪除；但若目標 folder 已經位於 default Deleted Items folder 或其子層，SmartOffice API 會阻擋並回 `message=manual_delete_required`。此時停止流程，回報使用者需要自行到 Outlook 操作。Agent 不可用 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱自行判斷是否可刪。
 
 ### Bulk Move Folder Mails
 
-當使用者要求「將 folderA 的郵件都搬到 folderB」時，預設只處理 folderA 直接包含的郵件，不包含 subfolders；只有使用者明確說「包含子資料夾」、「底下所有 folder」或「folder tree」時才包含 subfolders。不要用 `request-mails` 蒐集目標郵件，因為它是近期列表 API，受 `lookbackHours` / `maxCount` 限制。
+當使用者要求「將 folderA 的郵件都搬到 folderB」時，預設包含 folderA 底下的 subfolders；只有使用者明確說「不包含子資料夾」或「只處理這個 folder 直層郵件」時才排除 subfolders。不要用 `request-mails` 蒐集目標郵件，因為它是近期列表 API，受 `lookbackHours` / `maxCount` 限制。
 
 1. 用 Locate Named Folders 定位來源 folderA 與 destination folderB 的唯一 `folderPath`；不要自行組 path。
 2. 用 `request-folder-mails` 取得來源範圍的 mail metadata：
@@ -272,7 +352,7 @@ Request body 重點欄位：
 ```json
 {
   "folderPath": "/Mailbox - User/folderA",
-  "includeSubFolders": false,
+  "includeSubFolders": true,
   "receivedFrom": null,
   "receivedTo": null
 }
@@ -330,6 +410,46 @@ Request body 重點欄位：
 
 6. 回報進度，例如 `500/8000`、`1000/8000`。若某批失敗，停止後回報失敗批次與已完成數量；不要假裝整批成功。
 7. 全部批次完成後，重新讀必要的 folders 確認來源與目的 folder count。若需要確認目前 UI folder list，再針對相關 folder request mails。
+
+### Bulk Move Filtered Mails
+
+當使用者要求「將 folderA 的 `待處理` 類別郵件搬到 folder_staged」、「搬移最近兩個月有附件的 mails」或任何有 category、日期、附件、已讀、旗標等條件的批次搬移時，使用 `request-mail-search` 篩選，不要用 `request-folder-mails` 後自行猜條件。
+
+1. 用 Locate Named Folders 定位來源 folder 與 destination folder 的真實 `folderPath`。
+2. 用 `request-mail-search` 在來源 scope 內取得符合條件的 mail metadata：
+
+```json
+{
+  "searchId": "",
+  "storeId": "",
+  "scopeFolderPaths": ["/Mailbox - User/folderA"],
+  "includeSubFolders": true,
+  "keyword": "",
+  "textFields": ["subject"],
+  "categoryNames": ["待處理"],
+  "hasAttachments": null,
+  "flagState": "any",
+  "readState": "any",
+  "receivedFrom": null,
+  "receivedTo": null
+}
+```
+
+3. 用 `fetch-result-mail-search` loop 到 `state=completed`，只取 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
+4. 若沒有符合條件的 mails，回報找不到符合條件的郵件並停止。
+5. 將結果依最多 500 封切 batch。若結果跨 subfolders，`sourceFolderPath` 留空，`sourceFolderPaths` 放本批 mails 實際出現過的 source folder paths：
+
+```json
+{
+  "mailIds": ["id-1", "id-2"],
+  "sourceFolderPath": "",
+  "sourceFolderPaths": ["/Mailbox - User/folderA", "/Mailbox - User/folderA/Subfolder"],
+  "destinationFolderPath": "/Mailbox - User/folder_staged",
+  "continueOnError": true
+}
+```
+
+6. 每批都用 `fetch-result-move-mails` 等到 `state=completed` 後再送下一批。全部批次完成後，重新查必要的 folders 或 search 結果確認。
 
 ## Calendar
 

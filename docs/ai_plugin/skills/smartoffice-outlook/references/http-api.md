@@ -90,6 +90,7 @@ Response:
 | --- | --- | --- |
 | `POST /api/outlook/request-folders` | `POST /api/outlook/fetch-result-folders` | `stores`, `folders` |
 | `POST /api/outlook/request-folder-children` | `POST /api/outlook/fetch-result-folder-children` | `stores`, `folders` |
+| `POST /api/outlook/request-find-folder` | `POST /api/outlook/fetch-result-find-folder` | `query`, `matchCount`, `isAmbiguous`, `folders` |
 | `POST /api/outlook/request-mails` | `POST /api/outlook/fetch-result-mails` | `mails` |
 | `POST /api/outlook/request-folder-mails` | `POST /api/outlook/fetch-result-folder-mails` | `searchId`, `mails` |
 | `POST /api/outlook/request-mail-search` | `POST /api/outlook/fetch-result-mail-search` | `searchId`, `mails` |
@@ -188,6 +189,75 @@ API 會 clamp `maxDepth` 到 1-3、`maxChildren` 到 1-200，並設定 `reset=fa
 
 注意 request 欄位名稱必須是 `parentEntryId` 與 `parentFolderPath`；`entryId` 與 `folderPath` 是 folder data 欄位，不是此 endpoint 的 request 欄位。
 
+### `POST /api/outlook/request-find-folder`
+
+封裝 folder discovery 與查找。一般 caller 要取得 `folderAAA` 的正式 `folderPath` 時，優先使用這個 endpoint，不需要自行逐層呼叫 `request-folder-children`。
+
+Request:
+
+```json
+{
+  "name": "folderAAA",
+  "folderPath": "",
+  "folderType": "",
+  "storeId": "",
+  "includeHidden": false,
+  "maxResults": 20
+}
+```
+
+若 caller 已經有完整 path，可改用：
+
+```json
+{
+  "name": "",
+  "folderPath": "/主要信箱 - User/Projects/folderAAA",
+  "folderType": "",
+  "storeId": "",
+  "includeHidden": false,
+  "maxResults": 20
+}
+```
+
+若要取得主要 store 的 Inbox，可用：
+
+```json
+{
+  "name": "",
+  "folderPath": "",
+  "folderType": "Inbox",
+  "storeId": "",
+  "includeHidden": false,
+  "maxResults": 20
+}
+```
+
+`storeId` 空白且 `folderType` 有值時，SmartOffice API 只在主要 store 查找該 folder type；若要查特定 store，請填入該 store 的 `storeId`。
+
+完成後讀：
+
+```text
+POST /api/outlook/fetch-result-find-folder
+```
+
+`fetch-result-find-folder.data` 包含：
+
+- `query`: 本次查找條件。
+- `matchCount`: 符合條件的 folder 數。
+- `isAmbiguous`: `matchCount > 1` 時為 true；caller 必須請使用者確認。
+- `discoveryComplete`: Hub 是否已載入目前已知 folder tree 的 pending children。
+- `pendingDiscoveryTargets`: 仍待載入的 folder discovery target 數量。
+- `folders`: 候選 `FolderDto[]`，其 `folderPath` 是後續 API 要使用的正式 path。
+
+查找規則：
+
+- `folderPath` 有值時做大小寫不敏感完全比對。
+- `folderPath` 空白且 `folderType` 有值時，用 `folderType` 比對，例如 `Inbox`、`Deleted`、`Sent`。
+- `folderPath` 與 `folderType` 都空白時，用 `name` 做大小寫不敏感完全比對。
+- `storeId` 有值時只搜尋該 store。
+- 找不到時停止並回報，不要自行猜 path 或改用 Inbox。
+- 找到多筆同名 folder 時，列出必要的 `folderPath` 與 store 顯示名稱請使用者確認。
+
 ## Mail List / Body / Attachment Endpoints
 
 ### `POST /api/outlook/request-mails`
@@ -225,7 +295,7 @@ Request:
 POST /api/outlook/fetch-result-folder-mails
 ```
 
-`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。`includeSubFolders=true` 時，SmartOffice API 會負責規劃 folder 範圍；caller 不需要理解內部如何收集結果。
+`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。AI agent 預設應使用 `includeSubFolders=true`，讓指定 folder 底下的子資料夾也納入範圍；只有使用者明確排除 subfolders 時才設為 `false`。`includeSubFolders=true` 時，SmartOffice API 會負責規劃 folder 範圍；caller 不需要理解內部如何收集結果。
 
 ### `POST /api/outlook/request-mail-body`
 
@@ -290,6 +360,8 @@ Request:
 
 ### `POST /api/outlook/request-mail-search`
 
+`request-mail-search` 是 mail 操作的主要定位與篩選 API。Caller 可用它先取得符合條件的 `data.mails[].id` 與 `folderPath`，再進行 body 讀取、附件讀取、category 更新、move 或 delete。它不只用於文字搜尋，也用於日期、category、附件、已讀與旗標條件。
+
 Request:
 
 ```json
@@ -310,9 +382,10 @@ Request:
 ```
 
 - `scopeFolderPaths` 空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders；AI agent 不可在使用者未要求全域搜尋時送空陣列。
-- 使用者未指定 folder 時，使用主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值；此值必須取自 folder result 的 `data.folders[].folderPath`，不能硬寫英文 `Inbox`。
+- 使用者未指定 folder 時，使用主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值；此值必須取自 folder result 的 `data.folders[].folderPath`，不能硬寫英文 `Inbox`。預設 `includeSubFolders=true`，只有使用者明確排除 subfolders 時才設為 `false`。
 - 若 `state=failed` 且 message 或 progress 顯示 `no_searchable_folder`，代表指定 scope 目前無法搜尋；先重新讀 folders 並改用回傳的實際 `folderPath`。
 - `textFields`: `subject`、`sender`、`body`；API 會 normalize，不合法時回到 `subject`。
+- `categoryNames`: Outlook category names；多個值代表任一 category 符合即可。只用 category 搜尋時，讓 `keyword` 保持空字串。
 - `flagState`: `any`、`flagged`、`unflagged`。
 - `readState`: `any`、`unread`、`read`。
 - `hasAttachments`: true / false / null。若只想用「存在附件」搜尋，設定 `hasAttachments=true` 並讓 `keyword` 保持空字串。
@@ -345,6 +418,25 @@ Agent 預設 request 範例應像這樣指定單一 Inbox path：
 ```
 
 使用空 scope 時，回覆使用者必須說明範圍是「目前 SmartOffice API 已知的可搜尋 mail folders」，不是保證完整 Outlook mailbox。
+
+常用 request 型態：
+
+```json
+{
+  "scopeFolderPaths": ["/主要信箱 - User/folderA"],
+  "includeSubFolders": true,
+  "keyword": "",
+  "textFields": ["subject"],
+  "categoryNames": ["待處理"],
+  "hasAttachments": null,
+  "flagState": "any",
+  "readState": "any",
+  "receivedFrom": null,
+  "receivedTo": null
+}
+```
+
+上述代表在 folderA 與其 subfolders 中搜尋 category 為 `待處理` 的 mails，可接續用 `request-move-mails` 做批次搬移。
 
 Progress：
 
@@ -405,6 +497,8 @@ Result：
 }
 ```
 
+Agent 處理 category 時應先用 `request-categories` / `fetch-result-categories` 讀取 master category list。Category name 比對大小寫不敏感；若已有同名 category，`request-upsert-category` 視為更新該 category。使用者指定顏色不在上表時，請使用者改選，不要猜 `OlCategoryColor` enum 或 numeric value。套用 category 到 mail 前，必須先從 mail fetch result 定位唯一 `mailId` 與同筆 mail 的 `folderPath`。
+
 ## Mail / Folder Mutations
 
 ### `POST /api/outlook/request-update-mail-properties`
@@ -445,7 +539,7 @@ Request:
 }
 ```
 
-語意是將 folder 移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不接受目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱。若目標已經在 default Deleted Items folder 內，paired fetch result 會回 `state=failed`，`message=manual_delete_required`；請使用者自行到 Outlook 永久刪除。
+語意是將 folder 移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不接受目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱。完成後告知使用者 folder 已移到刪除資料夾。若目標 folder 已經位於 default Deleted Items folder 或其子層，paired fetch result 會回 `state=failed` / `message=manual_delete_required`；agent 必須停止，並請使用者自行到 Outlook 操作。
 
 ### `POST /api/outlook/request-move-mail`
 
@@ -490,7 +584,7 @@ Request:
 }
 ```
 
-語意是移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不接受 `destinationFolderPath`；AddIn 必須用 Outlook default folder identity 定位目的 folder，不得用 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱猜測。若目標已經在 default Deleted Items folder 內，paired fetch result 會回 `state=failed`，`message=manual_delete_required`；請使用者自行到 Outlook 永久刪除。
+語意是移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不接受 `destinationFolderPath`；AddIn 必須用 Outlook default folder identity 定位目的 folder，不得用 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱猜測。完成後告知使用者 mail 已移到刪除資料夾；若使用者要永久刪除，請使用者自行到 Outlook 操作。
 
 ## Chat
 

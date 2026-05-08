@@ -8,8 +8,8 @@
 
 - 每個 `request-*` 後必須解析 `requestId`、`request`、`state`、`message`、`data`。
 - 每個 Outlook operation 必須呼叫 paired `fetch-result-*` 到 `state=completed`，或在 `failed`、`unavailable`、`timeout` 時停止並回報。
-- 回覆使用者時必須說明 folder scope，例如主要 Inbox、指定 folder、包含或不包含 subfolders、目前已載入的可搜尋 folders。
-- 未指定 folder 時，預設只查主要 mailbox 的 Inbox，不可改成全信箱或空 `scopeFolderPaths`。
+- 回覆使用者時必須說明 folder scope，例如主要 Inbox、指定 folder、預設包含 subfolders 或使用者明確排除 subfolders、目前已載入的可搜尋 folders。
+- 未指定 folder 時，預設查主要 mailbox 的 Inbox 與其 subfolders，不可改成全信箱或空 `scopeFolderPaths`。
 - 所有 `folderPath` 必須來自 folder fetch result，不可自行組路徑。
 - 所有 mail mutation 必須使用 `data.mails[].id` 作為 `mailId`，且 `folderPath` 必須來自同一筆 mail。
 - 對 subject、sender、folder name 或 category name 有多個候選時，必須列出必要 metadata 請使用者確認，不可任選。
@@ -28,6 +28,11 @@
 
 ## Folder Scope
 
+- [ ] 封裝查找：使用者要求拿 `folderAAA` 或指定 folder 名稱時，優先使用 `request-find-folder` -> `fetch-result-find-folder`，不可讓 caller 自行組 path。
+- [ ] Find folder 唯一：`matchCount=1` 時使用 `data.folders[0].folderPath` 作為後續 API scope。
+- [ ] Find Inbox：未指定 folder 時，優先用 `request-find-folder` with `folderType="Inbox"`、`storeId=""` 定位主要 store Inbox，不硬寫 `Inbox` 或 localized name。
+- [ ] Find folder 同名：`isAmbiguous=true` 時列出必要路徑與 store 顯示名稱請使用者確認。
+- [ ] Find folder 找不到：`matchCount=0` 時停止並回報，不改用 Inbox、空 scope 或猜測 path。
 - [ ] 未指定 folder：載入 folders，定位主要 store root，再展開 children 找主要 Inbox。
 - [ ] 中文 Inbox：能用 `folderType="Inbox"` 找到 `/主要信箱 - User/收件匣`，不硬寫英文 Inbox。
 - [ ] Root children 未載入：看到 `childrenLoaded=false` 時呼叫 `request-folder-children`。
@@ -37,7 +42,8 @@
 - [ ] 找不到 folder：停止並回報無法定位，不改用 Inbox、空 scope 或猜測路徑。
 - [ ] 目的 folder 與來源 folder 相同：移動任務停止並回報。
 - [ ] 使用者要求包含 subfolders：`request-folder-mails.includeSubFolders=true`。
-- [ ] 使用者未提 subfolders：`request-folder-mails.includeSubFolders=false`。
+- [ ] 使用者未提 subfolders：`request-folder-mails.includeSubFolders=true`，並在回覆中說明預設包含 subfolders。
+- [ ] 使用者明確排除 subfolders：`request-folder-mails.includeSubFolders=false`。
 
 ## Mail List / Date Lookup
 
@@ -53,19 +59,22 @@
 
 ## Mail Search
 
+- [ ] Search-first workflow：當使用者用 subject、sender、日期、category、附件、已讀、旗標或 folder scope 描述目標 mails 時，先用 `request-mail-search` 取得候選 metadata，再讀 body 或 mutation。
 - [ ] Subject 搜尋：`keyword` 放使用者詞彙，`textFields=["subject"]`。
 - [ ] Sender 搜尋：`textFields=["sender"]`，結果摘要用 `sender.displayName`，避免暴露 raw address。
 - [ ] Body 搜尋：只有使用者明確要求內文關鍵字判讀時才用 `textFields=["body"]`。
 - [ ] 全信箱搜尋：只有使用者明確要求全信箱或所有已載入 mail folders 時，才送 `scopeFolderPaths=[]`。
 - [ ] 全信箱搜尋回覆：必須說明範圍是目前 SmartOffice API 已知的可搜尋 mail folders，不保證完整 Outlook mailbox。
-- [ ] 指定 folder 搜尋：`scopeFolderPaths` 放該 folder 的真實 `folderPath`。
+- [ ] 指定 folder 搜尋：`scopeFolderPaths` 放該 folder 的真實 `folderPath`，預設 `includeSubFolders=true`。
 - [ ] 指定 folder + subfolders 搜尋：`includeSubFolders=true`。
+- [ ] 指定 folder 且明確不含 subfolders 搜尋：`includeSubFolders=false`。
 - [ ] 有附件搜尋：`hasAttachments=true`，`keyword` 可空。
 - [ ] 無附件搜尋：`hasAttachments=false`。
 - [ ] 未讀搜尋：`readState="unread"`。
 - [ ] 已讀搜尋：`readState="read"`。
 - [ ] 旗標搜尋：`flagState="flagged"`。
 - [ ] 分類搜尋：`categoryNames` 放使用者指定 category；多個 category 任一符合即可。
+- [ ] 條件式批次搬移：例如「將 folderA 的 `待處理` 類別郵件搬到 folder_staged」時，用 `request-mail-search` 搭配 source `scopeFolderPaths`、`includeSubFolders=true`、`categoryNames=["待處理"]` 取得 mail ids，再分批 `request-move-mails`。
 - [ ] `no_searchable_folder`：重新檢查 folder path 是否來自 folder result，不自行改成全域搜尋。
 
 ## Mail Body
@@ -107,17 +116,18 @@
 - [ ] 批次移動 mails：使用 `request-move-mails`，單批最多 500。
 - [ ] 批次移動 500 以上：分批送 request，每批完成後再送下一批。
 - [ ] 批次部分失敗：停止並回報已完成數與失敗批次，不假裝全部成功。
-- [ ] 刪除 mail：只使用 `request-delete-mail`，語意是移到 Outlook default Deleted Items folder。
-- [ ] 刪除 Deleted Items 內 mail：fetch result `message=manual_delete_required` 時要求使用者自行到 Outlook 永久刪除。
+- [ ] 刪除 mail：只使用 `request-delete-mail`，語意是移到 Outlook default Deleted Items folder；完成後告知使用者已移到刪除資料夾，不代表永久刪除。
+- [ ] 使用者要求永久刪除 mail：回覆 SmartOffice API 不做永久刪除，若要永久刪除請使用者自行到 Outlook 操作。
 - [ ] 以 subject 刪除 mail：先 subject search，再精準比對唯一 mail；多封時要求確認。
 - [ ] Mutation 後確認：用 paired fetch result 或重新送出必要 request 確認結果。
 
 ## Folder Mutations
 
 - [ ] 建立 folder：先定位 parent folder path，再 `request-create-folder`。
-- [ ] 刪除 folder：先定位唯一 folder path，再 `request-delete-folder`，語意是 soft delete。
-- [ ] 刪除系統 folder：若目標是 store root、system、hidden 或 default Deleted Items，停止或回報失敗。
-- [ ] Folder delete 後確認：讀 folder result 確認 parent / Deleted Items count 或 folder tree。
+- [ ] 刪除 folder：先定位唯一 folder path，再 `request-delete-folder`，語意是移到 Outlook default Deleted Items folder；完成後告知使用者已移到刪除資料夾，不代表永久刪除。
+- [ ] 刪除 Deleted Items 內 folder：fetch result `message=manual_delete_required` 時停止，回報 SmartOffice API 會阻擋此操作；若要永久刪除請使用者自行到 Outlook 操作。
+- [ ] 使用者要求永久刪除 folder：回覆 SmartOffice API 不做永久刪除，若要永久刪除請使用者自行到 Outlook 操作。
+- [ ] Folder delete 後確認：讀 folder result 確認 folder tree 或刪除資料夾相關結果。
 - [ ] 建立同名 folder：若 API / AddIn 回失敗，回報原因，不自行改名。
 
 ## Calendar / Rules / Chat

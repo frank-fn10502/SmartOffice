@@ -175,6 +175,46 @@ namespace SmartOffice.Hub.Controllers
             return Ok(OperationAccepted(command));
         }
 
+        /// <summary>
+        /// Web UI、AI 或 MCP client 要求 Hub 封裝 folder tree discovery，並回傳符合名稱或 path 的 folder 候選。
+        /// </summary>
+        [HttpPost("request-find-folder")]
+        public IActionResult RequestFindFolder([FromBody] FindFolderRequest req, CancellationToken ct)
+        {
+            req ??= new FindFolderRequest();
+            req.FolderPath = OutlookFolderPathMapper.ToAddinPath(req.FolderPath);
+            req.MaxResults = Math.Clamp(req.MaxResults <= 0 ? 20 : req.MaxResults, 1, 100);
+
+            if (string.IsNullOrWhiteSpace(req.Name)
+                && string.IsNullOrWhiteSpace(req.FolderPath)
+                && string.IsNullOrWhiteSpace(req.FolderType))
+            {
+                return BadRequest(new
+                {
+                    status = "missing_folder_query",
+                    message = "name, folderPath, or folderType is required."
+                });
+            }
+
+            var command = new PendingCommand
+            {
+                Type = "find_folder",
+                FindFolderRequest = req,
+            };
+            _commandResults.RecordDispatched(command);
+            _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
+                operationCt => RequestFindFolderQueuedAsync(command, operationCt),
+                CancellationToken.None));
+            return Ok(OperationAccepted(command, new
+            {
+                name = req.Name,
+                folderPath = OutlookFolderPathMapper.ToApiPath(req.FolderPath),
+                folderType = req.FolderType,
+                storeId = req.StoreId,
+                maxResults = req.MaxResults,
+            }));
+        }
+
         private async Task<IActionResult> RequestFolderChildrenQueuedAsync(PendingCommand command, FolderDiscoveryRequest req, CancellationToken ct)
         {
             var result = await _commandQueue.ExecuteQueuedCommandAsync(
@@ -207,6 +247,19 @@ namespace SmartOffice.Hub.Controllers
                 },
             };
             return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
+        }
+
+        private async Task<bool> RequestFindFolderQueuedAsync(PendingCommand command, CancellationToken ct)
+        {
+            var success = await _folderCache.EnsureFolderCacheAsync(command, ct, loadPendingChildren: true);
+            _commandResults.RecordResult(new OutlookCommandResult
+            {
+                CommandId = command.Id,
+                Success = success,
+                Message = success ? "completed" : "folder_cache_unavailable",
+                Timestamp = DateTime.Now,
+            });
+            return success;
         }
 
         /// <summary>
@@ -361,8 +414,7 @@ namespace SmartOffice.Hub.Controllers
                     return false;
                 }
 
-                var manualDelete = ManualDeleteRequired(cmd);
-                if (manualDelete is not null)
+                if (IsBlockedFolderDelete(cmd))
                 {
                     _commandResults.RecordResult(new OutlookCommandResult
                     {
@@ -439,22 +491,37 @@ namespace SmartOffice.Hub.Controllers
             return (request, null);
         }
 
-        private IActionResult? ManualDeleteRequired(PendingCommand cmd)
+        private bool IsBlockedFolderDelete(PendingCommand cmd)
         {
-            var folderPath = cmd.Type switch
-            {
-                "delete_folder" => cmd.DeleteFolderRequest?.FolderPath,
-                "delete_mail" => cmd.DeleteMailRequest?.FolderPath,
-                _ => null,
-            };
+            if (!string.Equals(cmd.Type, "delete_folder", StringComparison.OrdinalIgnoreCase)) return false;
+            var folderPath = cmd.DeleteFolderRequest?.FolderPath;
+            return !string.IsNullOrWhiteSpace(folderPath) && IsInDefaultDeletedItems(folderPath);
+        }
 
-            if (string.IsNullOrWhiteSpace(folderPath) || !IsInDefaultDeletedItems(folderPath)) return null;
+        private bool IsInDefaultDeletedItems(string folderPath)
+        {
+            var addinPath = OutlookFolderPathMapper.ToAddinPath(folderPath);
+            if (string.IsNullOrWhiteSpace(addinPath)) return false;
 
-            return Conflict(ResultEnvelope(
-                cmd.Id,
-                cmd.Type,
-                "manual_delete_required",
-                "SmartOffice API 不會永久刪除 Outlook 郵件或 folder。目標已在 Outlook default Deleted Items folder 內；若要永久刪除，請使用者自行到 Outlook 操作。"));
+            var folders = _mailStore.GetFolderSnapshot().Folders;
+            var target = folders.FirstOrDefault(folder =>
+                string.Equals(folder.FolderPath, addinPath, StringComparison.OrdinalIgnoreCase));
+            var storeId = target?.StoreId ?? folders.FirstOrDefault(folder =>
+                !folder.IsStoreRoot
+                && addinPath.StartsWith($"{folder.FolderPath}\\", StringComparison.OrdinalIgnoreCase))?.StoreId;
+
+            var deletedFolder = folders.FirstOrDefault(folder =>
+                folder.FolderType == OutlookFolderType.Deleted
+                && (
+                    string.IsNullOrWhiteSpace(storeId)
+                    || string.Equals(folder.StoreId, storeId, StringComparison.OrdinalIgnoreCase)
+                )
+                && (
+                    string.Equals(addinPath, folder.FolderPath, StringComparison.OrdinalIgnoreCase)
+                    || addinPath.StartsWith($"{folder.FolderPath}\\", StringComparison.OrdinalIgnoreCase)
+                ));
+
+            return deletedFolder is not null;
         }
 
         /// <summary>
@@ -463,13 +530,19 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("fetch-result-folders")]
         public IActionResult FetchResultFolders([FromBody] FetchResultRequest req)
         {
-            return FetchResult(req, "fetch_folder_roots", "fetch_folder_children");
+            return FetchResult(req, "fetch_folder_roots");
         }
 
         [HttpPost("fetch-result-folder-children")]
         public IActionResult FetchResultFolderChildren([FromBody] FetchResultRequest req)
         {
             return FetchResult(req, "fetch_folder_children");
+        }
+
+        [HttpPost("fetch-result-find-folder")]
+        public IActionResult FetchResultFindFolder([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "find_folder");
         }
 
         [HttpPost("fetch-result-mails")]
@@ -505,7 +578,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("fetch-result-categories")]
         public IActionResult FetchResultCategories([FromBody] FetchResultRequest req)
         {
-            return FetchResult(req, "fetch_categories", "upsert_category");
+            return FetchResult(req, "fetch_categories");
         }
 
         [HttpPost("fetch-result-signalr-ping")]
@@ -604,6 +677,30 @@ namespace SmartOffice.Hub.Controllers
                     var page = Page(snapshot.Folders, offset, take);
                     return (new { stores = snapshot.Stores, folders = page.Items }, page.Next);
                 }
+                case "find_folder":
+                {
+                    var snapshot = OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot());
+                    var matches = FindFolderMatches(snapshot.Stores, snapshot.Folders, command?.FindFolderRequest);
+                    var requestedMaxResults = command?.FindFolderRequest?.MaxResults ?? 20;
+                    var maxResults = Math.Clamp(requestedMaxResults <= 0 ? 20 : requestedMaxResults, 1, 100);
+                    var page = Page(matches.Take(maxResults).ToList(), offset, take);
+                    var pendingDiscoveryTargets = _mailStore.GetPendingFolderDiscoveryTargets().Count;
+                    return (new
+                    {
+                        query = new
+                        {
+                            name = command?.FindFolderRequest?.Name ?? string.Empty,
+                            folderPath = OutlookFolderPathMapper.ToApiPath(command?.FindFolderRequest?.FolderPath ?? string.Empty),
+                            folderType = command?.FindFolderRequest?.FolderType ?? string.Empty,
+                            storeId = command?.FindFolderRequest?.StoreId ?? string.Empty,
+                        },
+                        matchCount = matches.Count,
+                        isAmbiguous = matches.Count > 1,
+                        discoveryComplete = pendingDiscoveryTargets == 0,
+                        pendingDiscoveryTargets,
+                        folders = page.Items,
+                    }, page.Next);
+                }
                 case "fetch_mails":
                 case "fetch_mail_body":
                 case "update_mail_properties":
@@ -674,6 +771,7 @@ namespace SmartOffice.Hub.Controllers
             {
                 "fetch_folder_roots" => "request-folders",
                 "fetch_folder_children" => "request-folder-children",
+                "find_folder" => "request-find-folder",
                 "fetch_mails" => "request-mails",
                 "fetch_mail_body" => "request-mail-body",
                 "fetch_mail_attachments" => "request-mail-attachments",
@@ -693,32 +791,6 @@ namespace SmartOffice.Hub.Controllers
             };
         }
 
-        private bool IsInDefaultDeletedItems(string folderPath)
-        {
-            var addinPath = OutlookFolderPathMapper.ToAddinPath(folderPath);
-            if (string.IsNullOrWhiteSpace(addinPath)) return false;
-
-            var folders = _mailStore.GetFolderSnapshot().Folders;
-            var target = folders.FirstOrDefault(folder =>
-                string.Equals(folder.FolderPath, addinPath, StringComparison.OrdinalIgnoreCase));
-            var storeId = target?.StoreId ?? folders.FirstOrDefault(folder =>
-                !folder.IsStoreRoot
-                && addinPath.StartsWith($"{folder.FolderPath}\\", StringComparison.OrdinalIgnoreCase))?.StoreId;
-
-            var deletedFolder = folders.FirstOrDefault(folder =>
-                folder.FolderType == OutlookFolderType.Deleted
-                && (
-                    string.IsNullOrWhiteSpace(storeId)
-                    || string.Equals(folder.StoreId, storeId, StringComparison.OrdinalIgnoreCase)
-                )
-                && (
-                    string.Equals(addinPath, folder.FolderPath, StringComparison.OrdinalIgnoreCase)
-                    || addinPath.StartsWith($"{folder.FolderPath}\\", StringComparison.OrdinalIgnoreCase)
-                ));
-
-            return deletedFolder is not null;
-        }
-
         private static bool RequiresFolderCache(PendingCommand cmd)
         {
             return cmd.Type is
@@ -732,6 +804,34 @@ namespace SmartOffice.Hub.Controllers
                 or "move_mail"
                 or "move_mails"
                 or "delete_mail";
+        }
+
+        private static List<FolderDto> FindFolderMatches(List<OutlookStoreDto> stores, List<FolderDto> folders, FindFolderRequest? request)
+        {
+            request ??= new FindFolderRequest();
+            var folderPath = OutlookFolderPathMapper.ToApiPath(request.FolderPath);
+            var byPath = !string.IsNullOrWhiteSpace(folderPath);
+            var name = request.Name.Trim();
+            var folderType = OutlookFolderType.Unknown;
+            var byFolderType = !string.IsNullOrWhiteSpace(request.FolderType)
+                && Enum.TryParse<OutlookFolderType>(request.FolderType, ignoreCase: true, out folderType);
+            var primaryStoreId = stores.FirstOrDefault()?.StoreId ?? string.Empty;
+            var storeId = request.StoreId;
+            if (byFolderType && string.IsNullOrWhiteSpace(storeId))
+                storeId = primaryStoreId;
+
+            return folders
+                .Where(folder => request.IncludeHidden || !folder.IsHidden)
+                .Where(folder => string.IsNullOrWhiteSpace(storeId)
+                    || string.Equals(folder.StoreId, storeId, StringComparison.OrdinalIgnoreCase))
+                .Where(folder => byPath
+                    ? string.Equals(folder.FolderPath, folderPath, StringComparison.OrdinalIgnoreCase)
+                    : byFolderType
+                        ? folder.FolderType == folderType
+                        : string.Equals(folder.Name, name, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(folder => folder.StoreId)
+                .ThenBy(folder => folder.FolderPath)
+                .ToList();
         }
 
         private Func<bool>? DataReadyPredicate(PendingCommand cmd)

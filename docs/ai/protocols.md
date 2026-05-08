@@ -54,7 +54,7 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `POST /api/outlook/request-move-mail`：建立移動單封郵件 operation。
 - `POST /api/outlook/request-move-mails`：建立移動多封郵件 operation；`mailIds` 必須來自 Hub data endpoint，單次最多 500 封，AddIn 逐封移動並回報結果。
 - `POST /api/outlook/request-delete-mail`：建立 `delete_mail` operation；AddIn 必須實作為移到 Outlook default Deleted Items folder，不可永久刪除，也不可用顯示名稱或本地化名稱猜目的 folder。
-- 若 `request-delete-mail` 或 `request-delete-folder` 的目標已經位於 Outlook default Deleted Items folder 或其子層，HTTP API 應回 `409 manual_delete_required` 與說明文字；使用者必須自行到 Outlook 永久刪除。
+- 若 `request-delete-folder` 的目標已經位於 Outlook default Deleted Items folder 或其子層，HTTP API 應回 `manual_delete_required` 與說明文字；使用者必須自行到 Outlook 永久刪除。`request-delete-mail` 仍只代表移到 default Deleted Items folder，不要求 Hub 以 folder 顯示名稱或本地化名稱阻擋。
 - `GET /api/outlook/folders`：讀取 folder data，格式是 `FolderSnapshotDto`。
 - `GET /api/outlook/mails`：讀取 recent mail list data。
 - `GET /api/outlook/folder-mails`：讀取上次 folder mail request 的 results。

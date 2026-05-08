@@ -88,9 +88,19 @@ namespace SmartOffice.Hub.Models
     public class FolderMailsRequest
     {
         public string FolderPath { get; set; } = string.Empty;
-        public bool IncludeSubFolders { get; set; } = false;
+        public bool IncludeSubFolders { get; set; } = true;
         public DateTime? ReceivedFrom { get; set; }
         public DateTime? ReceivedTo { get; set; }
+    }
+
+    public class FindFolderRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public string FolderType { get; set; } = string.Empty;
+        public string StoreId { get; set; } = string.Empty;
+        public bool IncludeHidden { get; set; }
+        public int MaxResults { get; set; } = 20;
     }
 
     public class OpenExportedAttachmentResponse

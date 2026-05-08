@@ -25,6 +25,12 @@ namespace SmartOffice.Hub.Swagger
                 "建立載入單一 folder children 的 operation。HTTP API 的 folder path 使用 `/主要信箱 - User/Inbox`。`parentEntryId` 優先，`parentFolderPath` 可作為 fallback；SmartOffice API 會限制 `maxDepth` 1-3、`maxChildren` 1-200。",
                 typeof(OutlookRequestResponse),
                 FolderChildrenExample()),
+            ["POST api/outlook/request-find-folder"] = new(
+                "Outlook Operations",
+                "查找 Outlook folder",
+                "封裝 folder discovery：SmartOffice API 會載入 folder roots 與尚未載入的 children，再用 `folderPath` 完全比對或用 `name` 比對候選 folders。完成後用 `paired POST /api/outlook/fetch-result-find-folder` 讀 `data.matchCount`、`data.isAmbiguous` 與 `data.folders`。若回多筆候選，caller 必須請使用者確認。",
+                typeof(OutlookRequestResponse),
+                FindFolderExample()),
             ["POST api/outlook/request-mails"] = new(
                 "Outlook Operations",
                 "要求指定 folder 的郵件列表",
@@ -46,7 +52,7 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-export-mail-attachment"] = new(
                 "Attachments",
                 "要求匯出郵件附件",
-                "建立匯出 attachment 的 operation。`exportRootPath` 可留空，SmartOffice API 會使用目前 attachment export settings。完成後使用 `exportedAttachmentId` 呼叫 `open-exported-attachment`。",
+                "建立匯出 attachment 的 operation。`exportRootPath` 可留空，SmartOffice API 會使用目前 attachment export settings。`fetch-result-export-mail-attachment` 目前不直接回傳 `exportedAttachmentId`；完成後請重新讀同一封 mail 的 attachment metadata，再用已記錄的 `exportedAttachmentId` 呼叫 `open-exported-attachment`。",
                 typeof(OutlookRequestResponse),
                 ExportAttachmentExample()),
             ["POST api/outlook/open-exported-attachment"] = new(
@@ -108,7 +114,7 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-delete-folder"] = new(
                 "Outlook Operations",
                 "移動 Outlook folder 到刪除資料夾",
-                "要求 AddIn 將指定 folder 移到 Outlook default Deleted Items folder；不得永久刪除。若目標已在 Deleted Items 內，paired fetch result 會回 `state=failed` / `message=manual_delete_required`，請使用者自行到 Outlook 刪除。呼叫前請確認 folder path 來自 folder fetch result。",
+                "要求 AddIn 將指定 folder 移到 Outlook default Deleted Items folder；不得永久刪除。若目標已在 default Deleted Items folder 或其子層，paired fetch result 會回 `state=failed` / `message=manual_delete_required`，請使用者自行到 Outlook 操作。呼叫前請確認 folder path 來自 folder fetch result。",
                 typeof(OutlookRequestResponse),
                 DeleteFolderExample()),
             ["POST api/outlook/request-move-mail"] = new(
@@ -126,17 +132,21 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-delete-mail"] = new(
                 "Outlook Operations",
                 "刪除單封郵件",
-                "要求 AddIn 將 mail 移到 Outlook default Deleted Items folder，不會永久刪除。若目標已在 Deleted Items 內，paired fetch result 會回 `state=failed` / `message=manual_delete_required`，請使用者自行到 Outlook 刪除。完成後用 `paired fetch-result-* endpoint` 或重新送出必要 request 確認結果。",
+                "要求 AddIn 將 mail 移到 Outlook default Deleted Items folder，不會永久刪除。完成後告知使用者 mail 已移到刪除資料夾；若要永久刪除，請使用者自行到 Outlook 操作。完成後用 `paired fetch-result-* endpoint` 或重新送出必要 request 確認結果。",
                 typeof(OutlookRequestResponse),
                 DeleteMailExample()),
             ["POST api/outlook/fetch-result-folders"] = FetchResultDocs(
                 "Fetch Results",
                 "取得 folders request 結果",
-                "查詢 `request-folders` 或 `request-folder-children` 的狀態與分頁資料。`data` 包含 `stores` 與 `folders`。"),
+                "查詢 `request-folders` 的狀態與分頁資料。`data` 包含 `stores` 與 root `folders`。若要查 `request-folder-children`，請使用 `fetch-result-folder-children`。"),
             ["POST api/outlook/fetch-result-folder-children"] = FetchResultDocs(
                 "Fetch Results",
                 "取得 folder children request 結果",
                 "查詢 `request-folder-children` 的狀態與分頁資料。`data` 包含 `stores` 與 `folders`。"),
+            ["POST api/outlook/fetch-result-find-folder"] = FetchResultDocs(
+                "Fetch Results",
+                "取得 find folder 結果",
+                "查詢 `request-find-folder` 的狀態與分頁資料。`data` 包含 `query`、`matchCount`、`isAmbiguous`、`discoveryComplete`、`pendingDiscoveryTargets` 與候選 `folders`。"),
             ["POST api/outlook/fetch-result-mails"] = FetchResultDocs(
                 "Fetch Results",
                 "取得 mails request 結果",
@@ -203,6 +213,12 @@ namespace SmartOffice.Hub.Swagger
                 "SmartOffice API 會先確保 folder data，展開 store/folder scope，再分成單 folder slices 送給 AddIn。使用 `paired fetch-result-* data` 查進度，完成或累積結果後讀取 `paired fetch-result-* data`。",
                 typeof(OutlookRequestResponse),
                 MailSearchExample()),
+            ["POST api/outlook/request-folder-mails"] = new(
+                "Mail Search",
+                "列出指定 folder 範圍的 mails",
+                "列出指定 `folderPath` 範圍內的 mail metadata，適合批次搬移或統計前枚舉 ids。`folderPath` 必須來自 folder fetch result。`includeSubFolders` 預設為 `true`；只有使用者明確排除 subfolders 時才設為 `false`。完成後用 `paired POST /api/outlook/fetch-result-folder-mails` 讀 `data.searchId` 與 `data.mails`。",
+                typeof(OutlookRequestResponse),
+                FolderMailsExample()),
             ["POST api/outlook/fetch-result-mail-search"] = FetchResultDocs(
                 "Mail Search",
                 "取得 mail search 結果",
@@ -353,6 +369,16 @@ namespace SmartOffice.Hub.Swagger
             ["maxCount"] = new OpenApiInteger(30),
         };
 
+        private static OpenApiObject FindFolderExample() => new()
+        {
+            ["name"] = new OpenApiString("folderAAA"),
+            ["folderPath"] = new OpenApiString(""),
+            ["folderType"] = new OpenApiString(""),
+            ["storeId"] = new OpenApiString(""),
+            ["includeHidden"] = new OpenApiBoolean(false),
+            ["maxResults"] = new OpenApiInteger(20),
+        };
+
         private static OpenApiObject MailIdentityExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
@@ -487,6 +513,14 @@ namespace SmartOffice.Hub.Swagger
             ["readState"] = new OpenApiString("unread"),
             ["receivedFrom"] = new OpenApiString("2026-05-01T00:00:00+08:00"),
             ["receivedTo"] = new OpenApiString("2026-05-04T23:59:59+08:00"),
+        };
+
+        private static OpenApiObject FolderMailsExample() => new()
+        {
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/Projects/folderA"),
+            ["includeSubFolders"] = new OpenApiBoolean(true),
+            ["receivedFrom"] = new OpenApiNull(),
+            ["receivedTo"] = new OpenApiNull(),
         };
 
         private static OpenApiObject ChatExample() => new()
