@@ -81,34 +81,32 @@ export interface FolderSyncCompleteDto {
   timestamp: string
 }
 
-export interface CommandDispatchResponse {
-  operationId: string
-  commandId: string
-  status: 'mocked' | 'dispatched' | 'addin_unavailable' | string
+export interface OutlookRequestResponse<TData = Record<string, unknown>> {
+  requestId: string
+  request: string
+  state: 'accepted' | 'running' | 'completed' | 'failed' | 'unavailable' | 'timeout' | string
+  message?: string
+  data: TData
 }
 
-export interface OperationStateRequest {
-  operationId: string
+export interface FetchResultRequest {
+  requestId: string
   cursor?: string
   take?: number
-  includeItems?: boolean
-  includeProgress?: boolean
 }
 
-export interface OperationStateResponse<T = unknown> {
-  operationId: string
-  operation: string
-  status: string
-  success?: boolean
-  message: string
-  progress?: unknown
-  metadata?: unknown
-  items: T[]
-  nextCursor: string
+export interface FetchResultNext {
+  cursor: string
   hasMore: boolean
-  complete: boolean
-  returnedCount: number
-  totalCount: number
+}
+
+export interface FetchResultResponse<TData = Record<string, unknown>> {
+  requestId: string
+  request: string
+  state: 'accepted' | 'running' | 'completed' | 'failed' | 'unavailable' | 'timeout' | string
+  message: string
+  next: FetchResultNext
+  data: TData
 }
 
 export interface FolderDiscoveryRequest {

@@ -4,6 +4,7 @@ import * as signalR from '@microsoft/signalr'
 import {
   normalizeMailAttachments,
   normalizeMailItems,
+  normalizeMailSearchProgress,
   normalizeOutlookCategories,
   outlookApi,
 } from '../api/outlook'
@@ -131,7 +132,7 @@ export function useOutlookDashboard() {
   const loadingCategories = ref(true)
   const loadingCalendar = ref(false)
   const loadingSignalRPing = ref(false)
-  const operationLoading = ref(false)
+  const requestLoading = ref(false)
   const outlookFirstLoadCompleted = ref(false)
   const mailPropertiesDraft = ref<MailPropertiesDraft>({
     isRead: false,
@@ -165,8 +166,8 @@ export function useOutlookDashboard() {
   let initialMailsFetchCompleted = false
   let initialCategoriesFetchCompleted = false
   let startupSyncStarted = false
-  let activeOperationCommandId = ''
-  let operationTimeoutId = 0
+  let activeRequestId = ''
+  let requestTimeoutId = 0
   let mailFetchTimeoutId = 0
   let mailFetchCountdownIntervalId = 0
   let lastSelectedMailIndex = -1
@@ -241,7 +242,7 @@ export function useOutlookDashboard() {
   const hiddenMasterCategoryCount = computed(() => Math.max(0, categories.value.length - visibleMasterCategories.value.length))
 
   const outlookBusy = computed(() => {
-    return loadingFolders.value || loadingMails.value || loadingRules.value || loadingCategories.value || loadingCalendar.value || operationLoading.value
+    return loadingFolders.value || loadingMails.value || loadingRules.value || loadingCategories.value || loadingCalendar.value || requestLoading.value
   })
 
   const outlookBusyText = computed(() => {
@@ -250,7 +251,7 @@ export function useOutlookDashboard() {
     if (loadingRules.value) return 'Outlook rule 同步中...'
     if (loadingCategories.value) return 'Outlook category 同步中...'
     if (loadingCalendar.value) return 'Outlook calendar 同步中...'
-    if (operationLoading.value) return 'Outlook 操作執行中...'
+    if (requestLoading.value) return 'Outlook 操作執行中...'
     return ''
   })
 
@@ -638,12 +639,12 @@ function categoryTagStyle(name: string) {
     loadingFolders.value = true
     try {
       const response = await outlookApi.requestFolders()
-      await waitForOperation(response)
+      await waitForRequest(response)
       await loadCachedFolders()
       initialFoldersFetchCompleted = true
       updateOutlookFirstLoadCompleted()
       loadingFolders.value = false
-      operationLoading.value = false
+      requestLoading.value = false
     } catch {
       initialFoldersFetchCompleted = true
       updateOutlookFirstLoadCompleted()
@@ -692,7 +693,7 @@ function categoryTagStyle(name: string) {
         maxDepth: 1,
         maxChildren: 50,
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       await loadCachedFolders({ preserveExistingCounts: true })
     } finally {
       loadingFolders.value = false
@@ -740,7 +741,7 @@ function categoryTagStyle(name: string) {
             maxDepth: 1,
             maxChildren: 50,
           })
-          await waitForOperation(response)
+          await waitForRequest(response)
           await loadCachedFolders({ preserveExistingCounts: true })
         } finally {
           loadingFolders.value = false
@@ -821,21 +822,20 @@ function categoryTagStyle(name: string) {
     setMailSearchResults(await outlookApi.getMailSearchResults())
   }
 
-  async function loadOperationMailItems(response: { operationId?: string; commandId?: string }) {
-    const operationId = operationIdFromDispatch(response)
+  async function loadRequestMailItems(response: { requestId?: string; request?: string }) {
+    const requestId = requestIdFromResponse(response)
+    const endpoint = fetchResultEndpoint(response)
     const items: MailItemDto[] = []
     let cursor = ''
     do {
-      const state = await outlookApi.getOperationState({
-        operationId,
+      const state = await outlookApi.fetchResult<{ mails?: unknown[] }>(endpoint, {
+        requestId,
         cursor,
         take: 100,
-        includeItems: true,
-        includeProgress: true,
       })
-      items.push(...normalizeMailItems(state.items))
-      cursor = state.nextCursor
-      if (!state.hasMore) break
+      items.push(...normalizeMailItems(state.data?.mails))
+      cursor = state.next.cursor
+      if (!state.next.hasMore) break
     } while (cursor)
     return items
   }
@@ -873,8 +873,8 @@ function categoryTagStyle(name: string) {
         lookbackHours: mailLookbackHours.value,
         maxCount: mailCount.value,
       })
-      await waitForOperation(response)
-      const items = await loadOperationMailItems(response)
+      await waitForRequest(response)
+      const items = await loadRequestMailItems(response)
       setMails(items)
       fetchedMailFolderPath.value = inferMailFolderPath(items, pendingMailFolderPath.value)
       lastMailFetchAt.value = new Date()
@@ -972,13 +972,19 @@ function categoryTagStyle(name: string) {
         receivedFrom: localDateTimeToIso(mailSearchDraft.value.receivedFrom),
         receivedTo: localDateTimeToIso(mailSearchDraft.value.receivedTo),
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       try {
-        mailSearchProgress.value = await outlookApi.getMailSearchProgressByCommandId(operationIdFromDispatch(response))
+        const result = await outlookApi.fetchResult<{ searchId?: string }>(fetchResultEndpoint(response), {
+          requestId: requestIdFromResponse(response),
+          take: 1,
+        })
+        mailSearchProgress.value = result.data?.searchId
+          ? await outlookApi.getMailSearchProgress(result.data.searchId)
+          : null
       } catch {
         // Search progress 不是每個失敗路徑都一定會留下 snapshot。
       }
-      setMailSearchResults(await loadOperationMailItems(response))
+      setMailSearchResults(await loadRequestMailItems(response))
       loadingMailSearch.value = false
     } catch {
       loadingMailSearch.value = false
@@ -1015,7 +1021,7 @@ function categoryTagStyle(name: string) {
     loadingRules.value = true
     try {
       const response = await outlookApi.requestRules()
-      await waitForOperation(response)
+      await waitForRequest(response)
       await loadCachedRules()
       loadingRules.value = false
     } catch {
@@ -1028,12 +1034,12 @@ function categoryTagStyle(name: string) {
     loadingCategories.value = true
     try {
       const response = await outlookApi.requestCategories()
-      await waitForOperation(response)
+      await waitForRequest(response)
       await loadCachedCategories()
       initialCategoriesFetchCompleted = true
       updateOutlookFirstLoadCompleted()
       loadingCategories.value = false
-      operationLoading.value = false
+      requestLoading.value = false
     } catch {
       initialCategoriesFetchCompleted = true
       updateOutlookFirstLoadCompleted()
@@ -1046,7 +1052,7 @@ function categoryTagStyle(name: string) {
     loadingSignalRPing.value = true
     try {
       const response = await outlookApi.requestSignalRPing()
-      await waitForOperation(response)
+      await waitForRequest(response)
     } finally {
       loadingSignalRPing.value = false
     }
@@ -1087,7 +1093,7 @@ function categoryTagStyle(name: string) {
         startDate: toDateKey(start),
         endDate: toDateKey(end),
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       await loadCachedCalendar()
       loadingCalendar.value = false
     } catch {
@@ -1115,54 +1121,56 @@ function categoryTagStyle(name: string) {
 
   async function runMailOperation(action: () => Promise<unknown>, afterSuccess?: () => Promise<void>) {
     if (outlookBusy.value) return false
-    window.clearTimeout(operationTimeoutId)
-    activeOperationCommandId = ''
-    operationLoading.value = true
+    window.clearTimeout(requestTimeoutId)
+    activeRequestId = ''
+    requestLoading.value = true
     try {
       const response = await action()
-      if (isCommandDispatchResponse(response)) {
-        activeOperationCommandId = operationIdFromDispatch(response)
-        if (!['accepted', 'completed', 'mocked', 'dispatched'].includes(response.status)) {
-          operationLoading.value = false
-          activeOperationCommandId = ''
+      if (isRequestResponse(response)) {
+        activeRequestId = requestIdFromResponse(response)
+        if (!['accepted'].includes(response.state)) {
+          requestLoading.value = false
+          activeRequestId = ''
           return false
         }
-        await waitForOperation(response)
+        await waitForRequest(response)
       }
       if (afterSuccess) await afterSuccess()
-      completeOperation(activeOperationCommandId)
+      completeRequest(activeRequestId)
       return true
     } catch {
-      operationLoading.value = false
-      activeOperationCommandId = ''
-      window.clearTimeout(operationTimeoutId)
+      requestLoading.value = false
+      activeRequestId = ''
+      window.clearTimeout(requestTimeoutId)
       return false
     }
   }
 
-  function isCommandDispatchResponse(value: unknown): value is { operationId?: string; commandId?: string; status: string } {
-    const response = value as { operationId?: unknown; commandId?: unknown; status?: unknown }
-    return (typeof response?.operationId === 'string' || typeof response?.commandId === 'string')
-      && typeof response?.status === 'string'
+  function isRequestResponse(value: unknown): value is { requestId?: string; request?: string; state: string; data?: unknown } {
+    const response = value as { requestId?: unknown; request?: unknown; state?: unknown; data?: unknown }
+    return typeof response?.requestId === 'string'
+      && typeof response?.request === 'string'
+      && typeof response?.state === 'string'
+      && response.data !== undefined
   }
 
-  function operationIdFromDispatch(response: { operationId?: string; commandId?: string }) {
-    return response.operationId || response.commandId || ''
+  function requestIdFromResponse(response: { requestId?: string }) {
+    return response.requestId || ''
   }
 
-  async function waitForOperation(response: { operationId?: string; commandId?: string }, timeoutMs = 120000) {
-    const operationId = operationIdFromDispatch(response)
-    if (!operationId) return
+  async function waitForRequest(response: { requestId?: string; request?: string }, timeoutMs = 120000) {
+    const requestId = requestIdFromResponse(response)
+    if (!requestId) return
+    const endpoint = fetchResultEndpoint(response)
     const started = Date.now()
     while (!unmounted && Date.now() - started < timeoutMs) {
       try {
-        const state = await outlookApi.getOperationState({
-          operationId,
-          includeItems: false,
-          includeProgress: true,
+        const state = await outlookApi.fetchResult(endpoint, {
+          requestId,
+          take: 1,
         })
-        if (state.complete && state.success !== false) return
-        if (state.status && !['pending', 'running', 'completed', 'mocked'].includes(state.status)) {
+        if (state.state === 'completed') return
+        if (state.state && !['accepted', 'running'].includes(state.state)) {
           throw new Error(state.message || 'Outlook operation failed')
         }
       } catch (error) {
@@ -1173,11 +1181,18 @@ function categoryTagStyle(name: string) {
     throw new Error('Outlook operation timed out')
   }
 
-  function completeOperation(commandId = '') {
-    if (commandId && activeOperationCommandId && commandId !== activeOperationCommandId) return
-    operationLoading.value = false
-    activeOperationCommandId = ''
-    window.clearTimeout(operationTimeoutId)
+  function fetchResultEndpoint(response: { request?: string }) {
+    const request = response.request || ''
+    return request.startsWith('request-')
+      ? request.replace('request-', 'fetch-result-')
+      : 'fetch-result-mails'
+  }
+
+  function completeRequest(requestId = '') {
+    if (requestId && activeRequestId && requestId !== activeRequestId) return
+    requestLoading.value = false
+    activeRequestId = ''
+    window.clearTimeout(requestTimeoutId)
   }
 
   function completeMailBodyLoad(mailId: string) {
@@ -1249,7 +1264,7 @@ function categoryTagStyle(name: string) {
         mailId: mail.id,
         folderPath: mail.folderPath,
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       await refreshMailSnapshotsForDetail(mail.id)
       completeMailBodyLoad(mail.id)
     } catch {
@@ -1274,7 +1289,7 @@ function categoryTagStyle(name: string) {
         mailId: mail.id,
         folderPath: mail.folderPath,
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
     } catch {
       completeAttachmentLoad(mail.id)
@@ -1296,7 +1311,7 @@ function categoryTagStyle(name: string) {
         fileName: attachment.fileName,
         displayName: attachment.displayName,
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
       completeAttachmentExport(mail.id, attachment.attachmentId)
     } catch {
@@ -1365,7 +1380,7 @@ function categoryTagStyle(name: string) {
   async function upsertCategory(name: string, color: string, shortcutKey = '') {
     const categoryName = name.trim()
     if (!categoryName || outlookBusy.value) return
-    operationLoading.value = true
+    requestLoading.value = true
     try {
       const response = await outlookApi.requestUpsertCategory({
         name: categoryName,
@@ -1373,11 +1388,11 @@ function categoryTagStyle(name: string) {
         colorValue: categoryColorValue(color || 'olCategoryColorNone'),
         shortcutKey,
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       await loadCachedCategories()
-      operationLoading.value = false
+      requestLoading.value = false
     } catch {
-      operationLoading.value = false
+      requestLoading.value = false
     }
   }
 
@@ -1425,18 +1440,18 @@ function categoryTagStyle(name: string) {
   async function createFolder(parentPath = creatingFolderParentPath.value, name = creatingFolderName.value) {
     const folderName = name.trim()
     if (!parentPath || !folderName || outlookBusy.value) return
-    operationLoading.value = true
+    requestLoading.value = true
     try {
       const response = await outlookApi.requestCreateFolder({
         parentFolderPath: parentPath,
         name: folderName,
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       await loadCachedFolders()
       cancelCreateFolder()
-      operationLoading.value = false
+      requestLoading.value = false
     } catch {
-      operationLoading.value = false
+      requestLoading.value = false
     }
   }
 
@@ -1449,19 +1464,19 @@ function categoryTagStyle(name: string) {
     }
     const confirmed = window.confirm(`將 Folder「${targetName}」移到 Outlook 刪除資料夾？`)
     if (!confirmed) return
-    operationLoading.value = true
+    requestLoading.value = true
     try {
       const response = await outlookApi.requestDeleteFolder({
         folderPath: targetPath,
       })
-      await waitForOperation(response)
+      await waitForRequest(response)
       await loadCachedFolders()
       if (selectedFolderPath.value === targetPath) {
         selectedFolderPath.value = folderOptions.value[0]?.folderPath ?? ''
       }
-      operationLoading.value = false
+      requestLoading.value = false
     } catch {
-      operationLoading.value = false
+      requestLoading.value = false
     }
   }
 
@@ -1770,7 +1785,7 @@ function categoryTagStyle(name: string) {
   onBeforeUnmount(() => {
     unmounted = true
     window.removeEventListener('click', closeFolderContextMenu)
-    window.clearTimeout(operationTimeoutId)
+    window.clearTimeout(requestTimeoutId)
     cancelScheduledMailFetch()
     clearMailBodyLoads()
     clearAttachmentLoads()
@@ -1863,7 +1878,7 @@ function categoryTagStyle(name: string) {
     openExportedAttachment,
     openMailDialog,
     closeMailDialog,
-    operationLoading,
+    operationLoading: requestLoading,
     outlookBusy,
     outlookBusyText,
     openCategoryManager,

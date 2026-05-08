@@ -865,6 +865,7 @@ namespace SmartOffice.Hub.Services
     {
         private readonly object _lock = new();
         private readonly Dictionary<string, OutlookCommandStatusDto> _commands = new();
+        private readonly Dictionary<string, PendingCommand> _requestCommands = new();
         private readonly Queue<string> _order = new();
         private const int MaxCommands = 500;
 
@@ -882,6 +883,7 @@ namespace SmartOffice.Hub.Services
                     Status = "pending",
                     DispatchTimestamp = DateTime.Now,
                 };
+                _requestCommands[command.Id] = command;
 
                 TrimIfNeeded();
             }
@@ -902,6 +904,7 @@ namespace SmartOffice.Hub.Services
                     _commands[command.Id] = status;
                     _order.Enqueue(command.Id);
                 }
+                _requestCommands[command.Id] = command;
 
                 status.Status = "addin_unavailable";
                 status.Success = false;
@@ -946,6 +949,14 @@ namespace SmartOffice.Hub.Services
             }
         }
 
+        public PendingCommand? GetRequestCommand(string requestId)
+        {
+            lock (_lock)
+            {
+                return _requestCommands.TryGetValue(requestId, out var command) ? command : null;
+            }
+        }
+
         public List<OutlookCommandStatusDto> GetRecent()
         {
             lock (_lock)
@@ -964,6 +975,7 @@ namespace SmartOffice.Hub.Services
             {
                 var oldestId = _order.Dequeue();
                 _commands.Remove(oldestId);
+                _requestCommands.Remove(oldestId);
             }
         }
 

@@ -5,7 +5,6 @@ import type {
   CalendarEventDto,
   CategoryCommandRequest,
   ChatMessageDto,
-  CommandDispatchResponse,
   FolderSnapshotDto,
   FolderMailsRequest,
   ExportedMailAttachmentDto,
@@ -20,8 +19,9 @@ import type {
   OutlookCommandResult,
   OutlookCategoryDto,
   OutlookRuleDto,
-  OperationStateRequest,
-  OperationStateResponse,
+  FetchResultRequest,
+  FetchResultResponse,
+  OutlookRequestResponse,
   SearchMailsRequest,
 } from '../models/outlook'
 import { categoryColorValue, normalizeCategoryColor } from '../utils/categoryColors'
@@ -302,27 +302,27 @@ export const outlookApi = {
   getAttachmentExportSettings: () => getJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings'),
   getCommandResult: (commandId: string) =>
     getJson<OutlookCommandResult>(`/api/outlook/command-results/${encodeURIComponent(commandId)}`),
-  getOperationState: (body: OperationStateRequest) =>
-    postJson<OperationStateResponse>('/api/outlook/operation-state', body),
+  fetchResult: <TData = Record<string, unknown>>(endpoint: string, body: FetchResultRequest) =>
+    postJson<FetchResultResponse<TData>>(`/api/outlook/${endpoint}`, body),
 
-  requestFolders: () => postJson<CommandDispatchResponse>('/api/outlook/request-folders'),
+  requestFolders: () => postJson<OutlookRequestResponse>('/api/outlook/request-folders'),
   requestFolderChildren: (body: {
     storeId: string
     parentEntryId: string
     parentFolderPath: string
     maxDepth?: number
     maxChildren?: number
-  }) => postJson<CommandDispatchResponse>('/api/outlook/request-folder-children', body),
+  }) => postJson<OutlookRequestResponse>('/api/outlook/request-folder-children', body),
   requestMails: (body: { folderPath: string; lookbackHours?: number; maxCount: number; receivedFrom?: string; receivedTo?: string }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-mails', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-mails', body),
   requestFolderMails: (body: FolderMailsRequest) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-folder-mails', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-folder-mails', body),
   requestMailSearch: (body: SearchMailsRequest) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-mail-search', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-mail-search', body),
   requestMailBody: (body: { mailId: string; folderPath: string }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-mail-body', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-mail-body', body),
   requestMailAttachments: (body: { mailId: string; folderPath: string }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-mail-attachments', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-mail-attachments', body),
   requestExportMailAttachment: (body: {
     mailId: string
     folderPath: string
@@ -332,29 +332,29 @@ export const outlookApi = {
     fileName: string
     displayName: string
   }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-export-mail-attachment', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-export-mail-attachment', body),
   openExportedAttachment: (body: { exportedAttachmentId: string }) =>
     postJson('/api/outlook/open-exported-attachment', body),
   updateAttachmentExportSettings: (body: { rootPath: string }) =>
     postJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings', body),
-  requestRules: () => postJson<CommandDispatchResponse>('/api/outlook/request-rules'),
-  requestCategories: () => postJson<CommandDispatchResponse>('/api/outlook/request-categories'),
-  requestSignalRPing: () => postJson<CommandDispatchResponse>('/api/outlook/request-signalr-ping'),
+  requestRules: () => postJson<OutlookRequestResponse>('/api/outlook/request-rules'),
+  requestCategories: () => postJson<OutlookRequestResponse>('/api/outlook/request-categories'),
+  requestSignalRPing: () => postJson<OutlookRequestResponse>('/api/outlook/request-signalr-ping'),
   requestCalendar: (body: { daysForward: number; startDate?: string; endDate?: string }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-calendar', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-calendar', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
 
   requestUpdateMailProperties: (body: MailPropertiesCommandRequest) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-update-mail-properties', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-update-mail-properties', body),
   requestUpsertCategory: (body: CategoryCommandRequest) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-upsert-category', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-upsert-category', body),
   requestCreateFolder: (body: { parentFolderPath: string; name: string }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-create-folder', body),
-  requestDeleteFolder: (body: { folderPath: string }) => postJson<CommandDispatchResponse>('/api/outlook/request-delete-folder', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-create-folder', body),
+  requestDeleteFolder: (body: { folderPath: string }) => postJson<OutlookRequestResponse>('/api/outlook/request-delete-folder', body),
   requestMoveMail: (body: { mailId: string; sourceFolderPath: string; destinationFolderPath: string }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-move-mail', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-move-mail', body),
   requestMoveMails: (body: { mailIds: string[]; sourceFolderPath: string; sourceFolderPaths: string[]; destinationFolderPath: string; continueOnError: boolean }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-move-mails', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-move-mails', body),
   requestDeleteMail: (body: { mailId: string; folderPath: string }) =>
-    postJson<CommandDispatchResponse>('/api/outlook/request-delete-mail', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-delete-mail', body),
 }

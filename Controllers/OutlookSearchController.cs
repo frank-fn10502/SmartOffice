@@ -52,7 +52,7 @@ namespace SmartOffice.Hub.Controllers
             _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
                 operationCt => RequestMailSearchQueuedAsync(cmd, req, operationCt),
                 CancellationToken.None));
-            return Ok(OperationAccepted(cmd.Id, req.SearchId));
+            return Ok(OperationAccepted(cmd, new { searchId = req.SearchId, resultKind = "mail_search" }));
         }
 
         /// <summary>
@@ -92,7 +92,7 @@ namespace SmartOffice.Hub.Controllers
             _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
                 operationCt => RequestMailSearchQueuedAsync(cmd, search, operationCt, "/api/outlook/folder-mails"),
                 CancellationToken.None));
-            return Ok(OperationAccepted(cmd.Id, search.SearchId));
+            return Ok(OperationAccepted(cmd, new { searchId = search.SearchId, resultKind = "folder_mails" }));
         }
 
         /// <summary>
@@ -111,6 +111,18 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetFolderMails()
         {
             return Ok(OutlookFolderPathMapper.ToApiMails(_mailStore.GetFolderMailResults()));
+        }
+
+        [HttpPost("fetch-result-mail-search")]
+        public IActionResult FetchResultMailSearch([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "search_mails");
+        }
+
+        [HttpPost("fetch-result-folder-mails")]
+        public IActionResult FetchResultFolderMails([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "list_folder_mails");
         }
 
         /// <summary>
@@ -160,7 +172,12 @@ namespace SmartOffice.Hub.Controllers
                     Timestamp = DateTime.Now,
                 });
                 await _hub.Clients.All.SendAsync("MailSearchProgress", failed, ct);
-                return Conflict(new { operationId = cmd.Id, commandId = cmd.Id, searchId = req.SearchId, status = "folder_cache_unavailable" });
+                return Conflict(ResultEnvelope(
+                    cmd.Id,
+                    cmd.Type,
+                    "failed",
+                    "Hub could not load Outlook folders for mail search.",
+                    new { searchId = req.SearchId }));
             }
 
             var slices = BuildMailSearchSlices(req, cmd.Id);
@@ -184,7 +201,12 @@ namespace SmartOffice.Hub.Controllers
                     Timestamp = DateTime.Now,
                 });
                 await _hub.Clients.All.SendAsync("MailSearchProgress", failed, ct);
-                return Conflict(new { operationId = cmd.Id, commandId = cmd.Id, searchId = req.SearchId, status = "no_searchable_folder" });
+                return Conflict(ResultEnvelope(
+                    cmd.Id,
+                    cmd.Type,
+                    "failed",
+                    "Hub loaded folders but no searchable folder matched the request.",
+                    new { searchId = req.SearchId }));
             }
 
             req.ScopeFolderPaths = slices.Select(slice => slice.FolderPath).ToList();
@@ -194,13 +216,16 @@ namespace SmartOffice.Hub.Controllers
             var result = await DispatchMailSearchSlicesAsync(cmd, slices, ct);
             var body = new
             {
-                operationId = cmd.Id,
-                commandId = cmd.Id,
-                searchId = req.SearchId,
-                status = result.Status,
+                requestId = cmd.Id,
+                request = RequestName(cmd.Type),
+                state = ResultState(result.Status),
                 message = result.Message,
-                sliceCount = slices.Count,
-                resultEndpoint,
+                data = new
+                {
+                    searchId = req.SearchId,
+                    sliceCount = slices.Count,
+                    resultEndpoint,
+                },
             };
             return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
         }
@@ -359,15 +384,93 @@ namespace SmartOffice.Hub.Controllers
             req.ReadState = NormalizeMailSearchState(req.ReadState, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "any", "unread", "read" });
         }
 
-        private static object OperationAccepted(string operationId, string searchId)
+        private IActionResult FetchResult(FetchResultRequest req, string expectedType)
+        {
+            req ??= new FetchResultRequest();
+            if (string.IsNullOrWhiteSpace(req.RequestId))
+                return BadRequest(new { state = "failed", message = "requestId is required." });
+
+            var status = _commandResults.Get(req.RequestId);
+            if (status is null)
+                return NotFound(new { requestId = req.RequestId, request = "", state = "failed", message = "request not found", next = new FetchResultNext(), data = new { } });
+
+            if (!string.Equals(status.Type, expectedType, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { requestId = req.RequestId, request = RequestName(status.Type), state = "failed", message = "requestId does not match this fetch-result endpoint.", next = new FetchResultNext(), data = new { } });
+
+            var take = Math.Clamp(req.Take <= 0 ? 100 : req.Take, 1, 500);
+            var offset = int.TryParse(req.Cursor, out var parsed) && parsed > 0 ? parsed : 0;
+            var mails = expectedType == "list_folder_mails"
+                ? OutlookFolderPathMapper.ToApiMails(_mailStore.GetFolderMailResults())
+                : OutlookFolderPathMapper.ToApiMails(_mailStore.GetMailSearchResults());
+            var page = Page(mails, offset, take);
+            var progress = _mailStore.GetMailSearchProgressByCommandId(req.RequestId);
+
+            return Ok(new FetchResultResponse
+            {
+                RequestId = status.CommandId,
+                Request = RequestName(status.Type),
+                State = ResultState(status.Status),
+                Message = status.Message,
+                Next = page.Next,
+                Data = new
+                {
+                    searchId = progress?.SearchId ?? string.Empty,
+                    mails = page.Items,
+                },
+            });
+        }
+
+        private static (List<T> Items, FetchResultNext Next) Page<T>(List<T> source, int offset, int take)
+        {
+            var total = source.Count;
+            var safeOffset = Math.Clamp(offset, 0, total);
+            var items = source.Skip(safeOffset).Take(take).ToList();
+            var next = safeOffset + items.Count;
+            var hasMore = next < total;
+            return (items, new FetchResultNext { Cursor = hasMore ? next.ToString() : string.Empty, HasMore = hasMore });
+        }
+
+        private static object OperationAccepted(PendingCommand command, object data)
+        {
+            return ResultEnvelope(
+                command.Id,
+                command.Type,
+                "accepted",
+                "Request accepted. Poll the paired fetch-result-* endpoint for state and data.",
+                data);
+        }
+
+        private static object ResultEnvelope(string requestId, string commandType, string state, string message, object? data = null)
         {
             return new
             {
-                operationId,
-                commandId = operationId,
-                searchId,
-                status = "accepted",
-                message = "Operation accepted. Poll POST /api/outlook/operation-state for status and items.",
+                requestId,
+                request = RequestName(commandType),
+                state,
+                message,
+                data = data ?? new { },
+            };
+        }
+
+        private static string ResultState(string status)
+        {
+            return status switch
+            {
+                "pending" => "running",
+                "completed" or "mocked" => "completed",
+                "addin_unavailable" => "unavailable",
+                "timeout" => "timeout",
+                _ => "failed",
+            };
+        }
+
+        private static string RequestName(string commandType)
+        {
+            return commandType switch
+            {
+                "search_mails" => "request-mail-search",
+                "list_folder_mails" => "request-folder-mails",
+                _ => commandType,
             };
         }
 

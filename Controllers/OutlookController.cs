@@ -151,7 +151,7 @@ namespace SmartOffice.Hub.Controllers
             _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
                 operationCt => RequestFoldersQueuedAsync(command, operationCt),
                 CancellationToken.None));
-            return Ok(OperationAccepted(command.Id));
+            return Ok(OperationAccepted(command));
         }
 
         [HttpPost("request-folder-children")]
@@ -172,7 +172,7 @@ namespace SmartOffice.Hub.Controllers
             _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
                 operationCt => RequestFolderChildrenQueuedAsync(command, req, operationCt),
                 CancellationToken.None));
-            return Ok(OperationAccepted(command.Id));
+            return Ok(OperationAccepted(command));
         }
 
         private async Task<IActionResult> RequestFolderChildrenQueuedAsync(PendingCommand command, FolderDiscoveryRequest req, CancellationToken ct)
@@ -182,7 +182,7 @@ namespace SmartOffice.Hub.Controllers
                 () => _mailStore.IsFolderChildrenLoaded(req.StoreId, req.ParentEntryId, req.ParentFolderPath),
                 ensureReady: true,
                 ct: ct);
-            var body = new { operationId = command.Id, commandId = command.Id, status = result.Status, message = result.Message };
+            var body = ResultEnvelope(command.Id, command.Type, ResultState(result.Status), result.Message);
             return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
         }
 
@@ -196,12 +196,15 @@ namespace SmartOffice.Hub.Controllers
             var snapshot = _mailStore.GetFolderSnapshot();
             var body = new
             {
-                operationId = command.Id,
-                commandId = command.Id,
-                status = result.Status,
+                requestId = command.Id,
+                request = RequestName(command.Type),
+                state = ResultState(result.Status),
                 message = result.Message,
-                stores = snapshot.Stores.Count,
-                folders = snapshot.Folders.Count,
+                data = new
+                {
+                    stores = snapshot.Stores.Count,
+                    folders = snapshot.Folders.Count,
+                },
             };
             return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
         }
@@ -376,17 +379,28 @@ namespace SmartOffice.Hub.Controllers
                 return true;
             }, CancellationToken.None));
 
-            return Task.FromResult<IActionResult>(Ok(OperationAccepted(cmd.Id)));
+            return Task.FromResult<IActionResult>(Ok(OperationAccepted(cmd)));
         }
 
-        private static object OperationAccepted(string operationId)
+        private static object OperationAccepted(PendingCommand command, object? data = null)
+        {
+            return ResultEnvelope(
+                command.Id,
+                command.Type,
+                "accepted",
+                "Request accepted. Poll the paired fetch-result-* endpoint for state and data.",
+                data);
+        }
+
+        private static object ResultEnvelope(string requestId, string commandType, string state, string message, object? data = null)
         {
             return new
             {
-                operationId,
-                commandId = operationId,
-                status = "accepted",
-                message = "Operation accepted. Poll POST /api/outlook/operation-state for status and items.",
+                requestId,
+                request = RequestName(commandType),
+                state,
+                message,
+                data = data ?? new { },
             };
         }
 
@@ -436,110 +450,247 @@ namespace SmartOffice.Hub.Controllers
 
             if (string.IsNullOrWhiteSpace(folderPath) || !IsInDefaultDeletedItems(folderPath)) return null;
 
-            return Conflict(new
-            {
-                operationId = cmd.Id,
-                commandId = cmd.Id,
-                status = "manual_delete_required",
-                message = "SmartOffice API 不會永久刪除 Outlook 郵件或 folder。目標已在 Outlook default Deleted Items folder 內；若要永久刪除，請使用者自行到 Outlook 操作。"
-            });
+            return Conflict(ResultEnvelope(
+                cmd.Id,
+                cmd.Type,
+                "manual_delete_required",
+                "SmartOffice API 不會永久刪除 Outlook 郵件或 folder。目標已在 Outlook default Deleted Items folder 內；若要永久刪除，請使用者自行到 Outlook 操作。"));
         }
 
         /// <summary>
-        /// Web UI、AI 或 MCP client 查詢 operation 狀態與目前可讀資料片段。
+        /// Web UI、AI 或 MCP client 查詢 folders request 的狀態與分段結果。
         /// </summary>
-        [HttpPost("operation-state")]
-        public IActionResult GetOperationState([FromBody] OperationStateRequest req)
+        [HttpPost("fetch-result-folders")]
+        public IActionResult FetchResultFolders([FromBody] FetchResultRequest req)
         {
-            req ??= new OperationStateRequest();
-            if (string.IsNullOrWhiteSpace(req.OperationId))
-                return BadRequest(new { status = "missing_operation_id" });
+            return FetchResult(req, "fetch_folder_roots", "fetch_folder_children");
+        }
 
-            var status = _commandResults.Get(req.OperationId);
+        [HttpPost("fetch-result-folder-children")]
+        public IActionResult FetchResultFolderChildren([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_folder_children");
+        }
+
+        [HttpPost("fetch-result-mails")]
+        public IActionResult FetchResultMails([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_mails");
+        }
+
+        [HttpPost("fetch-result-mail-body")]
+        public IActionResult FetchResultMailBody([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_mail_body");
+        }
+
+        [HttpPost("fetch-result-mail-attachments")]
+        public IActionResult FetchResultMailAttachments([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_mail_attachments");
+        }
+
+        [HttpPost("fetch-result-export-mail-attachment")]
+        public IActionResult FetchResultExportMailAttachment([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "export_mail_attachment");
+        }
+
+        [HttpPost("fetch-result-rules")]
+        public IActionResult FetchResultRules([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_rules");
+        }
+
+        [HttpPost("fetch-result-categories")]
+        public IActionResult FetchResultCategories([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_categories", "upsert_category");
+        }
+
+        [HttpPost("fetch-result-signalr-ping")]
+        public IActionResult FetchResultSignalRPing([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "ping");
+        }
+
+        [HttpPost("fetch-result-calendar")]
+        public IActionResult FetchResultCalendar([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_calendar");
+        }
+
+        [HttpPost("fetch-result-update-mail-properties")]
+        public IActionResult FetchResultUpdateMailProperties([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "update_mail_properties");
+        }
+
+        [HttpPost("fetch-result-upsert-category")]
+        public IActionResult FetchResultUpsertCategory([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "upsert_category");
+        }
+
+        [HttpPost("fetch-result-create-folder")]
+        public IActionResult FetchResultCreateFolder([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "create_folder");
+        }
+
+        [HttpPost("fetch-result-delete-folder")]
+        public IActionResult FetchResultDeleteFolder([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "delete_folder");
+        }
+
+        [HttpPost("fetch-result-move-mail")]
+        public IActionResult FetchResultMoveMail([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "move_mail");
+        }
+
+        [HttpPost("fetch-result-move-mails")]
+        public IActionResult FetchResultMoveMails([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "move_mails");
+        }
+
+        [HttpPost("fetch-result-delete-mail")]
+        public IActionResult FetchResultDeleteMail([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "delete_mail");
+        }
+
+        private IActionResult FetchResult(FetchResultRequest req, params string[] expectedTypes)
+        {
+            req ??= new FetchResultRequest();
+            if (string.IsNullOrWhiteSpace(req.RequestId))
+                return BadRequest(new { state = "failed", message = "requestId is required." });
+
+            var status = _commandResults.Get(req.RequestId);
             if (status is null)
-                return NotFound(new { operationId = req.OperationId, status = "not_found", complete = true });
+                return NotFound(new { requestId = req.RequestId, request = "", state = "failed", message = "request not found", next = new FetchResultNext(), data = new { } });
+
+            if (expectedTypes.Length > 0 && !expectedTypes.Contains(status.Type, StringComparer.OrdinalIgnoreCase))
+                return BadRequest(new { requestId = req.RequestId, request = RequestName(status.Type), state = "failed", message = "requestId does not match this fetch-result endpoint.", next = new FetchResultNext(), data = new { } });
 
             var take = Math.Clamp(req.Take <= 0 ? 100 : req.Take, 1, 500);
             var offset = int.TryParse(req.Cursor, out var parsed) && parsed > 0 ? parsed : 0;
-            var (items, totalCount, nextCursor, hasMore) = req.IncludeItems
-                ? GetOperationItems(status.Type, offset, take)
-                : (Array.Empty<object>() as object, 0, string.Empty, false);
-            var progress = req.IncludeProgress
-                ? GetOperationProgress(status.Type, status.CommandId)
-                : null;
-            var metadata = GetOperationMetadata(status.Type);
-            var done = status.Status is not "pending" && !hasMore;
+            var command = _commandResults.GetRequestCommand(req.RequestId);
+            var (data, next) = GetFetchResultData(status.Type, command, offset, take);
 
-            return Ok(new OperationStateResponse
+            return Ok(new FetchResultResponse
             {
-                OperationId = status.CommandId,
-                Operation = status.Type,
-                Status = status.Status,
-                Success = status.Success,
+                RequestId = status.CommandId,
+                Request = RequestName(status.Type),
+                State = ResultState(status.Status),
                 Message = status.Message,
-                Progress = progress,
-                Metadata = metadata,
-                Items = items,
-                NextCursor = nextCursor,
-                HasMore = hasMore,
-                Complete = done,
-                ReturnedCount = CountItems(items),
-                TotalCount = totalCount,
+                Next = next,
+                Data = data,
             });
         }
 
-        private (object Items, int TotalCount, string NextCursor, bool HasMore) GetOperationItems(string operation, int offset, int take)
+        private (object Data, FetchResultNext Next) GetFetchResultData(string requestType, PendingCommand? command, int offset, int take)
         {
-            return operation switch
+            switch (requestType)
             {
-                "fetch_folder_roots" or "fetch_folder_children" => Page(
-                    OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot()).Folders,
-                    offset,
-                    take),
-                "fetch_mails" or "fetch_mail_body" or "update_mail_properties" or "move_mail" or "move_mails" or "delete_mail" => Page(
-                    OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails()),
-                    offset,
-                    take),
-                "list_folder_mails" => Page(OutlookFolderPathMapper.ToApiMails(_mailStore.GetFolderMailResults()), offset, take),
-                "search_mails" => Page(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMailSearchResults()), offset, take),
-                "fetch_rules" => Page(_mailStore.GetRules(), offset, take),
-                "fetch_categories" or "upsert_category" => Page(_mailStore.GetCategories(), offset, take),
-                "fetch_calendar" => Page(_mailStore.GetCalendarEvents(), offset, take),
-                "create_folder" or "delete_folder" => Page(
-                    OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot()).Folders,
-                    offset,
-                    take),
-                _ => (Array.Empty<object>(), 0, string.Empty, false),
-            };
+                case "fetch_folder_roots":
+                case "fetch_folder_children":
+                case "create_folder":
+                case "delete_folder":
+                {
+                    var snapshot = OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot());
+                    var page = Page(snapshot.Folders, offset, take);
+                    return (new { stores = snapshot.Stores, folders = page.Items }, page.Next);
+                }
+                case "fetch_mails":
+                case "fetch_mail_body":
+                case "update_mail_properties":
+                case "move_mail":
+                case "move_mails":
+                case "delete_mail":
+                {
+                    var page = Page(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails()), offset, take);
+                    return (new { mails = page.Items }, page.Next);
+                }
+                case "fetch_mail_attachments":
+                {
+                    var mailId = command?.MailAttachmentsRequest?.MailId ?? string.Empty;
+                    var attachments = string.IsNullOrWhiteSpace(mailId)
+                        ? null
+                        : _mailStore.GetMailAttachments(mailId);
+                    var page = Page(attachments?.Attachments ?? new List<MailAttachmentDto>(), offset, take);
+                    return (new { mailId, folderPath = attachments?.FolderPath ?? string.Empty, attachments = page.Items }, page.Next);
+                }
+                case "export_mail_attachment":
+                    return (new { }, new FetchResultNext());
+                case "fetch_rules":
+                {
+                    var page = Page(_mailStore.GetRules(), offset, take);
+                    return (new { rules = page.Items }, page.Next);
+                }
+                case "fetch_categories":
+                case "upsert_category":
+                {
+                    var page = Page(_mailStore.GetCategories(), offset, take);
+                    return (new { categories = page.Items }, page.Next);
+                }
+                case "fetch_calendar":
+                {
+                    var page = Page(_mailStore.GetCalendarEvents(), offset, take);
+                    return (new { calendarEvents = page.Items }, page.Next);
+                }
+                default:
+                    return (new { }, new FetchResultNext());
+            }
         }
 
-        private object? GetOperationProgress(string operation, string operationId)
-        {
-            return operation is "search_mails" or "list_folder_mails"
-                ? _mailStore.GetMailSearchProgressByCommandId(operationId)
-                : null;
-        }
-
-        private object? GetOperationMetadata(string operation)
-        {
-            if (operation is not ("fetch_folder_roots" or "fetch_folder_children")) return null;
-            var snapshot = OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot());
-            return new { stores = snapshot.Stores };
-        }
-
-        private static (object Items, int TotalCount, string NextCursor, bool HasMore) Page<T>(List<T> source, int offset, int take)
+        private static (List<T> Items, FetchResultNext Next) Page<T>(List<T> source, int offset, int take)
         {
             var total = source.Count;
             var safeOffset = Math.Clamp(offset, 0, total);
             var items = source.Skip(safeOffset).Take(take).ToList();
             var next = safeOffset + items.Count;
             var hasMore = next < total;
-            return (items, total, hasMore ? next.ToString() : string.Empty, hasMore);
+            return (items, new FetchResultNext { Cursor = hasMore ? next.ToString() : string.Empty, HasMore = hasMore });
         }
 
-        private static int CountItems(object items)
+        private static string ResultState(string status)
         {
-            return items is System.Collections.ICollection collection ? collection.Count : 0;
+            return status switch
+            {
+                "pending" => "running",
+                "completed" or "mocked" => "completed",
+                "addin_unavailable" => "unavailable",
+                "timeout" => "timeout",
+                _ => "failed",
+            };
+        }
+
+        private static string RequestName(string commandType)
+        {
+            return commandType switch
+            {
+                "fetch_folder_roots" => "request-folders",
+                "fetch_folder_children" => "request-folder-children",
+                "fetch_mails" => "request-mails",
+                "fetch_mail_body" => "request-mail-body",
+                "fetch_mail_attachments" => "request-mail-attachments",
+                "export_mail_attachment" => "request-export-mail-attachment",
+                "fetch_rules" => "request-rules",
+                "fetch_categories" => "request-categories",
+                "ping" => "request-signalr-ping",
+                "fetch_calendar" => "request-calendar",
+                "update_mail_properties" => "request-update-mail-properties",
+                "upsert_category" => "request-upsert-category",
+                "create_folder" => "request-create-folder",
+                "delete_folder" => "request-delete-folder",
+                "move_mail" => "request-move-mail",
+                "move_mails" => "request-move-mails",
+                "delete_mail" => "request-delete-mail",
+                _ => commandType,
+            };
         }
 
         private bool IsInDefaultDeletedItems(string folderPath)

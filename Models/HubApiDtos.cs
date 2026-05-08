@@ -53,65 +53,36 @@ namespace SmartOffice.Hub.Models
         public string RootPath { get; set; } = string.Empty;
     }
 
-    /// <summary>
-    /// Hub 接收 request-* command 後的標準回應。HTTP 200 只代表 Hub 已完成 dispatch/wait 流程；
-    /// 呼叫端仍應以 commandId 查詢 command-results，並讀取對應資料 endpoint。
-    /// </summary>
-    public class CommandDispatchResponse
+    public class OutlookRequestResponse
     {
-        /// <summary>對外追蹤這次 Outlook operation 的 id；目前等同 Hub 內部 command id。</summary>
-        public string OperationId { get; set; } = string.Empty;
-        /// <summary>Hub 指派給這次 Outlook command 的 id。</summary>
-        public string CommandId { get; set; } = string.Empty;
-        /// <summary>目前狀態；常見值為 completed、mocked、timeout、failed、addin_unavailable、folder_cache_unavailable。</summary>
-        public string Status { get; set; } = string.Empty;
-        /// <summary>Hub 或 Outlook AddIn 回報的簡短訊息。</summary>
+        public string RequestId { get; set; } = string.Empty;
+        public string Request { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
+        public object Data { get; set; } = new { };
     }
 
-    public class OperationStateRequest
+    public class FetchResultRequest
     {
-        public string OperationId { get; set; } = string.Empty;
+        public string RequestId { get; set; } = string.Empty;
         public string Cursor { get; set; } = string.Empty;
         public int Take { get; set; } = 100;
-        public bool IncludeItems { get; set; } = true;
-        public bool IncludeProgress { get; set; } = true;
     }
 
-    public class OperationStateResponse
+    public class FetchResultNext
     {
-        public string OperationId { get; set; } = string.Empty;
-        public string Operation { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
-        public bool? Success { get; set; }
-        public string Message { get; set; } = string.Empty;
-        public object? Progress { get; set; }
-        public object? Metadata { get; set; }
-        public object Items { get; set; } = Array.Empty<object>();
-        public string NextCursor { get; set; } = string.Empty;
+        public string Cursor { get; set; } = string.Empty;
         public bool HasMore { get; set; }
-        public bool Complete { get; set; }
-        public int ReturnedCount { get; set; }
-        public int TotalCount { get; set; }
     }
 
-    /// <summary>
-    /// Mail search dispatch 的標準回應；searchId 用於查詢搜尋進度與搜尋結果。
-    /// </summary>
-    public class MailSearchDispatchResponse : CommandDispatchResponse
+    public class FetchResultResponse
     {
-        /// <summary>搜尋 correlation id；可用於 GET /api/outlook/mail-search/progress/{searchId}。</summary>
-        public string SearchId { get; set; } = string.Empty;
-        /// <summary>Hub 展開 folder scope 後 dispatch 給 AddIn 的 folder slice 數量。</summary>
-        public int SliceCount { get; set; }
-    }
-
-    /// <summary>
-    /// Folder 範圍 mails dispatch 的標準回應；底層由 Hub 規劃 folder 範圍並收集 mail metadata。
-    /// </summary>
-    public class FolderMailsDispatchResponse : MailSearchDispatchResponse
-    {
-        public string ResultEndpoint { get; set; } = "/api/outlook/folder-mails";
+        public string RequestId { get; set; } = string.Empty;
+        public string Request { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public FetchResultNext Next { get; set; } = new();
+        public object Data { get; set; } = new { };
     }
 
     public class FolderMailsRequest
@@ -120,15 +91,6 @@ namespace SmartOffice.Hub.Models
         public bool IncludeSubFolders { get; set; } = false;
         public DateTime? ReceivedFrom { get; set; }
         public DateTime? ReceivedTo { get; set; }
-    }
-
-    /// <summary>
-    /// Folder roots dispatch 完成後的標準回應，附帶目前 folder 資料計數。
-    /// </summary>
-    public class FolderRequestDispatchResponse : CommandDispatchResponse
-    {
-        public int Stores { get; set; }
-        public int Folders { get; set; }
     }
 
     public class OpenExportedAttachmentResponse
