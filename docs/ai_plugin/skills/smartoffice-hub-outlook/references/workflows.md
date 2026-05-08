@@ -5,10 +5,10 @@
 ## 通用規則
 
 - Base URL 預設為 `http://localhost:2805`；只有使用者明確提供其他 Hub URL 時才改用該 URL。
-- 呼叫任何 `POST /api/outlook/request-*` 後，從 dispatch response 取出 `commandId`。dispatch response 沒有 `success` 欄位，不可在這一步判斷 `success=true`。
-- 查 `GET /api/outlook/command-results/{commandId}` 直到不是 `pending`；只有 command result 的 `status="completed"` 且 `success=true` 才進入下一步。`failed`、`folder_cache_unavailable`、`timeout` 或其他狀態要回報使用者。
-- HTTP 200 只代表 Hub 已處理 request 流程；真正資料要讀對應 snapshot endpoint。
-- HTTP 409 / 400 / 502 / 504 的 response body 也可能有 `commandId`、`status` 與 `message`；解析後回報，不要靠猜測重試。
+- 呼叫任何 `POST /api/outlook/request-*` 後，從 dispatch response 取出 `operationId`。dispatch response 沒有 `success` 欄位，不可在這一步判斷已成功。
+- 查 `POST /api/outlook/operation-state`，直到 `complete=true`；若 `hasMore=true`，下一次 request 帶 `nextCursor`。
+- `operation-state.status` 可能是 `pending`、`running`、`completed`、`failed`、`addin_unavailable`、`timeout` 等；失敗狀態要回報使用者。
+- HTTP 409 / 400 / 502 / 504 的 response body 也可能有 `operationId`、`status` 與 `message`；解析後回報，不要靠猜測重試。
 - HTTP API 的 folder path 一律使用普通斜線，例如 `/主要信箱 - User/收件匣`。
 - 大型 JSON 可暫存到 skill folder 的 `tmp/<run>/`，但預設只保存 metadata，不保存完整 mail body。
 
@@ -22,18 +22,18 @@
 
 ## Folder Scope
 
-未指定 folder 時，預設範圍是主要 mailbox 的 Inbox，但 `Inbox` 不是穩定 path。必須從 folder snapshot 找實際 `folderPath`：
+未指定 folder 時，預設範圍是主要 mailbox 的 Inbox，但 `Inbox` 不是穩定 path。必須從 folder data 找實際 `folderPath`：
 
 1. `POST /api/outlook/request-folders`
-2. 等待 command result。
-3. `GET /api/outlook/folders`
+2. 用 `operation-state` 等到 `complete=true`，讀取 `metadata.stores` 與 folder items。
+3. 以 `metadata.stores[0]` 作為主要 store。
 4. 以 `stores[0]` 作為主要 store；使用同 `storeId` 且 `isStoreRoot=true` 的 folder 作為 root。
 5. 若主要 store root 的 `childrenLoaded=false`，呼叫 `POST /api/outlook/request-folder-children`，request 欄位必須是 `storeId=root.storeId`、`parentEntryId=root.entryId`、`parentFolderPath=root.folderPath`。
-6. 等待 command result。
-7. 再讀 `GET /api/outlook/folders`。
+6. 用 `operation-state` 等到 `complete=true`。
+7. 再用 `operation-state` 讀 folder items。
 8. 在主要 store 底下找 `folderType="Inbox"`；若 AddIn 未回報 folder type，再用 localized folder name，例如 `收件匣` 或 `Inbox`。
 
-Folder snapshot 形狀範例：
+Folder data 形狀範例：
 
 ```json
 {
@@ -80,7 +80,7 @@ Folder snapshot 形狀範例：
 }
 ```
 
-不要把 snapshot 欄位 `entryId` / `folderPath` 原樣當成 request 欄位送出；此 endpoint 只接受 `parentEntryId` / `parentFolderPath`。
+不要把 folder data 欄位 `entryId` / `folderPath` 原樣當成 request 欄位送出；此 endpoint 只接受 `parentEntryId` / `parentFolderPath`。
 
 展開後，應從同一個 `storeId` 找 Inbox：
 
@@ -103,15 +103,14 @@ Folder snapshot 形狀範例：
 
 後續任何 HTTP API `folderPath` 都使用這個完整值：`/主要信箱 - User/收件匣`。不要自行改寫或只傳 folder name。
 
-找不到 Inbox 時，不要改成全域搜尋；回報目前 folder snapshot 無法定位主要 Inbox。
+找不到 Inbox 時，不要改成全域搜尋；回報目前 folder data 無法定位主要 Inbox。
 
 ## Recent Mails
 
-用 snapshot 中的實際 Inbox `folderPath` 呼叫：
+用 folder data 中的實際 Inbox `folderPath` 呼叫：
 
 - `POST /api/outlook/request-mails`
-- `GET /api/outlook/command-results/{commandId}`
-- `GET /api/outlook/mails`
+- `POST /api/outlook/operation-state`
 
 Request body 重點欄位：
 
@@ -134,8 +133,7 @@ Request body 重點欄位：
 呼叫：
 
 - `POST /api/outlook/request-mail-search`
-- `GET /api/outlook/mail-search/progress/{searchId}` 或 `GET /api/outlook/command-results/{commandId}`
-- `GET /api/outlook/mail-search`
+- `POST /api/outlook/operation-state`
 
 Request body 重點欄位：
 
@@ -158,37 +156,36 @@ Request body 重點欄位：
 
 `hasAttachments=true` 代表只找有附件；`false` 代表只找無附件；`null` 代表不限。`keyword` 可為空字串，表示只套用日期、附件、已讀、旗標等條件。
 
-若 response status 是 `no_searchable_folder`，先檢查 `scopeFolderPaths` 是否完全等於 snapshot 中的真實 `folderPath`，並在必要時展開 root children；不要用猜測路徑重試，也不要自行改成全域搜尋。
+若 response status 是 `no_searchable_folder`，先檢查 `scopeFolderPaths` 是否完全等於 `GET /api/outlook/folders` 中的真實 `folderPath`，並在必要時要求載入 children；不要用猜測路徑重試，也不要自行改成全域搜尋。
 
-若使用者明確要求全信箱搜尋，才可以送空 `scopeFolderPaths`；回覆時必須說明本次搜尋範圍是目前 cache 中已載入的可搜尋 mail folders，而不是保證完整 Outlook mailbox。
+若使用者明確要求全信箱搜尋，才可以送空 `scopeFolderPaths`；回覆時必須說明本次搜尋範圍是目前 SmartOffice API 已知的可搜尋 mail folders，而不是保證完整 Outlook mailbox。
 
 ## Read Body Or Attachments
 
-先從 `GET /api/outlook/mails` 或 `GET /api/outlook/mail-search` 找到目標 `id` 與 `folderPath`。
+先從 `operation-state.items` 找到目標 `id` 與 `folderPath`。
 
 使用者只要求最近郵件、郵件清單、統計或 Markdown metadata 報告時，停在 metadata；不要為每封 mail 自動讀 body。只有使用者明確要求內容摘要、內文關鍵字判讀，或 metadata 不足以完成任務時才讀 body。
 
 讀 body：
 
 - `POST /api/outlook/request-mail-body`
-- `GET /api/outlook/command-results/{commandId}`
-- `GET /api/outlook/mails`
+- `POST /api/outlook/operation-state`
 
-若同一封 mail 的 body request 已完成，但 snapshot 中同 id 的 `body` 與 `bodyHtml` 仍為空，不要重複呼叫同一 request；視為 Outlook/AddIn 目前未提供可讀內容，回報限制或改用 metadata。
+若同一封 mail 的 body request 已完成，但資料 endpoint 中同 id 的 `body` 與 `bodyHtml` 仍為空，不要重複呼叫同一 request；視為 Outlook/AddIn 目前未提供可讀內容，回報限制或改用 metadata。
 
 讀 attachment metadata：
 
 - `POST /api/outlook/request-mail-attachments`
-- `GET /api/outlook/command-results/{commandId}`
+- `POST /api/outlook/operation-state`
 - `GET /api/outlook/mail-attachments?mailId={mailId}`
 
 只取任務需要的內容片段；不要把完整 body、attachment path 或大量敏感資料貼回對話。
 
 ## Mutations
 
-修改、移動或刪除 mail 前，必須使用 snapshot 中的 `mailId` 與 `folderPath`，並確認目標就是使用者指定的 mail。
+修改、移動或刪除 mail 前，必須使用 `operation-state.items` 中的 `mailId` 與 `folderPath`，並確認目標就是使用者指定的 mail。
 
-若 snapshot 中有多封 mail 符合同一 subject 或 sender，不要任選一封。先向使用者列出必要 metadata，例如 `receivedTime`、`sender.displayName`、短 subject，請使用者確認目標。
+若 `operation-state.items` 中有多封 mail 符合同一 subject 或 sender，不要任選一封。先向使用者列出必要 metadata，例如 `receivedTime`、`sender.displayName`、短 subject，請使用者確認目標。
 
 常用 endpoint：
 
@@ -197,36 +194,27 @@ Request body 重點欄位：
 - `POST /api/outlook/request-move-mails`
 - `POST /api/outlook/request-delete-mail`
 
-`request-delete-mail` 代表移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不提供目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴顯示名稱或本地化名稱。若目標已經在 default Deleted Items folder 內，API 會回 `manual_delete_required`，此時請使用者自行到 Outlook 永久刪除。mutation 完成後重新讀 `mails` 與必要的 `folders` snapshot，確認結果。
+`request-delete-mail` 代表移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不提供目的 folder；AddIn 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴顯示名稱或本地化名稱。若目標已經在 default Deleted Items folder 內，API 會回 `manual_delete_required`，此時請使用者自行到 Outlook 永久刪除。mutation 完成後重新讀 `mails` 與必要的 `folders`，確認結果。
 
 ### Bulk Move Folder Tree
 
 當使用者要求「將 folderA 與底下 subfolder 的郵件都搬到 folderOther」或「搬空某個 folder tree」時，使用這個流程。不要用 `request-mails` 蒐集目標郵件，因為它是近期列表 API，受 `lookbackHours` / `maxCount` 限制。
 
-1. 取得最新 folders snapshot，定位來源 folderA 與 destination folderOther 的真實 `folderPath`；不要自行組 path。
-2. 若 folderA 的子 folder 尚未載入，先用 `request-folder-children` 展開到足以涵蓋使用者要求的層級，再重新讀 folders snapshot。
-3. 用 `request-mail-search` 枚舉來源範圍：
+1. 讀取 folders，定位來源 folderA 與 destination folderOther 的真實 `folderPath`；不要自行組 path。
+2. 用 `request-folder-mails` 取得來源範圍的 mail metadata：
 
 ```json
 {
-  "searchId": "",
-  "storeId": "",
-  "scopeFolderPaths": ["/Mailbox - User/folderA"],
+  "folderPath": "/Mailbox - User/folderA",
   "includeSubFolders": true,
-  "keyword": "",
-  "textFields": ["subject"],
-  "categoryNames": [],
-  "hasAttachments": null,
-  "flagState": "any",
-  "readState": "any",
   "receivedFrom": null,
   "receivedTo": null
 }
 ```
 
-4. 等待 command result 完成後讀 `GET /api/outlook/mail-search`，只取 `id` 與 `folderPath` 等必要 metadata。
-5. 將結果依最多 500 封切 batch。`POST /api/outlook/request-move-mails` 單次超過 500 會回 `400 too_many_mail_ids`。
-6. 逐批呼叫 `request-move-mails`，每批都等待 `command-results/{commandId}` 成功後再送下一批：
+3. 用 `operation-state` loop 到 `complete=true`，只取 `items[].id` 與 `items[].folderPath` 等必要 metadata。
+4. 將結果依最多 500 封切 batch。`POST /api/outlook/request-move-mails` 單次超過 500 會回 `400 too_many_mail_ids`。
+5. 逐批呼叫 `request-move-mails`，每批都用 `operation-state` 等到 `complete=true` 後再送下一批：
 
 ```json
 {
@@ -240,16 +228,15 @@ Request body 重點欄位：
 
 `sourceFolderPath` 只有單一來源 folder 時才填；跨 subfolders 時可留空並填 `sourceFolderPaths` 去幫助 folder count 更新。
 
-7. 回報進度，例如 `500/8000`、`1000/8000`。若某批失敗，停止後回報失敗批次與已完成數量；不要假裝整批成功。
-8. 全部批次完成後，重新讀必要的 folders snapshot 確認來源與目的 folder count。若需要確認目前 UI folder list，再針對相關 folder request mails。
+6. 回報進度，例如 `500/8000`、`1000/8000`。若某批失敗，停止後回報失敗批次與已完成數量；不要假裝整批成功。
+7. 全部批次完成後，重新讀必要的 folders 確認來源與目的 folder count。若需要確認目前 UI folder list，再針對相關 folder request mails。
 
 ## Calendar
 
 呼叫：
 
 - `POST /api/outlook/request-calendar`
-- `GET /api/outlook/command-results/{commandId}`
-- `GET /api/outlook/calendar`
+- `POST /api/outlook/operation-state`
 
 Request body 可使用 `daysForward`，或指定 `startDate` / `endDate`。
 
@@ -257,8 +244,8 @@ Request body 可使用 `daysForward`，或指定 `startDate` / `endDate`。
 
 若 workflow 讓 agent 必須猜測或重複試錯，回報使用者：
 
-- request response 是否足以指出下一個 cache endpoint。
+- request response 是否足以提供 `operationId`。
 - mutation endpoint 是否要求穩定 id，而不是只靠顯示名稱。
-- folder scope 是否能從 snapshot 穩定取得。
+- folder scope 是否能從 folder data 穩定取得。
 - sensitive fields 是否有必要回傳。
-- mail search 的進度、結果與 command result 是否能清楚串接。
+- operation-state 的進度、結果與分頁是否能清楚串接。

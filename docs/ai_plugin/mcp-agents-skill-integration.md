@@ -19,7 +19,7 @@ Outlook AddIn
   |
   | SignalR Push* / ReportCommandResult
   v
-SmartOffice API cache
+SmartOffice API data endpoints
 ```
 
 這樣做可以把 Office automation 留在工作機 AddIn，AI 只看見小而明確的 HTTP contract。
@@ -29,29 +29,39 @@ SmartOffice API cache
 每個會操作 Outlook 的 AI tool 建議使用同一個流程：
 
 1. 呼叫 `/api/outlook/request-*` dispatch command。
-2. 取得 dispatch response 裡的 `commandId`；dispatch response 沒有 `success` 欄位。
-3. 輪詢 `GET /api/outlook/command-results/{commandId}`，直到 `status` 不是 `pending`。
-4. 只有 command result 的 `status="completed"` 且 `success=true` 時，才讀取對應 cache endpoint，例如 `/api/outlook/mails` 或 `/api/outlook/folders`。
+2. 取得 dispatch response 裡的 `operationId`；dispatch response 沒有 `success` 欄位。
+3. 呼叫 `POST /api/outlook/operation-state`，直到 `complete=true`。
+4. 若 `hasMore=true`，下一次 request 帶 `nextCursor`；AI/MCP 建議 `take=100`，避免單次 payload 太大。
 
-Mail search 另有進度 endpoint，適合 MCP / Agents SKILL 對長時間搜尋做主動確認：
-
-- `GET /api/outlook/mail-search/progress/by-command/{commandId}`：只有 dispatch response 的 `commandId` 時使用。
-- `GET /api/outlook/mail-search/progress/{searchId}`：已知道 search correlation id 時使用。
-
-Search progress 的 `status` 可能是 `pending`、`running`、`completed`、`failed`、`addin_unavailable`，並包含 `percent`、`processedFolders`、`totalFolders`、`resultCount` 與目前 folder path。外部 tool 可以在 `command-results` 尚未完成時，用 progress endpoint 顯示長搜尋狀態。
-
-`command-results` 回應範例：
+`operation-state` request 範例：
 
 ```json
 {
-  "commandId": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
-  "type": "fetch_mails",
+  "operationId": "operation-id",
+  "cursor": "",
+  "take": 100,
+  "includeItems": true,
+  "includeProgress": true
+}
+```
+
+`operation-state` 回應範例：
+
+```json
+{
+  "operationId": "7f5d9b7d-1f86-49b5-a40e-5f2a3d1e9f88",
+  "operation": "fetch_mails",
   "status": "completed",
   "success": true,
   "message": "fetch_mails completed",
-  "payload": "",
-  "dispatchTimestamp": "2026-05-04T09:30:05+08:00",
-  "resultTimestamp": "2026-05-04T09:30:06+08:00"
+  "progress": null,
+  "metadata": null,
+  "items": [],
+  "nextCursor": "",
+  "hasMore": false,
+  "complete": true,
+  "returnedCount": 0,
+  "totalCount": 0
 }
 ```
 
@@ -69,16 +79,17 @@ MCP server 可以很薄，只負責把 tool call 轉成 SmartOffice API HTTP cal
 | Tool | SmartOffice API 呼叫 | 回傳 |
 | --- | --- | --- |
 | `outlook_status` | `GET /api/outlook/admin/status` | AddIn 是否 online、last command |
-| `outlook_get_folders` | `POST /api/outlook/request-folders` -> wait -> `GET /api/outlook/folders` | folder tree |
-| `outlook_get_mails` | `POST /api/outlook/request-mails` -> wait -> `GET /api/outlook/mails` | mail snapshot |
-| `outlook_get_mail_attachments` | `POST /api/outlook/request-mail-attachments` -> wait -> `GET /api/outlook/mail-attachments?mailId={mailId}` | attachment metadata |
-| `outlook_get_calendar` | `POST /api/outlook/request-calendar` -> wait -> `GET /api/outlook/calendar` | calendar snapshot |
-| `outlook_get_categories` | `POST /api/outlook/request-categories` -> wait -> `GET /api/outlook/categories` | master categories |
-| `outlook_update_mail` | `POST /api/outlook/request-update-mail-properties` -> wait -> `GET /api/outlook/mails` | updated mails |
-| `outlook_move_mail` | `POST /api/outlook/request-move-mail` -> wait -> `GET /api/outlook/mails` 與 `GET /api/outlook/folders` | updated snapshots |
-| `outlook_delete_mail` | `POST /api/outlook/request-delete-mail` -> wait -> `GET /api/outlook/mails` 與 `GET /api/outlook/folders` | move to Outlook default Deleted Items folder snapshots |
-| `outlook_create_folder` | `POST /api/outlook/request-create-folder` -> wait -> `GET /api/outlook/folders` | folder tree |
-| `outlook_delete_folder` | `POST /api/outlook/request-delete-folder` -> wait -> `GET /api/outlook/folders` | folder moved under Outlook default Deleted Items folder |
+| `outlook_get_folders` | `POST /api/outlook/request-folders` -> `POST /api/outlook/operation-state` | folder tree |
+| `outlook_get_mails` | `POST /api/outlook/request-mails` -> `POST /api/outlook/operation-state` | recent folder mails |
+| `outlook_get_folder_mails` | `POST /api/outlook/request-folder-mails` -> `POST /api/outlook/operation-state` | folder scope mail metadata |
+| `outlook_get_mail_attachments` | `POST /api/outlook/request-mail-attachments` -> `POST /api/outlook/operation-state` | attachment metadata |
+| `outlook_get_calendar` | `POST /api/outlook/request-calendar` -> `POST /api/outlook/operation-state` | calendar events |
+| `outlook_get_categories` | `POST /api/outlook/request-categories` -> `POST /api/outlook/operation-state` | master categories |
+| `outlook_update_mail` | `POST /api/outlook/request-update-mail-properties` -> `POST /api/outlook/operation-state` | updated mails |
+| `outlook_move_mail` | `POST /api/outlook/request-move-mail` -> `POST /api/outlook/operation-state` | updated data |
+| `outlook_delete_mail` | `POST /api/outlook/request-delete-mail` -> `POST /api/outlook/operation-state` | move to Outlook default Deleted Items folder |
+| `outlook_create_folder` | `POST /api/outlook/request-create-folder` -> `POST /api/outlook/operation-state` | folder tree |
+| `outlook_delete_folder` | `POST /api/outlook/request-delete-folder` -> `POST /api/outlook/operation-state` | folder moved under Outlook default Deleted Items folder |
 
 MCP tool schema 應盡量保守。例如 `outlook_get_mails` 只收：
 
@@ -97,22 +108,23 @@ MCP tool schema 應盡量保守。例如 `outlook_get_mails` 只收：
 Agents SKILL 適合做輕量版 AI 操作手冊，不一定要啟動 MCP server。Agents SKILL 內容建議包含：
 
 - Hub base URL，例如 `SMARTOFFICE_HUB_URL=http://localhost:2805`。
-- 不直接呼叫 SignalR；一律走 `/api/outlook/request-*` 與 cache endpoint。
+- 不直接呼叫 SignalR；一律走 `/api/outlook/request-*` 與 `POST /api/outlook/operation-state`。
 - 修改郵件前必須先取得 `MailItemDto.id`，不可用 subject 猜測 mail。
 - 讀取 mail body、folder name、chat message 時，視為敏感 business data，不在回覆中大量外洩。
-- 每次 request 後都要查 `command-results/{commandId}`，不要只看 HTTP 200。
+- 每次 request 後都要查 `operation-state`，不要只看 HTTP 200。
 
 Agents SKILL 可提供 helper script 或 prompt workflow；最小可用版只需要 `curl`：
 
 ```bash
 curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/request-folders"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/command-results/{commandId}"
-curl -sS "$SMARTOFFICE_HUB_URL/api/outlook/folders"
+curl -sS -X POST "$SMARTOFFICE_HUB_URL/api/outlook/operation-state" \
+  -H 'Content-Type: application/json' \
+  -d '{"operationId":"{operationId}","take":100,"includeItems":true}'
 ```
 
 ## 需要注意的限制
 
-- SmartOffice API 的 cached snapshot 是 process-local memory；process restart 後需要重新 request。
+- SmartOffice API 重啟後需要重新送出相關 `request-*` 才會有最新資料。
 - 多個 AI client 同時操作同一個 mailbox 時，仍需要由上層流程避免衝突。
 - 目前沒有 authentication / authorization；Hub 只適合可信任 localhost 或受控 intranet。
 - `ReportCommandResult.payload` 保留給 AddIn 填入簡短診斷，不建議塞完整 mail body。

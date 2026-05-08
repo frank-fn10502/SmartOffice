@@ -99,7 +99,7 @@ namespace SmartOffice.Hub.Services
                         var request = command.MailSearchSliceRequest ?? new MailSearchSliceRequest();
                         var searchResults = MockOutlookMailSearch.FetchMailSearchSlice(_mockMails, request);
                         mailSearchSliceResults = BuildMailSearchResultBatches(command.Id, request, searchResults);
-                        _mailStore.BeginMailSearch(request.ResetSearchResults);
+                        _mailStore.BeginMailSearch(request.ResetSearchResults, request.SearchId);
                         foreach (var batch in mailSearchSliceResults)
                             _mailStore.ApplyMailSearchSliceResult(batch);
                         if (request.CompleteSearchOnSlice)
@@ -109,7 +109,7 @@ namespace SmartOffice.Hub.Services
                                 SearchId = request.SearchId,
                                 CommandId = command.Id,
                                 ParentCommandId = request.ParentCommandId,
-                                TotalCount = _mailStore.GetMailSearchResults().Count,
+                                TotalCount = _mailStore.GetMailSearchResultCount(request.SearchId),
                                 Message = "Mock mail search completed",
                                 Timestamp = DateTime.Now,
                             };

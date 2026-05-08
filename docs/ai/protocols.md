@@ -12,7 +12,7 @@ Outlook AddIn 正式 protocol 已改為 SignalR-only：
 4. Hub 透過 SignalR client event `OutlookCommand` 即時 dispatch command 給 AddIn。
 5. AddIn 在本機執行 Outlook automation。
 6. AddIn 透過 SignalR server method `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushMail`、`PushMailBody`、`PushMailAttachments`、`PushExportedMailAttachment`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 或 `ReportCommandResult` 回報結果；mail search progress 由 Hub 自行推算。
-7. Hub 更新 cache，並透過 `/hub/notifications` broadcast diagnostic / progress notification。Web UI 的主要資料驗證路徑必須仍是 HTTP：送出 request endpoint、查 command result、再用 `GET /api/outlook/*` snapshot 讀回資料。
+7. Hub 更新內部狀態，並透過 `/hub/notifications` broadcast diagnostic / progress notification。Web UI 的主要資料驗證路徑必須仍是 HTTP：送出 request endpoint，再用 `POST /api/outlook/operation-state` 查狀態與分頁資料。
 
 目前不保留舊 AddIn HTTP long-poll / push channel；工作機 AddIn 不應再呼叫 `/api/outlook/poll` 或 `/api/outlook/push-*`。
 
@@ -30,18 +30,19 @@ Web UI notification channel：
 /hub/notifications
 ```
 
-Web UI 的定位是 Hub HTTP API 的手動測試與檢視工具。除 AddIn status、log 與非資料面的 progress/diagnostic 顯示外，不應依賴 `/hub/notifications` 直接修改 folders、mails、mail search results、rules、categories、calendar、chat 或 attachment snapshot；這些資料應由 HTTP GET snapshot 更新。
+Web UI 的定位是 Hub HTTP API 的手動測試與檢視工具。除 AddIn status、log 與非資料面的 progress/diagnostic 顯示外，不應依賴 `/hub/notifications` 直接修改 folders、mails、folder mail results、mail search results、rules、categories、calendar、chat 或 attachment data；主要資料應由 `operation-state` 更新。
 
 ## Web UI / AI Request Endpoint
 
 這些 endpoint 仍是 Web UI、AI 或 MCP client 對 Hub 的入口。Hub 收到 request 後會透過 `/hub/outlook-addin` dispatch `OutlookCommand`。
 
-HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在 dispatch `OutlookCommand` 前會轉成 AddIn SignalR contract 使用的 Outlook folder path，例如 `\\主要信箱 - User\收件匣`。反向讀取 `GET /api/outlook/folders`、`mails`、`mail-search` 與 search progress 時，Hub 也會把 cached Outlook path 轉回 HTTP API path。這是 Hub API 邊界的實作細節，不應出現在外部 SKILL 或 Swagger 說明中。
+HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在 dispatch `OutlookCommand` 前會轉成 AddIn SignalR contract 使用的 Outlook folder path，例如 `\\主要信箱 - User\收件匣`。反向讀取 `GET /api/outlook/folders`、`mails`、`folder-mails`、`mail-search` 與 search progress 時，Hub 也會把 Outlook path 轉回 HTTP API path。這是 Hub API 邊界的實作細節，不應出現在外部 SKILL 或 Swagger 說明中。
 
 - `POST /api/outlook/request-folders`：只 dispatch `fetch_folder_roots`，載入 stores 與 root folders。
 - `POST /api/outlook/request-folder-children`：dispatch 單一 parent folder 的 `fetch_folder_children`。
 - `POST /api/outlook/request-mails`：dispatch mail fetch command。
-- `POST /api/outlook/request-mail-search`：dispatch mail search command；Hub 必須先確保 folder cache、展開 store/folder scope、切成單 folder slices，並節流 dispatch 給 AddIn。搜尋由 Outlook 內建搜尋執行，條件包含文字搜尋與篩選條件。
+- `POST /api/outlook/request-folder-mails`：列出指定 folder 範圍內的所有 mail metadata；Hub 負責規劃 folder scope，底層可重用 mail search slice。
+- `POST /api/outlook/request-mail-search`：dispatch mail search command；Hub 必須先確保 folder data 可用、展開 store/folder scope、切成單 folder slices，並節流 dispatch 給 AddIn。搜尋由 Outlook 內建搜尋執行，條件包含文字搜尋與篩選條件。
 - `POST /api/outlook/request-rules`：dispatch Outlook rule fetch command。
 - `POST /api/outlook/request-categories`：dispatch Outlook master category fetch command。
 - `POST /api/outlook/request-signalr-ping`：透過正式 AddIn channel dispatch `ping` 測試 command。
@@ -51,21 +52,22 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `POST /api/outlook/request-create-folder`：dispatch 建立 folder command。
 - `POST /api/outlook/request-delete-folder`：dispatch `delete_folder` command；AddIn 必須實作為將 folder 移到 Outlook default Deleted Items folder，不可永久刪除，也不可用顯示名稱或本地化名稱猜目的 folder。
 - `POST /api/outlook/request-move-mail`：dispatch 移動單封郵件 command。
-- `POST /api/outlook/request-move-mails`：dispatch 移動多封郵件 command；`mailIds` 必須來自目前 Hub snapshot，單次最多 500 封，AddIn 逐封移動並回報結果。
+- `POST /api/outlook/request-move-mails`：dispatch 移動多封郵件 command；`mailIds` 必須來自 Hub data endpoint，單次最多 500 封，AddIn 逐封移動並回報結果。
 - `POST /api/outlook/request-delete-mail`：dispatch `delete_mail` command；AddIn 必須實作為移到 Outlook default Deleted Items folder，不可永久刪除，也不可用顯示名稱或本地化名稱猜目的 folder。
 - 若 `request-delete-mail` 或 `request-delete-folder` 的目標已經位於 Outlook default Deleted Items folder 或其子層，HTTP API 應回 `409 manual_delete_required` 與說明文字；使用者必須自行到 Outlook 永久刪除。
-- `GET /api/outlook/folders`：讀取 cached folder snapshot，格式是 `FolderSnapshotDto`。
-  Hub folder cache 只保留 store root 與可操作 mail folder；hidden/system/non-mail folder 不會出現在此 snapshot。
-- `GET /api/outlook/mails`：讀取 cached mails。
+- `GET /api/outlook/folders`：讀取 folder data，格式是 `FolderSnapshotDto`。
+- `GET /api/outlook/mails`：讀取 recent mail list data。
+- `GET /api/outlook/folder-mails`：讀取上次 folder mail request 的 results。
 - `GET /api/outlook/mail-search/progress/{searchId}`：查詢 mail search 進度。
 - `GET /api/outlook/mail-search/progress/by-command/{commandId}`：以 command id 查詢 mail search 進度。
-- `GET /api/outlook/rules`：讀取 cached Outlook rules。
-- `GET /api/outlook/categories`：讀取 cached Outlook master category list。
-- `GET /api/outlook/calendar`：讀取 cached Outlook calendar events。
+- `GET /api/outlook/rules`：讀取 Outlook rules。
+- `GET /api/outlook/categories`：讀取 Outlook master category list。
+- `GET /api/outlook/calendar`：讀取 Outlook calendar events。
 - `POST /api/outlook/chat`：新增並 broadcast chat message。
-- `GET /api/outlook/chat`：讀取 cached chat messages。
-- `GET /api/outlook/command-results/{commandId}`：查詢指定 command 的執行狀態，供 AI / MCP client 等待 AddIn 回報。
-- `GET /api/outlook/command-results`：查詢最近 command 執行狀態。
+- `GET /api/outlook/chat`：讀取 chat messages。
+- `POST /api/outlook/operation-state`：正式 client workflow 使用的 operation 狀態與分頁資料入口。
+- `GET /api/outlook/command-results/{commandId}`：診斷用，查詢指定內部 command 的執行狀態。
+- `GET /api/outlook/command-results`：診斷用，查詢最近 command 執行狀態。
 
 如果沒有 Outlook AddIn SignalR connection，request endpoint 回傳：
 
@@ -86,16 +88,16 @@ AI / MCP client 與 Agents SKILL 的完整建議流程請參考 `docs/ai_plugin/
 
 Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 folder slice。Hub 收到 `request-mail-search` 時必須：
 
-1. 若 folder cache 為空，先由 Hub dispatch `fetch_folder_roots`，建立 store/root folder cache；mail search 只使用目前已載入的 folder cache，不得為了搜尋自動展開整棵 folder tree。
-2. 若 folder cache 無法建立，讓原始 search command 失敗並回 `folder_cache_unavailable`。
-3. 使用 cached folder tree 展開原始 request 的 `storeId` / `scopeFolderPaths` / `includeSubFolders`；Hub 只允許 `defaultItemType == 0`、`isHidden == false`、`isSystem == false`、非 store root，且 `folderType` 是可操作 mail enum 的 folder 進入搜尋計畫。
+1. 若 folder data 尚不可用，先由 Hub dispatch `fetch_folder_roots`，取得 store/root folder data；mail search 只使用目前 Hub 已知的 folder data，不得為了搜尋自動展開整棵 folder tree。
+2. 若 folder data 無法建立，讓原始 search command 失敗並回 `folder_cache_unavailable`。
+3. 使用 folder tree data 展開原始 request 的 `storeId` / `scopeFolderPaths` / `includeSubFolders`；Hub 只允許 `defaultItemType == 0`、`isHidden == false`、`isSystem == false`、非 store root，且 `folderType` 是可操作 mail enum 的 folder 進入搜尋計畫。
 4. 將搜尋計畫切成單 folder slices；每個 slice 都要有非空 `storeId`、`folderEntryId` 與單一 `folderPath`。
 5. 依序 dispatch slices，slice 之間保留短暫 delay，避免大量 Outlook search 同時啟動。
 6. 用 `MailSearchProgress` broadcast 整體進度；MCP / Agents SKILL 可用 progress endpoint 主動查詢。
 
 搜尋條件：
 
-- Hub 把 cached folder 的 `entryId`、`folderPath`、`keyword`、`textFields` 與分類、附件、旗標、已讀狀態、時間等篩選條件傳給每個 `MailSearchSliceRequest`。
+- Hub 把 folder data 的 `entryId`、`folderPath`、`keyword`、`textFields` 與分類、附件、旗標、已讀狀態、時間等篩選條件傳給每個 `MailSearchSliceRequest`。
 - AddIn 在單一 folder 內依 Microsoft Outlook `AdvancedSearch` / DASL 這類內建搜尋流程組合 filter，再回傳符合條件的 metadata。
 - AddIn 必須在同一個 folder slice 內以多次 `PushMailSearchSliceResult` 分段回推結果，每批約 `3` 到 `5` 封 mail metadata，最後一批才標 `isSliceComplete=true`。
 - `keyword` 預設只套用在 `subject`，使用者可在 Web UI 選擇 `sender` 或 `body`。這不是 typo-tolerant fuzzy search。
@@ -106,7 +108,7 @@ Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 fol
 | --- | --- | --- |
 | 非空 | 非空 | 展開指定 store 內的指定 folder；`includeSubFolders=true` 時包含子 folder。 |
 | 非空 | 空陣列 | 展開該 store 底下所有可搜尋 mail folders。 |
-| 空字串 | 非空 | 用 cached folder tree 找出 folder 所在 store，再分成單 folder slices。 |
+| 空字串 | 非空 | 用 folder tree data 找出 folder 所在 store，再分成單 folder slices。 |
 | 空字串 | 空陣列 | 展開所有 stores 底下所有可搜尋 mail folders。 |
 
 ## AddIn SignalR Server Method
@@ -117,14 +119,14 @@ AddIn 連到 `/hub/outlook-addin` 後可以 invoke：
 - `BeginFolderSync(info)`：開始 folder 增量同步並 broadcast `FolderSyncStarted`。
 - `PushFolderBatch(batch)`：merge stores / folders 小批次並 broadcast `FoldersPatched`。
 - `CompleteFolderSync(info)`：結束 folder 增量同步並 broadcast `FolderSyncCompleted`。
-- `PushMails(mails)`：取代 cached mails 並 broadcast update；`fetch_mails` 只應回 metadata。
-- `PushMail(mail)`：只更新 cached mails 中同 id 的單封 mail 並 broadcast update；`update_mail_properties` 應使用這個方法。
-- `PushMailBody(body)`：只更新 cached mails 中同 id 的 body 並 broadcast update；`fetch_mail_body` 應使用這個方法。
+- `PushMails(mails)`：取代目前 mail list 並 broadcast update；`fetch_mails` 只應回 metadata。
+- `PushMail(mail)`：只更新目前 mail list 中同 id 的單封 mail 並 broadcast update；`update_mail_properties` 應使用這個方法。
+- `PushMailBody(body)`：只更新目前 mail list 中同 id 的 body 並 broadcast update；`fetch_mail_body` 應使用這個方法。
 - `PushMailAttachments(attachments)`：回推單封 mail 的附件 metadata；`fetch_mail_attachments` 應使用這個方法。
 - `PushExportedMailAttachment(exported)`：回推已匯出附件的本機路徑與識別；`export_mail_attachment` 應使用這個方法。
-- `PushRules(rules)`：取代 cached Outlook rules 並 broadcast update。
-- `PushCategories(categories)`：取代 cached Outlook master category list 並 broadcast update。
-- `PushCalendar(events)`：取代 cached Outlook calendar events 並 broadcast update。
+- `PushRules(rules)`：取代目前 Outlook rules 並 broadcast update。
+- `PushCategories(categories)`：取代目前 Outlook master category list 並 broadcast update。
+- `PushCalendar(events)`：取代目前 Outlook calendar events 並 broadcast update。
 - `SendChatMessage(message)`：AddIn 透過 SignalR 送出 chat message，Hub 會 broadcast `NewChatMessage`。
 - `ReportAddinLog(entry)`：回報 AddIn log。
 - `ReportCommandResult(result)`：回報 command 執行結果。

@@ -147,13 +147,13 @@ namespace SmartOffice.Hub.Hubs
 
         private async Task HandleBeginMailSearchAsync(MailSearchSliceResultDto batch)
         {
-            _mailStore.BeginMailSearch(batch.Reset);
+            _mailStore.BeginMailSearch(batch.Reset, batch.SearchId);
             var progress = _mailStore.UpdateMailSearchProgress(new MailSearchProgressDto
             {
                 SearchId = batch.SearchId,
                 Status = "running",
                 Phase = "store",
-                ResultCount = _mailStore.GetMailSearchResults().Count,
+                ResultCount = _mailStore.GetMailSearchResultCount(batch.SearchId),
                 Message = string.IsNullOrWhiteSpace(batch.Message) ? "Mail search started." : batch.Message,
                 Timestamp = DateTime.Now,
             });
@@ -187,7 +187,7 @@ namespace SmartOffice.Hub.Hubs
                 var complete = new MailSearchCompleteDto
                 {
                     SearchId = batch.SearchId,
-                    TotalCount = _mailStore.GetMailSearchResults().Count,
+                    TotalCount = _mailStore.GetMailSearchResultCount(batch.SearchId),
                     Message = string.IsNullOrWhiteSpace(batch.Message) ? "Mail search completed by final batch" : batch.Message,
                 };
                 await _notifications.Clients.All.SendAsync("MailSearchCompleted", complete);
@@ -199,7 +199,7 @@ namespace SmartOffice.Hub.Hubs
         private async Task HandleCompleteMailSearchSliceAsync(MailSearchCompleteDto info)
         {
             if (info.TotalCount <= 0)
-                info.TotalCount = _mailStore.GetMailSearchResults().Count;
+                info.TotalCount = _mailStore.GetMailSearchResultCount(info.SearchId);
 
             if (!string.IsNullOrWhiteSpace(info.CommandId))
             {

@@ -90,9 +90,11 @@ namespace SmartOffice.Hub.Services
         private List<OutlookCategoryDto> _categories = new();
         private List<CalendarEventDto> _calendarEvents = new();
         private List<MailItemDto> _mailSearchResults = new();
+        private List<MailItemDto> _folderMailResults = new();
         private DateTime _folderCacheUpdatedAt = DateTime.MinValue;
         private readonly Dictionary<string, MailSearchProgressDto> _mailSearchProgress = new();
         private readonly Dictionary<string, SearchMailsRequest> _mailSearchRequests = new();
+        private readonly HashSet<string> _folderMailSearchIds = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, MailAttachmentsDto> _attachments = new();
         private readonly Dictionary<string, ExportedMailAttachmentDto> _exportedAttachments = new();
 
@@ -107,6 +109,7 @@ namespace SmartOffice.Hub.Services
             {
                 UpsertKnownMail(_mails, mail);
                 UpsertKnownMail(_mailSearchResults, mail);
+                UpsertKnownMail(_folderMailResults, mail);
             }
         }
 
@@ -116,6 +119,7 @@ namespace SmartOffice.Hub.Services
             {
                 UpdateMailBody(_mails, body);
                 UpdateMailBody(_mailSearchResults, body);
+                UpdateMailBody(_folderMailResults, body);
             }
         }
 
@@ -190,10 +194,28 @@ namespace SmartOffice.Hub.Services
             lock (_lock) { return _mails.Select(CloneMail).ToList(); }
         }
 
-        public void BeginMailSearch(bool reset = true)
+        public void BeginMailSearch(bool reset = true, string searchId = "")
         {
             if (!reset) return;
-            lock (_lock) { _mailSearchResults = new List<MailItemDto>(); }
+            lock (_lock)
+            {
+                if (_folderMailSearchIds.Contains(searchId))
+                    _folderMailResults = new List<MailItemDto>();
+                else
+                    _mailSearchResults = new List<MailItemDto>();
+            }
+        }
+
+        public void MarkFolderMailSearch(string searchId)
+        {
+            lock (_lock)
+            {
+                if (!string.IsNullOrWhiteSpace(searchId))
+                {
+                    _folderMailSearchIds.Add(searchId);
+                    _folderMailResults = new List<MailItemDto>();
+                }
+            }
         }
 
         public MailSearchProgressDto StartMailSearchProgress(SearchMailsRequest request, string commandId)
@@ -258,15 +280,32 @@ namespace SmartOffice.Hub.Services
         {
             lock (_lock)
             {
-                if (batch.Reset) _mailSearchResults = new List<MailItemDto>();
+                var target = _folderMailSearchIds.Contains(batch.SearchId)
+                    ? _folderMailResults
+                    : _mailSearchResults;
+
+                if (batch.Reset)
+                {
+                    if (_folderMailSearchIds.Contains(batch.SearchId))
+                    {
+                        _folderMailResults = new List<MailItemDto>();
+                        target = _folderMailResults;
+                    }
+                    else
+                    {
+                        _mailSearchResults = new List<MailItemDto>();
+                        target = _mailSearchResults;
+                    }
+                }
+
                 foreach (var mail in batch.Mails)
-                    UpsertMail(_mailSearchResults, CloneMailMetadata(mail));
+                    UpsertMail(target, CloneMailMetadata(mail));
 
                 if (_mailSearchProgress.TryGetValue(batch.SearchId, out var progress))
                 {
                     progress.Status = batch.IsFinal ? "completed" : "running";
                     progress.Phase = batch.IsFinal ? "completed" : "folder";
-                    progress.ResultCount = _mailSearchResults.Count;
+                    progress.ResultCount = target.Count;
                     progress.Message = batch.Message;
                     progress.Timestamp = DateTime.Now;
                 }
@@ -276,6 +315,21 @@ namespace SmartOffice.Hub.Services
         public List<MailItemDto> GetMailSearchResults()
         {
             lock (_lock) { return _mailSearchResults.Select(CloneMail).ToList(); }
+        }
+
+        public List<MailItemDto> GetFolderMailResults()
+        {
+            lock (_lock) { return _folderMailResults.Select(CloneMail).ToList(); }
+        }
+
+        public int GetMailSearchResultCount(string searchId)
+        {
+            lock (_lock)
+            {
+                return _folderMailSearchIds.Contains(searchId)
+                    ? _folderMailResults.Count
+                    : _mailSearchResults.Count;
+            }
         }
 
         public FolderSnapshotDto GetFolderSnapshot()

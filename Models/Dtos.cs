@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace SmartOffice.Hub.Models
 {
-    // 共用 Outlook snapshot DTO：AddIn 會推送這些資料，Hub cache / HTTP API / Web UI 也會讀取。
+    // 共用 Outlook data DTO：AddIn 會推送這些資料，Hub / HTTP API / Web UI 也會讀取。
     public class MailItemDto
     {
         public string Id { get; set; } = string.Empty;

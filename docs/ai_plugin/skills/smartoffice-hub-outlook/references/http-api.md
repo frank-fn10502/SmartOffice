@@ -12,40 +12,74 @@ Default: `http://localhost:2805`.
 
 ```json
 {
+  "operationId": "operation-id",
   "commandId": "command-id",
   "status": "completed",
   "message": ""
 }
 ```
 
-`request-mail-search` 另有：
+`request-mail-search` 與 `request-folder-mails` 另有：
 
 ```json
 {
+  "operationId": "operation-id",
   "commandId": "parent-command-id",
   "searchId": "search-id",
   "status": "completed",
   "message": "",
-  "sliceCount": 3
+  "sliceCount": 3,
+  "resultEndpoint": "/api/outlook/mail-search"
 }
 ```
 
 常見 `status`：`completed`、`mocked`、`timeout`、`failed`、`folder_cache_unavailable`、`no_searchable_folder`。遇到其他非完成狀態時，回報原始 `status` 與 `message`。
 
-`request-*` dispatch response 沒有 `success` 欄位。取得 `commandId` 後仍要查 `GET /api/outlook/command-results/{commandId}`；只有 command result 的 `status="completed"` 且 `success=true` 時，才讀對應 snapshot endpoint：
+`request-*` dispatch response 沒有 `success` 欄位。取得 `operationId` 後，用 `POST /api/outlook/operation-state` 查狀態與分頁資料。
 
-- folder request -> `GET /api/outlook/folders`
-- mail list / body request -> `GET /api/outlook/mails`
-- mail attachment request -> `GET /api/outlook/mail-attachments?mailId={mailId}`
-- mail search request -> `GET /api/outlook/mail-search`
-- calendar request -> `GET /api/outlook/calendar`
-- rules / categories request -> `GET /api/outlook/rules` 或 `GET /api/outlook/categories`
+### `POST /api/outlook/operation-state`
 
-若 `request-*` 回 HTTP 409 / 400 / 502 / 504，body 通常仍包含 `status`、`message` 與可能存在的 `commandId`。Caller 應回報該狀態；不要自行擴大 folder scope、改成空 `scopeFolderPaths`，或猜測 folder path 重試。
+Request:
 
-## Command Results
+```json
+{
+  "operationId": "operation-id",
+  "cursor": "",
+  "take": 100,
+  "includeItems": true,
+  "includeProgress": true
+}
+```
 
-- `GET /api/outlook/command-results/{commandId}`：查單一 command。
+Response:
+
+```json
+{
+  "operationId": "operation-id",
+  "operation": "list_folder_mails",
+  "status": "running",
+  "success": null,
+  "message": "",
+  "progress": null,
+  "metadata": null,
+  "items": [],
+  "nextCursor": "100",
+  "hasMore": true,
+  "complete": false,
+  "returnedCount": 100,
+  "totalCount": 500
+}
+```
+
+Caller 應持續呼叫 `operation-state` 到 `complete=true`。若 `hasMore=true`，下一次 request 使用 `nextCursor`。`take` 會 clamp 到 1-500，建議 AI/MCP 使用 100。
+
+若 `request-*` 回 HTTP 409 / 400 / 502 / 504，body 通常仍包含 `status`、`message` 與可能存在的 `operationId`。Caller 應回報該狀態；不要自行擴大 folder scope、改成空 `scopeFolderPaths`，或猜測 folder path 重試。
+
+## Diagnostic Command Results
+
+`command-results` 是 Hub/AddIn 診斷入口，不是 AI / MCP / Web UI 的主要 workflow。
+
+- `GET /api/outlook/command-results/{commandId}`：查單一內部 command。
 - `GET /api/outlook/command-results`：查最近 commands。
 
 `OutlookCommandStatusDto`：
@@ -71,12 +105,13 @@ Status fields：
 - `lastPushTime`: DateTime 或 null
 - `lastCommand`: string
 
-## Cached Snapshot Endpoints
+## Legacy Data Endpoints
 
-這些 GET 不會送出新 request，只讀 memory cache：
+這些 GET 保留給 Web UI 診斷與舊工具；正式 caller 優先使用 `operation-state`：
 
 - `GET /api/outlook/folders` -> `FolderSnapshotDto`
 - `GET /api/outlook/mails` -> `MailItemDto[]`
+- `GET /api/outlook/folder-mails` -> `MailItemDto[]`
 - `GET /api/outlook/mail-attachments?mailId={mailId}` -> `MailAttachmentsDto`
 - `GET /api/outlook/mail-search` -> `MailItemDto[]`
 - `GET /api/outlook/rules` -> `OutlookRuleDto[]`
@@ -84,7 +119,7 @@ Status fields：
 - `GET /api/outlook/calendar` -> `CalendarEventDto[]`
 - `GET /api/outlook/chat` -> `ChatMessageDto[]`
 
-服務 restart 後 cache 會清空，需要重新 request。
+服務 restart 後需要重新送出相關 `request-*` 才會有最新資料。
 
 HTTP API 的 folder path 一律使用普通斜線，例如 `/主要信箱 - User/收件匣`。
 
@@ -119,7 +154,7 @@ API 會 clamp `maxDepth` 到 1-3、`maxChildren` 到 1-200，並設定 `reset=fa
 - `request-folder-children.parentEntryId` 使用 root 的 `entryId`。
 - `request-folder-children.parentFolderPath` 使用 root 的 `folderPath`。
 
-注意 request 欄位名稱必須是 `parentEntryId` 與 `parentFolderPath`；`entryId` 與 `folderPath` 是 snapshot 欄位，不是此 endpoint 的 request 欄位。
+注意 request 欄位名稱必須是 `parentEntryId` 與 `parentFolderPath`；`entryId` 與 `folderPath` 是 folder data 欄位，不是此 endpoint 的 request 欄位。
 
 ## Mail List / Body / Attachment Endpoints
 
@@ -135,7 +170,30 @@ Request:
 }
 ```
 
-`folderPath` 必須取自 `GET /api/outlook/folders` snapshot。`lookbackHours` 是以小時為單位的簡易相對時間，例如 `12` 代表過去 12 小時、`24` 代表過去 1 天、`168` 代表過去 7 天。也可直接傳入 `receivedFrom` / `receivedTo` date-time 邊界；Hub 會在 dispatch 前補齊給 AddIn。完成後讀 `GET /api/outlook/mails`。mail list 只應包含 metadata，完整 body 需另請求。
+`folderPath` 必須取自 `GET /api/outlook/folders`。`lookbackHours` 是以小時為單位的簡易相對時間，例如 `12` 代表過去 12 小時、`24` 代表過去 1 天、`168` 代表過去 7 天。也可直接傳入 `receivedFrom` / `receivedTo` date-time 邊界；Hub 會在 dispatch 前補齊給 AddIn。完成後讀 `GET /api/outlook/mails`。mail list 只應包含 metadata，完整 body 需另請求。
+
+### `POST /api/outlook/request-folder-mails`
+
+列出指定 folder 範圍內的所有 mail metadata。這是 Web UI、AI 與 MCP 要做批次操作時的簡單入口；不要用近期 mail list API 來枚舉整個 folder。
+
+Request:
+
+```json
+{
+  "folderPath": "/主要信箱 - User/Projects/folderA",
+  "includeSubFolders": true,
+  "receivedFrom": null,
+  "receivedTo": null
+}
+```
+
+完成後讀：
+
+```text
+GET /api/outlook/folder-mails
+```
+
+`folderPath` 必須取自 `GET /api/outlook/folders`。`includeSubFolders=true` 時，Hub 會負責規劃 folder 範圍；caller 不需要理解 Hub 內部如何收集結果。
 
 ### `POST /api/outlook/request-mail-body`
 
@@ -163,7 +221,7 @@ Request:
 
 完成後 attachment metadata 會進入 server state；Web UI 會收到更新。
 
-讀取 cached attachment metadata：
+讀取 attachment metadata：
 
 ```text
 GET /api/outlook/mail-attachments?mailId={mailId}
@@ -220,8 +278,8 @@ Request:
 ```
 
 - `scopeFolderPaths` 空陣列代表指定 store 或全部 store 內目前已載入的可搜尋 mail folders；AI agent 不可在使用者未要求全域搜尋時送空陣列。
-- 使用者未指定 folder 時，使用主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值；此值必須取自 folder snapshot，不能硬寫英文 `Inbox`。
-- 若回應 `no_searchable_folder`，代表指定 scope 沒有對上目前 cached folders；先重新載入/展開 folders 並改用 snapshot 裡的實際 `folderPath`。
+- 使用者未指定 folder 時，使用主要 mailbox 的 Inbox，並設為 `scopeFolderPaths` 第一個值；此值必須取自 `GET /api/outlook/folders`，不能硬寫英文 `Inbox`。
+- 若回應 `no_searchable_folder`，代表指定 scope 目前無法搜尋；先重新讀 folders 並改用回傳的實際 `folderPath`。
 - `textFields`: `subject`、`sender`、`body`；API 會 normalize，不合法時回到 `subject`。
 - `flagState`: `any`、`flagged`、`unflagged`。
 - `readState`: `any`、`unread`、`read`。
@@ -254,7 +312,7 @@ Agent 預設 request 範例應像這樣指定單一 Inbox path：
 }
 ```
 
-使用空 scope 時，回覆使用者必須說明範圍是「目前 SmartOffice API folder cache 中已載入的可搜尋 mail folders」，不是保證完整 Outlook mailbox。
+使用空 scope 時，回覆使用者必須說明範圍是「目前 SmartOffice API 已知的可搜尋 mail folders」，不是保證完整 Outlook mailbox。
 
 Progress：
 
@@ -403,7 +461,7 @@ Chat text 可能含敏感 business data。
 主要 Inbox 選取規則：
 
 1. 從 `FolderSnapshotDto.stores[0]` 取得主要 `storeId`。
-2. 若主要 store root 的 `childrenLoaded=false`，先用 root `FolderDto` 展開 children。
+2. 若主要 store root 的 `childrenLoaded=false`，先用 root `FolderDto` 要求載入 children。
 3. 在同一個 `storeId` 底下優先選 `folderType="Inbox"`。
 4. 若 `folderType` 不可靠，才 fallback 到 `name="收件匣"` 或 `name="Inbox"`。
 5. 後續 request 使用該 folder 的完整 `folderPath`，不要使用 `name` 或自行組路徑。

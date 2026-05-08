@@ -638,7 +638,7 @@ function categoryTagStyle(name: string) {
     loadingFolders.value = true
     try {
       const response = await outlookApi.requestFolders()
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await loadCachedFolders()
       initialFoldersFetchCompleted = true
       updateOutlookFirstLoadCompleted()
@@ -692,7 +692,7 @@ function categoryTagStyle(name: string) {
         maxDepth: 1,
         maxChildren: 50,
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await loadCachedFolders({ preserveExistingCounts: true })
     } finally {
       loadingFolders.value = false
@@ -740,7 +740,7 @@ function categoryTagStyle(name: string) {
             maxDepth: 1,
             maxChildren: 50,
           })
-          await waitForCommandResult(response.commandId)
+          await waitForOperation(response)
           await loadCachedFolders({ preserveExistingCounts: true })
         } finally {
           loadingFolders.value = false
@@ -821,6 +821,25 @@ function categoryTagStyle(name: string) {
     setMailSearchResults(await outlookApi.getMailSearchResults())
   }
 
+  async function loadOperationMailItems(response: { operationId?: string; commandId?: string }) {
+    const operationId = operationIdFromDispatch(response)
+    const items: MailItemDto[] = []
+    let cursor = ''
+    do {
+      const state = await outlookApi.getOperationState({
+        operationId,
+        cursor,
+        take: 100,
+        includeItems: true,
+        includeProgress: true,
+      })
+      items.push(...normalizeMailItems(state.items))
+      cursor = state.nextCursor
+      if (!state.hasMore) break
+    } while (cursor)
+    return items
+  }
+
   async function loadCachedRules() {
     rules.value = await outlookApi.getRules()
   }
@@ -854,8 +873,10 @@ function categoryTagStyle(name: string) {
         lookbackHours: mailLookbackHours.value,
         maxCount: mailCount.value,
       })
-      await waitForCommandResult(response.commandId)
-      await loadCachedMails(pendingMailFolderPath.value)
+      await waitForOperation(response)
+      const items = await loadOperationMailItems(response)
+      setMails(items)
+      fetchedMailFolderPath.value = inferMailFolderPath(items, pendingMailFolderPath.value)
       lastMailFetchAt.value = new Date()
       pendingMailFolderPath.value = ''
       initialMailsFetchCompleted = true
@@ -951,13 +972,13 @@ function categoryTagStyle(name: string) {
         receivedFrom: localDateTimeToIso(mailSearchDraft.value.receivedFrom),
         receivedTo: localDateTimeToIso(mailSearchDraft.value.receivedTo),
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       try {
-        mailSearchProgress.value = await outlookApi.getMailSearchProgressByCommandId(response.commandId)
+        mailSearchProgress.value = await outlookApi.getMailSearchProgressByCommandId(operationIdFromDispatch(response))
       } catch {
         // Search progress 不是每個失敗路徑都一定會留下 snapshot。
       }
-      await loadCachedMailSearchResults()
+      setMailSearchResults(await loadOperationMailItems(response))
       loadingMailSearch.value = false
     } catch {
       loadingMailSearch.value = false
@@ -994,7 +1015,7 @@ function categoryTagStyle(name: string) {
     loadingRules.value = true
     try {
       const response = await outlookApi.requestRules()
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await loadCachedRules()
       loadingRules.value = false
     } catch {
@@ -1007,7 +1028,7 @@ function categoryTagStyle(name: string) {
     loadingCategories.value = true
     try {
       const response = await outlookApi.requestCategories()
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await loadCachedCategories()
       initialCategoriesFetchCompleted = true
       updateOutlookFirstLoadCompleted()
@@ -1025,7 +1046,7 @@ function categoryTagStyle(name: string) {
     loadingSignalRPing.value = true
     try {
       const response = await outlookApi.requestSignalRPing()
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
     } finally {
       loadingSignalRPing.value = false
     }
@@ -1066,7 +1087,7 @@ function categoryTagStyle(name: string) {
         startDate: toDateKey(start),
         endDate: toDateKey(end),
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await loadCachedCalendar()
       loadingCalendar.value = false
     } catch {
@@ -1100,13 +1121,13 @@ function categoryTagStyle(name: string) {
     try {
       const response = await action()
       if (isCommandDispatchResponse(response)) {
-        activeOperationCommandId = response.commandId
-        if (!['completed', 'mocked', 'dispatched'].includes(response.status)) {
+        activeOperationCommandId = operationIdFromDispatch(response)
+        if (!['accepted', 'completed', 'mocked', 'dispatched'].includes(response.status)) {
           operationLoading.value = false
           activeOperationCommandId = ''
           return false
         }
-        await waitForCommandResult(response.commandId)
+        await waitForOperation(response)
       }
       if (afterSuccess) await afterSuccess()
       completeOperation(activeOperationCommandId)
@@ -1119,25 +1140,37 @@ function categoryTagStyle(name: string) {
     }
   }
 
-  function isCommandDispatchResponse(value: unknown): value is { commandId: string; status: string } {
-    const response = value as { commandId?: unknown; status?: unknown }
-    return typeof response?.commandId === 'string' && typeof response?.status === 'string'
+  function isCommandDispatchResponse(value: unknown): value is { operationId?: string; commandId?: string; status: string } {
+    const response = value as { operationId?: unknown; commandId?: unknown; status?: unknown }
+    return (typeof response?.operationId === 'string' || typeof response?.commandId === 'string')
+      && typeof response?.status === 'string'
   }
 
-  async function waitForCommandResult(commandId: string, timeoutMs = 120000) {
-    if (!commandId) return
+  function operationIdFromDispatch(response: { operationId?: string; commandId?: string }) {
+    return response.operationId || response.commandId || ''
+  }
+
+  async function waitForOperation(response: { operationId?: string; commandId?: string }, timeoutMs = 120000) {
+    const operationId = operationIdFromDispatch(response)
+    if (!operationId) return
     const started = Date.now()
     while (!unmounted && Date.now() - started < timeoutMs) {
       try {
-        const result = await outlookApi.getCommandResult(commandId)
-        if (result.success) return
-        if (result.message || result.timestamp) throw new Error(result.message || 'Outlook command failed')
+        const state = await outlookApi.getOperationState({
+          operationId,
+          includeItems: false,
+          includeProgress: true,
+        })
+        if (state.complete && state.success !== false) return
+        if (state.status && !['pending', 'running', 'completed', 'mocked'].includes(state.status)) {
+          throw new Error(state.message || 'Outlook operation failed')
+        }
       } catch (error) {
         if (error instanceof Error && error.message !== 'Request failed: 404') throw error
       }
       await new Promise((resolve) => window.setTimeout(resolve, 300))
     }
-    throw new Error('Outlook command timed out')
+    throw new Error('Outlook operation timed out')
   }
 
   function completeOperation(commandId = '') {
@@ -1216,7 +1249,7 @@ function categoryTagStyle(name: string) {
         mailId: mail.id,
         folderPath: mail.folderPath,
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await refreshMailSnapshotsForDetail(mail.id)
       completeMailBodyLoad(mail.id)
     } catch {
@@ -1241,7 +1274,7 @@ function categoryTagStyle(name: string) {
         mailId: mail.id,
         folderPath: mail.folderPath,
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
     } catch {
       completeAttachmentLoad(mail.id)
@@ -1263,7 +1296,7 @@ function categoryTagStyle(name: string) {
         fileName: attachment.fileName,
         displayName: attachment.displayName,
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
       completeAttachmentExport(mail.id, attachment.attachmentId)
     } catch {
@@ -1340,7 +1373,7 @@ function categoryTagStyle(name: string) {
         colorValue: categoryColorValue(color || 'olCategoryColorNone'),
         shortcutKey,
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await loadCachedCategories()
       operationLoading.value = false
     } catch {
@@ -1398,7 +1431,7 @@ function categoryTagStyle(name: string) {
         parentFolderPath: parentPath,
         name: folderName,
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await loadCachedFolders()
       cancelCreateFolder()
       operationLoading.value = false
@@ -1421,7 +1454,7 @@ function categoryTagStyle(name: string) {
       const response = await outlookApi.requestDeleteFolder({
         folderPath: targetPath,
       })
-      await waitForCommandResult(response.commandId)
+      await waitForOperation(response)
       await loadCachedFolders()
       if (selectedFolderPath.value === targetPath) {
         selectedFolderPath.value = folderOptions.value[0]?.folderPath ?? ''

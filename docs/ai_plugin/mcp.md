@@ -5,7 +5,7 @@
 ## 邊界
 
 - MCP 不直接連 Outlook、Office COM 或 `/hub/outlook-addin`。
-- MCP 不保存長期 mailbox state；Hub cached snapshot 仍是主要讀取來源。
+- MCP 不保存長期 mailbox state；資料一律由 Hub HTTP data endpoint 讀取。
 - MCP tool schema 應保守，優先沿用 Hub request DTO，避免 adapter 發明另一套 contract。
 - MCP 回覆不應大量輸出 mail body、folder name 或 chat message，這些內容都可能含有敏感 business data。
 

@@ -55,10 +55,12 @@ namespace SmartOffice.Hub.Models
 
     /// <summary>
     /// Hub 接收 request-* command 後的標準回應。HTTP 200 只代表 Hub 已完成 dispatch/wait 流程；
-    /// 呼叫端仍應以 commandId 查詢 command-results，並讀取對應 cached snapshot。
+    /// 呼叫端仍應以 commandId 查詢 command-results，並讀取對應資料 endpoint。
     /// </summary>
     public class CommandDispatchResponse
     {
+        /// <summary>對外追蹤這次 Outlook operation 的 id；目前等同 Hub 內部 command id。</summary>
+        public string OperationId { get; set; } = string.Empty;
         /// <summary>Hub 指派給這次 Outlook command 的 id。</summary>
         public string CommandId { get; set; } = string.Empty;
         /// <summary>目前狀態；常見值為 completed、mocked、timeout、failed、addin_unavailable、folder_cache_unavailable。</summary>
@@ -67,8 +69,34 @@ namespace SmartOffice.Hub.Models
         public string Message { get; set; } = string.Empty;
     }
 
+    public class OperationStateRequest
+    {
+        public string OperationId { get; set; } = string.Empty;
+        public string Cursor { get; set; } = string.Empty;
+        public int Take { get; set; } = 100;
+        public bool IncludeItems { get; set; } = true;
+        public bool IncludeProgress { get; set; } = true;
+    }
+
+    public class OperationStateResponse
+    {
+        public string OperationId { get; set; } = string.Empty;
+        public string Operation { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public bool? Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public object? Progress { get; set; }
+        public object? Metadata { get; set; }
+        public object Items { get; set; } = Array.Empty<object>();
+        public string NextCursor { get; set; } = string.Empty;
+        public bool HasMore { get; set; }
+        public bool Complete { get; set; }
+        public int ReturnedCount { get; set; }
+        public int TotalCount { get; set; }
+    }
+
     /// <summary>
-    /// Mail search dispatch 的標準回應；searchId 用於查詢搜尋進度與 cached search results。
+    /// Mail search dispatch 的標準回應；searchId 用於查詢搜尋進度與搜尋結果。
     /// </summary>
     public class MailSearchDispatchResponse : CommandDispatchResponse
     {
@@ -79,7 +107,23 @@ namespace SmartOffice.Hub.Models
     }
 
     /// <summary>
-    /// Folder roots dispatch 完成後的標準回應，附帶目前 cached folder snapshot 計數。
+    /// Folder 範圍 mails dispatch 的標準回應；底層由 Hub 規劃 folder 範圍並收集 mail metadata。
+    /// </summary>
+    public class FolderMailsDispatchResponse : MailSearchDispatchResponse
+    {
+        public string ResultEndpoint { get; set; } = "/api/outlook/folder-mails";
+    }
+
+    public class FolderMailsRequest
+    {
+        public string FolderPath { get; set; } = string.Empty;
+        public bool IncludeSubFolders { get; set; } = false;
+        public DateTime? ReceivedFrom { get; set; }
+        public DateTime? ReceivedTo { get; set; }
+    }
+
+    /// <summary>
+    /// Folder roots dispatch 完成後的標準回應，附帶目前 folder 資料計數。
     /// </summary>
     public class FolderRequestDispatchResponse : CommandDispatchResponse
     {

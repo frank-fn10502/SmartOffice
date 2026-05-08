@@ -144,15 +144,18 @@ namespace SmartOffice.Hub.Controllers
         /// Web UI、AI 或 MCP client 要求 folder list。
         /// </summary>
         [HttpPost("request-folders")]
-        public async Task<IActionResult> RequestFolders(CancellationToken ct)
+        public IActionResult RequestFolders(CancellationToken ct)
         {
-            return await _commandQueue.ExecuteExclusiveAsync(
-                operationCt => RequestFoldersQueuedAsync(operationCt),
-                CancellationToken.None);
+            var command = new PendingCommand { Type = "fetch_folder_roots" };
+            _commandResults.RecordDispatched(command);
+            _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
+                operationCt => RequestFoldersQueuedAsync(command, operationCt),
+                CancellationToken.None));
+            return Ok(OperationAccepted(command.Id));
         }
 
         [HttpPost("request-folder-children")]
-        public async Task<IActionResult> RequestFolderChildren([FromBody] FolderDiscoveryRequest req, CancellationToken ct)
+        public IActionResult RequestFolderChildren([FromBody] FolderDiscoveryRequest req, CancellationToken ct)
         {
             req ??= new FolderDiscoveryRequest();
             req.ParentFolderPath = OutlookFolderPathMapper.ToAddinPath(req.ParentFolderPath);
@@ -160,34 +163,41 @@ namespace SmartOffice.Hub.Controllers
             req.MaxChildren = Math.Clamp(req.MaxChildren <= 0 ? 50 : req.MaxChildren, 1, 200);
             req.Reset = false;
 
-            return await _commandQueue.ExecuteExclusiveAsync(
-                operationCt => RequestFolderChildrenQueuedAsync(req, operationCt),
-                CancellationToken.None);
-        }
-
-        private async Task<IActionResult> RequestFolderChildrenQueuedAsync(FolderDiscoveryRequest req, CancellationToken ct)
-        {
             var command = new PendingCommand
             {
                 Type = "fetch_folder_children",
                 FolderDiscoveryRequest = req,
             };
+            _commandResults.RecordDispatched(command);
+            _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
+                operationCt => RequestFolderChildrenQueuedAsync(command, req, operationCt),
+                CancellationToken.None));
+            return Ok(OperationAccepted(command.Id));
+        }
+
+        private async Task<IActionResult> RequestFolderChildrenQueuedAsync(PendingCommand command, FolderDiscoveryRequest req, CancellationToken ct)
+        {
             var result = await _commandQueue.ExecuteQueuedCommandAsync(
                 command,
                 () => _mailStore.IsFolderChildrenLoaded(req.StoreId, req.ParentEntryId, req.ParentFolderPath),
                 ensureReady: true,
                 ct: ct);
-            var body = new { commandId = command.Id, status = result.Status, message = result.Message };
+            var body = new { operationId = command.Id, commandId = command.Id, status = result.Status, message = result.Message };
             return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
         }
 
-        private async Task<IActionResult> RequestFoldersQueuedAsync(CancellationToken ct)
+        private async Task<IActionResult> RequestFoldersQueuedAsync(PendingCommand command, CancellationToken ct)
         {
-            var result = await _folderCache.FetchFolderRootsQueuedAsync(ct);
+            var result = await _commandQueue.ExecuteQueuedCommandAsync(
+                command,
+                () => _mailStore.CountStoreRoots() > 0,
+                ensureReady: true,
+                ct: ct);
             var snapshot = _mailStore.GetFolderSnapshot();
             var body = new
             {
-                commandId = result.CommandId,
+                operationId = command.Id,
+                commandId = command.Id,
                 status = result.Status,
                 message = result.Message,
                 stores = snapshot.Stores.Count,
@@ -328,27 +338,56 @@ namespace SmartOffice.Hub.Controllers
             return await DispatchCommandAsync(cmd, ct);
         }
 
-        private async Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)
+        private Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)
         {
             OutlookFolderPathMapper.NormalizeRequest(cmd);
 
             // Hub 已收下的 AddIn request 要由中心 queue 控制完成，避免外部 client 斷線造成 Outlook automation 半路取消。
-            return await _commandQueue.ExecuteExclusiveAsync(async operationCt =>
+            _commandResults.RecordDispatched(cmd);
+            _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(async operationCt =>
             {
                 if (RequiresFolderCache(cmd) && !await _folderCache.EnsureFolderCacheAsync(cmd, operationCt))
                 {
-                    var failedBody = new { commandId = cmd.Id, status = "folder_cache_unavailable", message = "SmartOffice API could not load Outlook folders before running this command." };
-                    return Conflict(failedBody);
+                    _commandResults.RecordResult(new OutlookCommandResult
+                    {
+                        CommandId = cmd.Id,
+                        Success = false,
+                        Message = "folder_cache_unavailable",
+                        Timestamp = DateTime.Now,
+                    });
+                    return false;
                 }
 
                 var manualDelete = ManualDeleteRequired(cmd);
-                if (manualDelete is not null) return manualDelete;
+                if (manualDelete is not null)
+                {
+                    _commandResults.RecordResult(new OutlookCommandResult
+                    {
+                        CommandId = cmd.Id,
+                        Success = false,
+                        Message = "manual_delete_required",
+                        Timestamp = DateTime.Now,
+                    });
+                    return false;
+                }
 
                 var result = await _commandQueue.ExecuteQueuedCommandAsync(cmd, DataReadyPredicate(cmd), ct: operationCt);
                 await _hub.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), CancellationToken.None);
-                var body = new { commandId = result.CommandId == string.Empty ? cmd.Id : result.CommandId, status = result.Status, message = result.Message };
-                return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
-            }, CancellationToken.None);
+                return true;
+            }, CancellationToken.None));
+
+            return Task.FromResult<IActionResult>(Ok(OperationAccepted(cmd.Id)));
+        }
+
+        private static object OperationAccepted(string operationId)
+        {
+            return new
+            {
+                operationId,
+                commandId = operationId,
+                status = "accepted",
+                message = "Operation accepted. Poll POST /api/outlook/operation-state for status and items.",
+            };
         }
 
         private (FetchMailsRequest Request, IActionResult? Error) BuildFetchMailsRequest(RequestMailsApiRequest req)
@@ -399,10 +438,108 @@ namespace SmartOffice.Hub.Controllers
 
             return Conflict(new
             {
+                operationId = cmd.Id,
                 commandId = cmd.Id,
                 status = "manual_delete_required",
                 message = "SmartOffice API 不會永久刪除 Outlook 郵件或 folder。目標已在 Outlook default Deleted Items folder 內；若要永久刪除，請使用者自行到 Outlook 操作。"
             });
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 查詢 operation 狀態與目前可讀資料片段。
+        /// </summary>
+        [HttpPost("operation-state")]
+        public IActionResult GetOperationState([FromBody] OperationStateRequest req)
+        {
+            req ??= new OperationStateRequest();
+            if (string.IsNullOrWhiteSpace(req.OperationId))
+                return BadRequest(new { status = "missing_operation_id" });
+
+            var status = _commandResults.Get(req.OperationId);
+            if (status is null)
+                return NotFound(new { operationId = req.OperationId, status = "not_found", complete = true });
+
+            var take = Math.Clamp(req.Take <= 0 ? 100 : req.Take, 1, 500);
+            var offset = int.TryParse(req.Cursor, out var parsed) && parsed > 0 ? parsed : 0;
+            var (items, totalCount, nextCursor, hasMore) = req.IncludeItems
+                ? GetOperationItems(status.Type, offset, take)
+                : (Array.Empty<object>() as object, 0, string.Empty, false);
+            var progress = req.IncludeProgress
+                ? GetOperationProgress(status.Type, status.CommandId)
+                : null;
+            var metadata = GetOperationMetadata(status.Type);
+            var done = status.Status is not "pending" && !hasMore;
+
+            return Ok(new OperationStateResponse
+            {
+                OperationId = status.CommandId,
+                Operation = status.Type,
+                Status = status.Status,
+                Success = status.Success,
+                Message = status.Message,
+                Progress = progress,
+                Metadata = metadata,
+                Items = items,
+                NextCursor = nextCursor,
+                HasMore = hasMore,
+                Complete = done,
+                ReturnedCount = CountItems(items),
+                TotalCount = totalCount,
+            });
+        }
+
+        private (object Items, int TotalCount, string NextCursor, bool HasMore) GetOperationItems(string operation, int offset, int take)
+        {
+            return operation switch
+            {
+                "fetch_folder_roots" or "fetch_folder_children" => Page(
+                    OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot()).Folders,
+                    offset,
+                    take),
+                "fetch_mails" or "fetch_mail_body" or "update_mail_properties" or "move_mail" or "move_mails" or "delete_mail" => Page(
+                    OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails()),
+                    offset,
+                    take),
+                "list_folder_mails" => Page(OutlookFolderPathMapper.ToApiMails(_mailStore.GetFolderMailResults()), offset, take),
+                "search_mails" => Page(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMailSearchResults()), offset, take),
+                "fetch_rules" => Page(_mailStore.GetRules(), offset, take),
+                "fetch_categories" or "upsert_category" => Page(_mailStore.GetCategories(), offset, take),
+                "fetch_calendar" => Page(_mailStore.GetCalendarEvents(), offset, take),
+                "create_folder" or "delete_folder" => Page(
+                    OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot()).Folders,
+                    offset,
+                    take),
+                _ => (Array.Empty<object>(), 0, string.Empty, false),
+            };
+        }
+
+        private object? GetOperationProgress(string operation, string operationId)
+        {
+            return operation is "search_mails" or "list_folder_mails"
+                ? _mailStore.GetMailSearchProgressByCommandId(operationId)
+                : null;
+        }
+
+        private object? GetOperationMetadata(string operation)
+        {
+            if (operation is not ("fetch_folder_roots" or "fetch_folder_children")) return null;
+            var snapshot = OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot());
+            return new { stores = snapshot.Stores };
+        }
+
+        private static (object Items, int TotalCount, string NextCursor, bool HasMore) Page<T>(List<T> source, int offset, int take)
+        {
+            var total = source.Count;
+            var safeOffset = Math.Clamp(offset, 0, total);
+            var items = source.Skip(safeOffset).Take(take).ToList();
+            var next = safeOffset + items.Count;
+            var hasMore = next < total;
+            return (items, total, hasMore ? next.ToString() : string.Empty, hasMore);
+        }
+
+        private static int CountItems(object items)
+        {
+            return items is System.Collections.ICollection collection ? collection.Count : 0;
         }
 
         private bool IsInDefaultDeletedItems(string folderPath)
@@ -461,7 +598,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI 取得 cached mails。
+        /// Web UI 取得 mail list data。
         /// </summary>
         [HttpGet("mails")]
         public IActionResult GetMails()
@@ -470,7 +607,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI、AI 或 MCP client 取得單封 mail 的 cached attachment metadata。
+        /// Web UI、AI 或 MCP client 取得單封 mail 的 attachment metadata。
         /// </summary>
         [HttpGet("mail-attachments")]
         public IActionResult GetMailAttachments([FromQuery] string mailId)
@@ -483,7 +620,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI 取得 cached folders。
+        /// Web UI 取得 folder data。
         /// </summary>
         [HttpGet("folders")]
         public IActionResult GetFolders()
@@ -492,7 +629,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI 取得 cached Outlook rules。
+        /// Web UI 取得 Outlook rules。
         /// </summary>
         [HttpGet("rules")]
         public IActionResult GetRules()
@@ -501,7 +638,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI 取得 cached Outlook master category list。
+        /// Web UI 取得 Outlook master category list。
         /// </summary>
         [HttpGet("categories")]
         public IActionResult GetCategories()
@@ -510,7 +647,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI 取得 cached Outlook calendar events。
+        /// Web UI 取得 Outlook calendar events。
         /// </summary>
         [HttpGet("calendar")]
         public IActionResult GetCalendar()

@@ -82,8 +82,33 @@ export interface FolderSyncCompleteDto {
 }
 
 export interface CommandDispatchResponse {
+  operationId: string
   commandId: string
   status: 'mocked' | 'dispatched' | 'addin_unavailable' | string
+}
+
+export interface OperationStateRequest {
+  operationId: string
+  cursor?: string
+  take?: number
+  includeItems?: boolean
+  includeProgress?: boolean
+}
+
+export interface OperationStateResponse<T = unknown> {
+  operationId: string
+  operation: string
+  status: string
+  success?: boolean
+  message: string
+  progress?: unknown
+  metadata?: unknown
+  items: T[]
+  nextCursor: string
+  hasMore: boolean
+  complete: boolean
+  returnedCount: number
+  totalCount: number
 }
 
 export interface FolderDiscoveryRequest {
@@ -107,6 +132,13 @@ export interface SearchMailsRequest {
   hasAttachments?: boolean
   flagState: 'any' | 'flagged' | 'unflagged'
   readState: 'any' | 'unread' | 'read'
+  receivedFrom?: string
+  receivedTo?: string
+}
+
+export interface FolderMailsRequest {
+  folderPath: string
+  includeSubFolders: boolean
   receivedFrom?: string
   receivedTo?: string
 }

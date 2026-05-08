@@ -35,7 +35,7 @@ namespace SmartOffice.Hub.Controllers
         /// Web UI、AI 或 MCP client 要求搜尋 mails；Hub 會展開 folder scope 並分片 dispatch 給 Outlook AddIn。
         /// </summary>
         [HttpPost("request-mail-search")]
-        public async Task<IActionResult> RequestMailSearch([FromBody] SearchMailsRequest req, CancellationToken ct)
+        public IActionResult RequestMailSearch([FromBody] SearchMailsRequest req, CancellationToken ct)
         {
             req ??= new SearchMailsRequest();
             if (string.IsNullOrWhiteSpace(req.SearchId))
@@ -48,18 +48,69 @@ namespace SmartOffice.Hub.Controllers
                 Type = "search_mails",
                 SearchMailsRequest = req,
             };
-            return await _commandQueue.ExecuteExclusiveAsync(
+            _commandResults.RecordDispatched(cmd);
+            _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
                 operationCt => RequestMailSearchQueuedAsync(cmd, req, operationCt),
-                CancellationToken.None);
+                CancellationToken.None));
+            return Ok(OperationAccepted(cmd.Id, req.SearchId));
         }
 
         /// <summary>
-        /// Web UI、AI 或 MCP client 取得 cached mail search results。
+        /// Web UI、AI 或 MCP client 要求列出指定 folder 範圍內的 mail metadata。
+        /// </summary>
+        [HttpPost("request-folder-mails")]
+        public IActionResult RequestFolderMails([FromBody] FolderMailsRequest req, CancellationToken ct)
+        {
+            req ??= new FolderMailsRequest();
+            if (string.IsNullOrWhiteSpace(req.FolderPath))
+                return BadRequest(new { status = "missing_folder_path", message = "folderPath is required." });
+
+            var search = new SearchMailsRequest
+            {
+                SearchId = Guid.NewGuid().ToString(),
+                ScopeFolderPaths = new List<string> { req.FolderPath },
+                IncludeSubFolders = req.IncludeSubFolders,
+                Keyword = string.Empty,
+                TextFields = new List<string> { "subject" },
+                CategoryNames = new List<string>(),
+                HasAttachments = null,
+                FlagState = "any",
+                ReadState = "any",
+                ReceivedFrom = req.ReceivedFrom,
+                ReceivedTo = req.ReceivedTo,
+            };
+            NormalizeMailSearchRequest(search);
+            OutlookFolderPathMapper.NormalizeSearchRequest(search);
+
+            var cmd = new PendingCommand
+            {
+                Type = "list_folder_mails",
+                SearchMailsRequest = search,
+            };
+            _mailStore.MarkFolderMailSearch(search.SearchId);
+            _commandResults.RecordDispatched(cmd);
+            _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(
+                operationCt => RequestMailSearchQueuedAsync(cmd, search, operationCt, "/api/outlook/folder-mails"),
+                CancellationToken.None));
+            return Ok(OperationAccepted(cmd.Id, search.SearchId));
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 取得 mail search results。
         /// </summary>
         [HttpGet("mail-search")]
         public IActionResult GetMailSearchResults()
         {
             return Ok(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMailSearchResults()));
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 取得上次 folder mail request 的 results。
+        /// </summary>
+        [HttpGet("folder-mails")]
+        public IActionResult GetFolderMails()
+        {
+            return Ok(OutlookFolderPathMapper.ToApiMails(_mailStore.GetFolderMailResults()));
         }
 
         /// <summary>
@@ -82,7 +133,11 @@ namespace SmartOffice.Hub.Controllers
             return progress is null ? NotFound() : Ok(OutlookFolderPathMapper.ToApiProgress(progress));
         }
 
-        private async Task<IActionResult> RequestMailSearchQueuedAsync(PendingCommand cmd, SearchMailsRequest req, CancellationToken ct)
+        private async Task<IActionResult> RequestMailSearchQueuedAsync(
+            PendingCommand cmd,
+            SearchMailsRequest req,
+            CancellationToken ct,
+            string resultEndpoint = "/api/outlook/mail-search")
         {
             var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct, loadPendingChildren: true);
             if (!folderReady)
@@ -105,7 +160,7 @@ namespace SmartOffice.Hub.Controllers
                     Timestamp = DateTime.Now,
                 });
                 await _hub.Clients.All.SendAsync("MailSearchProgress", failed, ct);
-                return Conflict(new { commandId = cmd.Id, searchId = req.SearchId, status = "folder_cache_unavailable" });
+                return Conflict(new { operationId = cmd.Id, commandId = cmd.Id, searchId = req.SearchId, status = "folder_cache_unavailable" });
             }
 
             var slices = BuildMailSearchSlices(req, cmd.Id);
@@ -129,7 +184,7 @@ namespace SmartOffice.Hub.Controllers
                     Timestamp = DateTime.Now,
                 });
                 await _hub.Clients.All.SendAsync("MailSearchProgress", failed, ct);
-                return Conflict(new { commandId = cmd.Id, searchId = req.SearchId, status = "no_searchable_folder" });
+                return Conflict(new { operationId = cmd.Id, commandId = cmd.Id, searchId = req.SearchId, status = "no_searchable_folder" });
             }
 
             req.ScopeFolderPaths = slices.Select(slice => slice.FolderPath).ToList();
@@ -139,11 +194,13 @@ namespace SmartOffice.Hub.Controllers
             var result = await DispatchMailSearchSlicesAsync(cmd, slices, ct);
             var body = new
             {
+                operationId = cmd.Id,
                 commandId = cmd.Id,
                 searchId = req.SearchId,
                 status = result.Status,
                 message = result.Message,
                 sliceCount = slices.Count,
+                resultEndpoint,
             };
             return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
         }
@@ -225,7 +282,7 @@ namespace SmartOffice.Hub.Controllers
                         TotalFolders = slice.SliceCount,
                         CurrentStoreId = slice.StoreId,
                         CurrentFolderPath = slice.FolderPath,
-                        ResultCount = _mailStore.GetMailSearchResults().Count,
+                        ResultCount = _mailStore.GetMailSearchResultCount(slice.SearchId),
                         Message = $"Dispatching mail search slice {slice.SliceIndex + 1}/{slice.SliceCount}.",
                         Timestamp = DateTime.Now,
                     });
@@ -257,7 +314,7 @@ namespace SmartOffice.Hub.Controllers
                         TotalFolders = slice.SliceCount,
                         CurrentStoreId = slice.StoreId,
                         CurrentFolderPath = slice.FolderPath,
-                        ResultCount = _mailStore.GetMailSearchResults().Count,
+                        ResultCount = _mailStore.GetMailSearchResultCount(slice.SearchId),
                         Message = $"Completed mail search slice {slice.SliceIndex + 1}/{slice.SliceCount}.",
                         Timestamp = DateTime.Now,
                     });
@@ -302,6 +359,18 @@ namespace SmartOffice.Hub.Controllers
             req.ReadState = NormalizeMailSearchState(req.ReadState, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "any", "unread", "read" });
         }
 
+        private static object OperationAccepted(string operationId, string searchId)
+        {
+            return new
+            {
+                operationId,
+                commandId = operationId,
+                searchId,
+                status = "accepted",
+                message = "Operation accepted. Poll POST /api/outlook/operation-state for status and items.",
+            };
+        }
+
         private static List<string> NormalizeMailSearchTextFields(List<string>? textFields)
         {
             var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -343,7 +412,7 @@ namespace SmartOffice.Hub.Controllers
             };
             progress.Status = status;
             progress.Phase = status == "completed" ? "completed" : "dispatch";
-            progress.ResultCount = _mailStore.GetMailSearchResults().Count;
+            progress.ResultCount = _mailStore.GetMailSearchResultCount(progress.SearchId);
             progress.Message = message;
             progress.Timestamp = DateTime.Now;
             progress = _mailStore.UpdateMailSearchProgress(progress);
