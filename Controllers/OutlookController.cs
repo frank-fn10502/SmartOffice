@@ -879,6 +879,8 @@ namespace SmartOffice.Hub.Controllers
                 return BadRequest(new { status = "invalid_rule_type", message = "ruleType must be receive or send." });
             if (string.IsNullOrWhiteSpace(req.RuleName) && string.IsNullOrWhiteSpace(req.OriginalRuleName))
                 return BadRequest(new { status = "missing_rule_name", message = "ruleName or originalRuleName is required." });
+            if (req.Conditions.HasAttachment == false)
+                return BadRequest(new { status = "unsupported_rule_condition", message = "Outlook object model only supports the has-attachment rule condition." });
 
             if (req.Operation is "delete" or "set_enabled") return null;
 

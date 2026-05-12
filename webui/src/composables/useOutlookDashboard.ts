@@ -64,6 +64,7 @@ const mailFetchDelayMs = 300
 const mailFetchCountdownTickMs = 100
 
 type RuleDraft = {
+  storeId: string
   ruleName: string
   originalRuleName: string
   originalExecutionOrder?: number
@@ -73,7 +74,7 @@ type RuleDraft = {
   bodyContains: string
   senderAddressContains: string
   categories: string[]
-  hasAttachment: 'any' | 'yes' | 'no'
+  hasAttachment: 'any' | 'yes'
   moveToFolderPath: string
   assignCategories: string[]
   markAsTask: boolean
@@ -91,6 +92,7 @@ export function useOutlookDashboard() {
   const rules = ref<OutlookRuleDto[]>([])
   const selectedRuleIndex = ref<number | null>(null)
   const ruleDraft = ref<RuleDraft>({
+    storeId: '',
     ruleName: '',
     originalRuleName: '',
     originalExecutionOrder: undefined as number | undefined,
@@ -100,7 +102,7 @@ export function useOutlookDashboard() {
     bodyContains: '',
     senderAddressContains: '',
     categories: [] as string[],
-    hasAttachment: 'any' as 'any' | 'yes' | 'no',
+    hasAttachment: 'any' as 'any' | 'yes',
     moveToFolderPath: '',
     assignCategories: [] as string[],
     markAsTask: false,
@@ -1093,10 +1095,37 @@ function categoryTagStyle(name: string) {
       .filter(Boolean)
   }
 
+  function parseRuleSummaryValue(summary: string, key: string) {
+    const marker = `${key}=`
+    const index = summary.indexOf(marker)
+    if (index < 0) return ''
+    const rest = summary.slice(index + marker.length)
+    const nextPart = rest.indexOf('; ')
+    return (nextPart >= 0 ? rest.slice(0, nextPart) : rest).trim()
+  }
+
+  function parseRuleSummaryList(summary: string, key: string) {
+    return parseRuleSummaryValue(summary, key)
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+
+  function firstRuleSummaryValue(summaries: string[], prefix: string, key: string) {
+    const summary = summaries.find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()))
+    return summary ? parseRuleSummaryValue(summary, key) : ''
+  }
+
+  function firstRuleSummaryList(summaries: string[], prefix: string, key: string) {
+    const summary = summaries.find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()))
+    return summary ? parseRuleSummaryList(summary, key) : []
+  }
+
   function resetRuleDraft(rule: OutlookRuleDto | null = null) {
     if (!rule) {
       ruleDraft.value = {
         ruleName: '',
+        storeId: '',
         originalRuleName: '',
         originalExecutionOrder: undefined,
         ruleType: 'receive',
@@ -1117,17 +1146,18 @@ function categoryTagStyle(name: string) {
 
     ruleDraft.value = {
       ruleName: rule.name,
+      storeId: rule.storeId,
       originalRuleName: rule.name,
       originalExecutionOrder: rule.executionOrder,
       ruleType: rule.ruleType?.toLowerCase() === 'send' ? 'send' : 'receive',
       enabled: rule.enabled,
-      subjectContains: '',
-      bodyContains: '',
-      senderAddressContains: '',
-      categories: [],
-      hasAttachment: 'any',
-      moveToFolderPath: '',
-      assignCategories: [],
+      subjectContains: firstRuleSummaryList(rule.conditions, 'Subject:', 'Text').join(', '),
+      bodyContains: firstRuleSummaryList(rule.conditions, 'Body:', 'Text').join(', '),
+      senderAddressContains: firstRuleSummaryList(rule.conditions, 'SenderAddress:', 'Address').join(', '),
+      categories: firstRuleSummaryList(rule.conditions, 'Category:', 'Categories'),
+      hasAttachment: rule.conditions.some((condition) => condition.toLowerCase().startsWith('hasattachment:')) ? 'yes' : 'any',
+      moveToFolderPath: firstRuleSummaryValue(rule.actions, 'MoveToFolder:', 'FolderPath'),
+      assignCategories: firstRuleSummaryList(rule.actions, 'AssignToCategory:', 'Categories'),
       markAsTask: rule.actions.some((action) => action.toLowerCase().includes('task')),
       stopProcessingMoreRules: rule.actions.some((action) => action.toLowerCase().includes('stop')),
     }
@@ -1145,7 +1175,7 @@ function categoryTagStyle(name: string) {
     const hasAttachment = draft.hasAttachment === 'any' ? undefined : draft.hasAttachment === 'yes'
     return {
       operation,
-      storeId: '',
+      storeId: draft.storeId,
       ruleName: draft.ruleName.trim() || draft.originalRuleName.trim(),
       originalRuleName: draft.originalRuleName.trim(),
       originalExecutionOrder: draft.originalExecutionOrder,
@@ -1171,6 +1201,7 @@ function categoryTagStyle(name: string) {
   function buildRuleOperationDraft(rule: OutlookRuleDto, enabled = rule.enabled): RuleDraft {
     return {
       ruleName: rule.name,
+      storeId: rule.storeId,
       originalRuleName: rule.name,
       originalExecutionOrder: rule.executionOrder,
       ruleType: rule.ruleType?.toLowerCase() === 'send' ? 'send' : 'receive',

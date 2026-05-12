@@ -160,7 +160,6 @@ function ruleRowClassName({ rowIndex }: { rowIndex: number }) {
             :options="[
               { label: '不限', value: 'any' },
               { label: '有附件', value: 'yes' },
-              { label: '無附件', value: 'no' },
             ]"
             :disabled="outlookBusy"
           />

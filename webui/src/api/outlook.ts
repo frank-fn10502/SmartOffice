@@ -273,12 +273,14 @@ export function normalizeOutlookCategories(items: unknown): OutlookCategoryDto[]
 
 export function normalizeOutlookRule(item: unknown): OutlookRuleDto {
   const source = (item ?? {}) as LooseRecord
+  const rawRuleType = readString(source, 'ruleType', 'RuleType', 'receive').toLowerCase()
+  const ruleType = rawRuleType.includes('send') ? 'send' : 'receive'
   return {
     storeId: readString(source, 'storeId', 'StoreId'),
     name: readString(source, 'name', 'Name'),
     enabled: readBoolean(source, 'enabled', 'Enabled'),
     executionOrder: readNumber(source, 'executionOrder', 'ExecutionOrder'),
-    ruleType: readString(source, 'ruleType', 'RuleType', 'receive'),
+    ruleType,
     isLocalRule: readBoolean(source, 'isLocalRule', 'IsLocalRule'),
     canModifyDefinition: readBoolean(source, 'canModifyDefinition', 'CanModifyDefinition', true),
     conditions: readStringArray(source.conditions ?? source.Conditions),
