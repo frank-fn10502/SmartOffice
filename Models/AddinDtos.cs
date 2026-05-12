@@ -115,6 +115,7 @@ namespace SmartOffice.Hub.Models
         public string FolderPath { get; set; } = string.Empty;
         public DateTime? ReceivedFrom { get; set; }
         public DateTime? ReceivedTo { get; set; }
+        public int MaxCount { get; set; } = 30;
         public int SliceIndex { get; set; }
         public int SliceCount { get; set; }
         public int ResultBatchSize { get; set; } = 5;

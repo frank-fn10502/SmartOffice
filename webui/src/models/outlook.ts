@@ -140,6 +140,7 @@ export interface FolderMailsRequest {
   includeSubFolders: boolean
   receivedFrom?: string
   receivedTo?: string
+  maxCount?: number
 }
 
 export interface MailSearchSliceResultDto {

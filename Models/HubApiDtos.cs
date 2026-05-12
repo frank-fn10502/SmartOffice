@@ -91,6 +91,7 @@ namespace SmartOffice.Hub.Models
         public bool IncludeSubFolders { get; set; } = true;
         public DateTime? ReceivedFrom { get; set; }
         public DateTime? ReceivedTo { get; set; }
+        public int MaxCount { get; set; } = 30;
     }
 
     public class FindFolderRequest

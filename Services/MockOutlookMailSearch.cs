@@ -41,6 +41,7 @@ namespace SmartOffice.Hub.Services
                 .Where(mail => string.Equals(mail.FolderPath, request.FolderPath, StringComparison.OrdinalIgnoreCase))
                 .Where(mail => InReceivedTime(mail, request.ReceivedFrom, request.ReceivedTo))
                 .OrderByDescending(mail => mail.ReceivedTime)
+                .Take(Math.Clamp(request.MaxCount <= 0 ? 30 : request.MaxCount, 1, 500))
                 .Select(CloneMailMetadata)
                 .ToList();
         }

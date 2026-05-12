@@ -359,7 +359,7 @@ export const outlookApi = {
   }) => postJson<OutlookRequestResponse>('/api/outlook/request-folder-children', body),
   requestMails: (body: { folderPath: string; lookbackHours?: number; maxCount: number; receivedFrom?: string; receivedTo?: string }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-mails', body),
-  requestFolderMails: (body: FolderMailsRequest) =>
+  requestFolderMails: (body: FolderMailsRequest & { maxCount?: number }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-folder-mails', body),
   requestMailSearch: (body: SearchMailsRequest) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-mail-search', body),

@@ -301,7 +301,8 @@ Request:
   "folderPath": "/主要信箱 - User/Projects/folderA",
   "includeSubFolders": true,
   "receivedFrom": null,
-  "receivedTo": null
+  "receivedTo": null,
+  "maxCount": 500
 }
 ```
 
@@ -311,7 +312,7 @@ Request:
 POST /api/outlook/fetch-result-folder-mails
 ```
 
-`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。AI agent 預設應使用 `includeSubFolders=true`，讓指定 folder 底下的子資料夾也納入範圍；只有使用者明確排除 subfolders 時才設為 `false`。這是直接列出 folder mails 的 API，不是文字搜尋；不要改用 `request-mail-search` 取代。
+`folderPath` 必須取自 folder result 的 `data.folders[].folderPath`。AI agent 預設應使用 `includeSubFolders=true`，讓指定 folder 底下的子資料夾也納入範圍；只有使用者明確排除 subfolders 時才設為 `false`。`maxCount` 會套用到每個 folder slice，Hub / AddIn 會 clamp 到 1-500；需要搬空大型 folder tree 時應分批規劃，不要一次要求無上限。這是直接列出 folder mails 的 API，不是文字搜尋；不要改用 `request-mail-search` 取代。
 
 `fetch-result-folder-mails.data` 包含：
 

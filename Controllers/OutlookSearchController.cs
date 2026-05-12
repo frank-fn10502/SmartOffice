@@ -72,6 +72,7 @@ namespace SmartOffice.Hub.Controllers
             req ??= new FolderMailsRequest();
             if (string.IsNullOrWhiteSpace(req.FolderPath))
                 return BadRequest(new { status = "missing_folder_path", message = "folderPath is required." });
+            req.MaxCount = Math.Clamp(req.MaxCount <= 0 ? 30 : req.MaxCount, 1, 500);
 
             req.FolderPath = OutlookFolderPathMapper.ToAddinPath(req.FolderPath);
 
@@ -142,7 +143,7 @@ namespace SmartOffice.Hub.Controllers
             CancellationToken ct,
             string resultEndpoint = "/api/outlook/mail-search")
         {
-            var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct, loadPendingChildren: true);
+            var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct, loadPendingChildren: req.IncludeSubFolders);
             if (!folderReady)
             {
                 _commandResults.RecordDispatched(cmd);
@@ -363,6 +364,7 @@ namespace SmartOffice.Hub.Controllers
                     FolderPath = folder.FolderPath,
                     ReceivedFrom = req.ReceivedFrom,
                     ReceivedTo = req.ReceivedTo,
+                    MaxCount = req.MaxCount,
                     SliceIndex = index,
                     SliceCount = folders.Count,
                     ResultBatchSize = 5,

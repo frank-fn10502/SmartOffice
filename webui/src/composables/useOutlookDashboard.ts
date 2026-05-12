@@ -943,9 +943,13 @@ function categoryTagStyle(name: string) {
     selectedMailIndex.value = null
     clearSelectedMails()
     try {
-      const response = await outlookApi.requestMails({
+      const receivedTo = new Date()
+      const receivedFrom = new Date(receivedTo.getTime() - mailLookbackHours.value * 60 * 60 * 1000)
+      const response = await outlookApi.requestFolderMails({
         folderPath: selectedFolderPath.value,
-        lookbackHours: mailLookbackHours.value,
+        includeSubFolders: false,
+        receivedFrom: receivedFrom.toISOString(),
+        receivedTo: receivedTo.toISOString(),
         maxCount: mailCount.value,
       })
       await waitForRequest(response)

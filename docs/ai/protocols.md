@@ -43,7 +43,7 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `POST /api/outlook/request-folders`：建立載入 stores 與 root folders 的 operation。
 - `POST /api/outlook/request-folder-children`：建立載入單一 parent folder children 的 operation。
 - `POST /api/outlook/request-mails`：建立 mail fetch operation。
-- `POST /api/outlook/request-folder-mails`：列出指定 folder 範圍內的所有 mail metadata；Hub 負責規劃 folder scope，底層可重用 mail search slice。
+- `POST /api/outlook/request-folder-mails`：列出指定 folder 範圍內的 mail metadata；Hub 負責規劃 folder scope，單一 folder list 可用 `includeSubFolders=false` 避免先展開整棵 folder tree，並以 `maxCount` 控制每個 folder slice 負載。
 - `POST /api/outlook/request-mail-search`：建立 mail search operation；Hub 必須先確保 folder data 可用、展開 store/folder scope、切成單 folder slices，並節流送給 AddIn。搜尋由 Outlook 內建搜尋執行，條件包含文字搜尋與篩選條件。
 - `POST /api/outlook/request-mail-conversation`：建立單封郵件所屬 Outlook conversation 載入 operation；AddIn 應回推同一討論串的 mail metadata，`includeBody=true` 時可一併包含 body/bodyHtml，方便 Web UI 一次性檢視討論串。
 - `POST /api/outlook/request-rules`：建立 Outlook rule fetch operation。
