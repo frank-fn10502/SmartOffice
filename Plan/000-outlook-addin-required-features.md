@@ -17,10 +17,10 @@
 - `..\SmartOffice.Hub\AGENTS.md`
 - `..\SmartOffice.Hub\docs\ai\workstation-solution.md`
 - `..\SmartOffice.Hub\docs\ai\protocols.md`
-- `..\SmartOffice.Hub\docs\addin\features-checklist.md`
-- `..\SmartOffice.Hub\docs\addin\signalr-contract.md`
-- `..\SmartOffice.Hub\docs\addin\outlook-references.md`
-- `..\SmartOffice.Hub\docs\addin\test-report.md`
+- `..\SmartOffice\docs\outlook-addin\features-checklist.md`
+- `..\SmartOffice\docs\outlook-addin\signalr-contract.md`
+- `..\SmartOffice\docs\outlook-addin\outlook-references.md`
+- `..\SmartOffice\docs\outlook-addin\test-report.md`
 - `..\SmartOffice.Hub\Models\Dtos.cs`
 
 ## 連線與診斷

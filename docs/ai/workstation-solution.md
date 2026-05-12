@@ -15,7 +15,7 @@ SmartOffice.Hub
 - command routing。
 - temporary in-memory state。
 - Web UI。
-- 工作機 contract 文件。
+- Hub protocol 文件；Outlook AddIn 實作者文件位於 `..\SmartOffice\docs\outlook-addin\`。
 
 工作機上才有完整的 SmartOffice / Outlook AddIn solution。該 solution 會參考：
 
@@ -62,8 +62,8 @@ Hub：
 2. `..\SmartOffice.Hub\AGENTS.md`
 3. `..\SmartOffice.Hub\docs\ai\workstation-solution.md`
 4. `..\SmartOffice.Hub\docs\ai\protocols.md`
-5. `..\SmartOffice.Hub\docs\addin\features-checklist.md`
-6. `..\SmartOffice.Hub\docs\addin\signalr-contract.md`
+5. `..\SmartOffice\docs\outlook-addin\features-checklist.md`
+6. `..\SmartOffice\docs\outlook-addin\signalr-contract.md`
 7. 當次 `..\SmartOffice.Hub\Plan\NNN-*.md`
 
 ## 敏感資料

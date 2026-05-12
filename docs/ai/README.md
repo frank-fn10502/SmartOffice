@@ -4,9 +4,9 @@
 
 如果你是在工作機實作 Outlook AddIn，請先看：
 
-- `docs/addin/README.md`
-- `docs/addin/features-checklist.md`
-- `docs/addin/signalr-contract.md`
+- `../SmartOffice/docs/outlook-addin/README.md`
+- `../SmartOffice/docs/outlook-addin/features-checklist.md`
+- `../SmartOffice/docs/outlook-addin/signalr-contract.md`
 
 如果你要讓 AI client 透過 MCP 或 Agents SKILL 操作 Hub，請看：
 
