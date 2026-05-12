@@ -1,6 +1,6 @@
 ---
 name: smartoffice-outlook
-description: Use when an AI agent needs to operate Outlook through the SmartOffice Outlook HTTP API, including reading folders, mails, mail body, attachments, calendar, categories, rules, mail search, and safe mail or folder mutations. Default base URL is http://localhost:2805. Use this skill for Outlook client workflows, not for implementing the API itself.
+description: Use when an AI agent needs to operate Outlook through the SmartOffice Outlook HTTP API, including reading folders, mails, mail body, mail conversations, attachments, calendar, categories, rules, mail search, and safe mail or folder mutations. Default base URL is http://localhost:2805. Use this skill for Outlook client workflows, not for implementing the API itself.
 metadata:
   owner: "SmartOffice"
   skill_id: "smartoffice-outlook.skill.smartoffice.2026-05"
@@ -54,6 +54,7 @@ metadata:
 - 指定 folder 內所有 mails：先 `request-find-folder` 取得 folder path -> `request-folder-mails` -> `fetch-result-folder-mails`。
 - 郵件定位與篩選：Golden Path 或 `request-find-folder` 取得 scope path -> `request-mail-search`，用 `keyword`、`textFields`、`categoryNames`、`hasAttachments`、`flagState`、`readState`、`receivedFrom` / `receivedTo` 組合條件 -> `fetch-result-mail-search`。
 - 讀 body：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-body` -> `fetch-result-mail-body data.mails` 找同 id 的 `body` / `bodyHtml`。
+- 讀 conversation：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-conversation` -> `fetch-result-mail-conversation data.mails`。只有使用者需要一次性查看討論串時才讀；若包含 body，摘要必要內容即可。
 - 讀附件：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-attachments` -> `fetch-result-*`，必要時讀 `mail-attachments?mailId={id}`。
 - 修改、移動、刪除郵件：先從 `fetch-result-* data.mails` 確認唯一目標的 `id` 與 `folderPath` -> mutation endpoint -> `fetch-result-*`。
 - 大量搬移 folder 內全部郵件：先定位來源與目的 `folderPath`，用 `request-folder-mails` 取得 ids，再以每批最多 500 封逐批呼叫 `request-move-mails`。預設包含 subfolders；只有使用者明確排除 subfolders 時才設定 `includeSubFolders=false`。
@@ -66,7 +67,7 @@ metadata:
 
 ## 常見陷阱
 
-- `Inbox` 是範例名稱，不是穩定 contract；中文 Outlook 常見路徑是 `/主要信箱 - User/收件匣`。操作前一定要從 folder fetch result 取實際 `folderPath`。
+- `Inbox` 是範例名稱，不是穩定 folder path；中文 Outlook 常見路徑是 `/主要信箱 - User/收件匣`。操作前一定要從 folder fetch result 取實際 `folderPath`。
 - 一般 folder 查找先用 `request-find-folder`，不要讓 caller 自己重寫每個分支的 traversal。只有需要精細控制載入範圍或診斷 folder discovery 時，才直接使用 `request-folders` / `request-folder-children`。
 - `request-find-folder.folderType="Inbox"` 可用來取得主要 store 的 Inbox；只有需要精細控制載入範圍或診斷時，才用 `request-folders` / `request-folder-children` 展開後再找 Inbox。
 - `request-folder-children` 的 request 欄位是 `storeId`、`parentEntryId`、`parentFolderPath`；值分別取自 folder fetch result 內 root folder 的 `storeId`、`entryId`、`folderPath`。不要送 `entryId` 或 `folderPath` 這兩個錯誤欄位名，也不要只傳 folder display name。
@@ -77,12 +78,3 @@ metadata:
 - `request-move-mails` 單次最多 500 個 `mailIds`。遇到「搬移 folderA 和所有 subfolder」這類任務時，必須分批慢慢送，不可把 8000+ ids 放進單一 request。
 - Outlook master category 顏色必須使用 Outlook `OlCategoryColor` enum name 與 numeric value；黑色是 `olCategoryColorBlack` / `15`。若使用者指定的顏色不在 color table 中，先請使用者改選，不要猜 enum。
 - Category name 比對大小寫不敏感；若 master category 已有同名項目，視為更新而不是新增第二個。套用 category 到 mail 前，仍必須先定位唯一 mail。
-
-## API 設計反思
-
-使用此 skill 時若發現 contract 讓 agent 必須猜測、重複查詢、或暴露敏感資料，先把問題回報給使用者；除非使用者明確要求修改 API contract，否則不要擅自更動 API。特別留意：
-
-- `request-*` response 是否足以提供 `requestId`，且 `fetch-result-*` 是否足以表達狀態與資料頁。
-- mutation endpoint 是否都要求穩定 id，而不是只靠顯示名稱。
-- destructive 或本機檔案操作是否有足夠明確的識別與限制。
-- mail search 的進度、結果與 fetch result 是否能被 agent 清楚串起來。

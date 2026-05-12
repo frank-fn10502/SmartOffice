@@ -110,6 +110,7 @@ Response:
 | `POST /api/outlook/request-mail-search` | `POST /api/outlook/fetch-result-mail-search` | `searchId`, `mails` |
 | `POST /api/outlook/request-mail-body` | `POST /api/outlook/fetch-result-mail-body` | `mails` |
 | `POST /api/outlook/request-mail-attachments` | `POST /api/outlook/fetch-result-mail-attachments` | `mailId`, `folderPath`, `attachments` |
+| `POST /api/outlook/request-mail-conversation` | `POST /api/outlook/fetch-result-mail-conversation` | `mailId`, `folderPath`, `conversationId`, `conversationTopic`, `mails` |
 | `POST /api/outlook/request-export-mail-attachment` | `POST /api/outlook/fetch-result-export-mail-attachment` | `{}`；匯出後的 attachment id 目前需從 attachment metadata 讀取 |
 | `POST /api/outlook/request-rules` | `POST /api/outlook/fetch-result-rules` | `rules` |
 | `POST /api/outlook/request-categories` | `POST /api/outlook/fetch-result-categories` | `categories` |
@@ -160,6 +161,7 @@ Status fields：
 - `GET /api/outlook/mails` -> `MailItemDto[]`
 - `GET /api/outlook/folder-mails` -> `MailItemDto[]`
 - `GET /api/outlook/mail-attachments?mailId={mailId}` -> `MailAttachmentsDto`
+- `GET /api/outlook/mail-conversation?mailId={mailId}` -> `MailConversationDto`
 - `GET /api/outlook/mail-search` -> `MailItemDto[]`
 - `GET /api/outlook/rules` -> `OutlookRuleDto[]`
 - `GET /api/outlook/categories` -> `OutlookCategoryDto[]`

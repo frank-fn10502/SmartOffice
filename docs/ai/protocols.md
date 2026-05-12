@@ -36,6 +36,8 @@ Web UI 的定位是 Hub HTTP API 的手動測試與檢視工具。除 AddIn stat
 
 這些 endpoint 是 Web UI、AI 或 MCP client 對 Hub 發起 Outlook 工作的入口。HTTP caller 不需要理解 Hub 內部 command；每個 `request-*` 都用固定 envelope 回傳 `requestId`、`request`、`state`、`message`、`data`，後續只查 paired `POST /api/outlook/fetch-result-*`。`data` 是各 request 自己的 struct，例如 mail search 的 `searchId`。
 
+API 本身必須可被 Web UI 以外的 caller 直接理解。新增或修改 endpoint 時，請用 Swagger、`curl` 或 `.http` 檔檢查 raw JSON：caller 應能只靠 response 判斷目前狀態、下一步、資料欄位語意、錯誤原因與是否有下一頁。如果 raw API 很難理解，就要修正 API contract，而不是只在 Web UI 裡補 UI 文案或轉換邏輯。
+
 HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在 dispatch `OutlookCommand` 前會轉成 AddIn SignalR contract 使用的 Outlook folder path，例如 `\\主要信箱 - User\收件匣`。反向讀取 `GET /api/outlook/folders`、`mails`、`folder-mails`、`mail-search` 與 search progress 時，Hub 也會把 Outlook path 轉回 HTTP API path。這是 Hub API 邊界的實作細節，不應出現在外部 SKILL 或 Swagger 說明中。
 
 - `POST /api/outlook/request-folders`：建立載入 stores 與 root folders 的 operation。
@@ -116,6 +118,18 @@ Hub 是 mail search 的負載控管者；AddIn 只處理 Hub 指定的單一 fol
 | 非空 | 空陣列 | 展開該 store 底下所有可搜尋 mail folders。 |
 | 空字串 | 非空 | 用 folder tree data 找出 folder 所在 store，再分成單 folder slices。 |
 | 空字串 | 空陣列 | 展開所有 stores 底下所有可搜尋 mail folders。 |
+
+## Hub / AddIn 負載邊界
+
+任何新功能都要先問：能否用少量 Hub command 表達使用者意圖，並由 Hub 控制 pagination、slice、batch、progress 與 result cache。除非 Outlook object model 本身要求逐項操作，Hub 不應一次 dispatch 數百或數千個 `OutlookCommand` 給 AddIn。
+
+設計原則：
+
+- 使用者發出一個操作時，HTTP API 儘量對應一個 parent request；需要多 folder 或多 item 時，由 Hub 規劃 slice/batch 與節流。
+- AddIn 只處理目前 command 的 Outlook object model 工作，不負責跨 command 排程、跨 folder 負載管理或 Web UI state 合併。
+- 大量讀取應優先 metadata-only、分批回推、paired `fetch-result-*` 分頁讀取；完整 body、attachments、conversation body 等昂貴資料只在使用者打開或明確要求時載入。
+- Mock backend 必須能模擬足夠資料量與邊界情境，讓 Hub 的 slicing、paging、empty/loading/error state 在沒有真 Outlook 時先被檢查。
+- 若真實 Outlook API 只能逐項處理，Hub contract 也要保留批次 request 的語意，AddIn 在單一 command 內逐項處理並回報 progress/result，而不是由 Hub 對每一項各送一個 command。
 
 ## AddIn SignalR Server Method
 

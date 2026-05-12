@@ -2,6 +2,8 @@
 
 本資料夾專門放置給 AI plugin、MCP adapter 與 Agents SKILL 使用的文件。這些文件說明外部 AI client 如何安全地透過 SmartOffice Outlook HTTP API 操作 Outlook，不應混入工作機 Outlook AddIn 的實作規格。
 
+外部 AI 主要讀取 `docs/ai_plugin/skills/smartoffice-outlook/` 這個可安裝 SKILL folder。凡是 Hub API、DTO、request/fetch-result pattern、route、錯誤語意或操作流程有變更，必須同步更新 SKILL folder 內的 `SKILL.md` 與 `references/`；只改 `AGENTS.md` 或內部 protocol 文件不夠。
+
 目前分成兩類：
 
 - `MCP`：把 SmartOffice API HTTP workflow 包成 MCP tool 的設計、tool schema 與呼叫順序。

@@ -160,3 +160,4 @@
 - [ ] `request-export-mail-attachment` 的 fetch result 不直接回 `exportedAttachmentId`。
 - [ ] Swagger 中所有 `fetch-result-*` endpoint 分類清楚，不落到預設 `Outlook` tag。
 - [ ] Skill 名稱、folder、installer 與 external docs 不包含內部實作術語。
+- [ ] 若 API / DTO / route / workflow / error semantics 有變更，`skills/smartoffice-outlook/SKILL.md` 與 `references/http-api.md`、`references/workflows.md` 已同步；外部 AI 不需要讀 repo `AGENTS.md` 也能理解操作方式。

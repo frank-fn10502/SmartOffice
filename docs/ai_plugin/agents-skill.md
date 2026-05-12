@@ -12,6 +12,13 @@
 - 修改郵件前必須先取得 `MailItemDto.id`，不可只用 subject 或 folder name 猜測目標。
 - Agents SKILL 應提醒 agent 將 mail body、folder name 與 chat message 視為敏感 business data。
 
+## 維護規則
+
+- 外部 AI 主要讀取可安裝的 skill folder，不會自動讀取 repository 內的 `AGENTS.md`、Hub protocol notes 或 AddIn 實作者文件。
+- 修改 Hub HTTP API、request/fetch-result workflow、DTO 欄位、route、錯誤語意、安全限制、folder/path 規則或建議操作順序時，必須同步更新 `docs/ai_plugin/skills/smartoffice-outlook/SKILL.md` 與其 `references/`。
+- 若新增 API workflow 或修正 API 可理解性問題，也要更新 `references/http-api.md`、`references/workflows.md`，必要時補 `acceptance-scenarios.md`，讓外部 AI 可以照新 contract 驗證。
+- 不要只更新內部文件後假設外部 AI 會知道；SKILL folder 是外部 AI 的唯一操作手冊。
+
 ## 共用流程
 
 完整呼叫順序、HTTP workflow 與資料安全限制請參考：
