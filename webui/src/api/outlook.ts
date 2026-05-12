@@ -11,6 +11,7 @@ import type {
   MailAttachmentDto,
   MailAttachmentsDto,
   MailBodyDto,
+  MailConversationDto,
   MailSearchSliceResultDto,
   MailSearchProgressDto,
   MailPropertiesCommandRequest,
@@ -98,6 +99,9 @@ export function normalizeMailItem(item: unknown): MailItemDto {
     body: readString(source, 'body', 'Body'),
     bodyHtml: readString(source, 'bodyHtml', 'BodyHtml'),
     folderPath: readString(source, 'folderPath', 'FolderPath'),
+    conversationId: readString(source, 'conversationId', 'ConversationId'),
+    conversationTopic: readString(source, 'conversationTopic', 'ConversationTopic'),
+    conversationIndex: readString(source, 'conversationIndex', 'ConversationIndex'),
     categories: readStringList(source.categories ?? source.Categories),
     isRead: readBoolean(source, 'isRead', 'IsRead'),
     isMarkedAsTask,
@@ -198,6 +202,17 @@ export function normalizeMailAttachments(item: unknown): MailAttachmentsDto {
     mailId: readString(source, 'mailId', 'MailId'),
     folderPath: readString(source, 'folderPath', 'FolderPath'),
     attachments: Array.isArray(attachments) ? attachments.map(normalizeMailAttachment) : [],
+  }
+}
+
+export function normalizeMailConversation(item: unknown): MailConversationDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    mailId: readString(source, 'mailId', 'MailId'),
+    folderPath: readString(source, 'folderPath', 'FolderPath'),
+    conversationId: readString(source, 'conversationId', 'ConversationId'),
+    conversationTopic: readString(source, 'conversationTopic', 'ConversationTopic'),
+    mails: normalizeMailItems(source.mails ?? source.Mails),
   }
 }
 
@@ -315,6 +330,8 @@ export const outlookApi = {
   getFolderMails: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/folder-mails')),
   getMailAttachments: async (mailId: string) =>
     normalizeMailAttachments(await getJson<unknown>(`/api/outlook/mail-attachments?mailId=${encodeURIComponent(mailId)}`)),
+  getMailConversation: async (mailId: string) =>
+    normalizeMailConversation(await getJson<unknown>(`/api/outlook/mail-conversation?mailId=${encodeURIComponent(mailId)}`)),
   getMailSearchResults: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mail-search')),
   getMailSearchProgress: async (searchId: string) =>
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/${encodeURIComponent(searchId)}`)),
@@ -350,6 +367,8 @@ export const outlookApi = {
     postJson<OutlookRequestResponse>('/api/outlook/request-mail-body', body),
   requestMailAttachments: (body: { mailId: string; folderPath: string }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-mail-attachments', body),
+  requestMailConversation: (body: { mailId: string; folderPath: string; maxCount?: number; includeBody?: boolean }) =>
+    postJson<OutlookRequestResponse>('/api/outlook/request-mail-conversation', body),
   requestExportMailAttachment: (body: {
     mailId: string
     folderPath: string

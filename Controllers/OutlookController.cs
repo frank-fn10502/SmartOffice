@@ -85,6 +85,22 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
+        /// Web UI、AI 或 MCP client 要求指定 mail 所屬 Outlook conversation。
+        /// </summary>
+        [HttpPost("request-mail-conversation")]
+        public async Task<IActionResult> RequestMailConversation([FromBody] FetchMailConversationRequest req, CancellationToken ct)
+        {
+            req ??= new FetchMailConversationRequest();
+            req.MaxCount = Math.Clamp(req.MaxCount <= 0 ? 100 : req.MaxCount, 1, 300);
+            var cmd = new PendingCommand
+            {
+                Type = "fetch_mail_conversation",
+                MailConversationRequest = req
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
+        /// <summary>
         /// Web UI、AI 或 MCP client 要求 AddIn 將指定 attachment 匯出到本機約定目錄。
         /// </summary>
         [HttpPost("request-export-mail-attachment")]
@@ -577,6 +593,12 @@ namespace SmartOffice.Hub.Controllers
             return FetchResult(req, "fetch_mail_attachments");
         }
 
+        [HttpPost("fetch-result-mail-conversation")]
+        public IActionResult FetchResultMailConversation([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_mail_conversation");
+        }
+
         [HttpPost("fetch-result-export-mail-attachment")]
         public IActionResult FetchResultExportMailAttachment([FromBody] FetchResultRequest req)
         {
@@ -752,6 +774,25 @@ namespace SmartOffice.Hub.Controllers
                     var page = Page(apiAttachments?.Attachments ?? new List<MailAttachmentDto>(), offset, take);
                     return (new { mailId, folderPath = apiAttachments?.FolderPath ?? string.Empty, attachments = page.Items }, page.Next);
                 }
+                case "fetch_mail_conversation":
+                {
+                    var mailId = command?.MailConversationRequest?.MailId ?? string.Empty;
+                    var conversation = string.IsNullOrWhiteSpace(mailId)
+                        ? null
+                        : _mailStore.GetMailConversation(mailId);
+                    var apiConversation = conversation is null
+                        ? new MailConversationDto { MailId = mailId, FolderPath = command?.MailConversationRequest?.FolderPath ?? string.Empty }
+                        : OutlookFolderPathMapper.ToApiConversation(conversation);
+                    var page = Page(apiConversation.Mails, offset, take);
+                    return (new
+                    {
+                        mailId = apiConversation.MailId,
+                        folderPath = apiConversation.FolderPath,
+                        conversationId = apiConversation.ConversationId,
+                        conversationTopic = apiConversation.ConversationTopic,
+                        mails = page.Items,
+                    }, page.Next);
+                }
                 case "export_mail_attachment":
                     return (new { }, new FetchResultNext());
                 case "fetch_rules":
@@ -822,6 +863,7 @@ namespace SmartOffice.Hub.Controllers
                 "fetch_mails" => "request-mails",
                 "fetch_mail_body" => "request-mail-body",
                 "fetch_mail_attachments" => "request-mail-attachments",
+                "fetch_mail_conversation" => "request-mail-conversation",
                 "export_mail_attachment" => "request-export-mail-attachment",
                 "fetch_rules" => "request-rules",
                 "manage_rule" => "request-manage-rule",
@@ -845,6 +887,7 @@ namespace SmartOffice.Hub.Controllers
                 "fetch_mails"
                 or "fetch_mail_body"
                 or "fetch_mail_attachments"
+                or "fetch_mail_conversation"
                 or "export_mail_attachment"
                 or "update_mail_properties"
                 or "manage_rule"
@@ -973,6 +1016,19 @@ namespace SmartOffice.Hub.Controllers
 
             var attachments = _mailStore.GetMailAttachments(mailId);
             return attachments is null ? NotFound(new { status = "not_found" }) : Ok(OutlookFolderPathMapper.ToApiAttachments(attachments));
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 取得上次載入的單封 mail conversation。
+        /// </summary>
+        [HttpGet("mail-conversation")]
+        public IActionResult GetMailConversation([FromQuery] string mailId)
+        {
+            if (string.IsNullOrWhiteSpace(mailId))
+                return BadRequest(new { status = "missing_mail_id" });
+
+            var conversation = _mailStore.GetMailConversation(mailId);
+            return conversation is null ? NotFound(new { status = "not_found" }) : Ok(OutlookFolderPathMapper.ToApiConversation(conversation));
         }
 
         /// <summary>

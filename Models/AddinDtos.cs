@@ -193,6 +193,14 @@ namespace SmartOffice.Hub.Models
         public string FolderPath { get; set; } = string.Empty;
     }
 
+    public class FetchMailConversationRequest
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public int MaxCount { get; set; } = 100;
+        public bool IncludeBody { get; set; } = true;
+    }
+
     public class ExportMailAttachmentRequest
     {
         public string MailId { get; set; } = string.Empty;
@@ -297,7 +305,7 @@ namespace SmartOffice.Hub.Models
     public class PendingCommand
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_folder_roots"、"fetch_folder_children"、"fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"export_mail_attachment"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
+        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_folder_roots"、"fetch_folder_children"、"fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"fetch_mail_conversation"、"export_mail_attachment"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
         public FolderDiscoveryRequest? FolderDiscoveryRequest { get; set; }
         public FindFolderRequest? FindFolderRequest { get; set; }
         public FetchMailsRequest? MailsRequest { get; set; }
@@ -306,6 +314,7 @@ namespace SmartOffice.Hub.Models
         public FolderMailsSliceRequest? FolderMailsSliceRequest { get; set; }
         public FetchMailBodyRequest? MailBodyRequest { get; set; }
         public FetchMailAttachmentsRequest? MailAttachmentsRequest { get; set; }
+        public FetchMailConversationRequest? MailConversationRequest { get; set; }
         public ExportMailAttachmentRequest? ExportMailAttachmentRequest { get; set; }
         public FetchCalendarRequest? CalendarRequest { get; set; }
         public MailPropertiesCommandRequest? MailPropertiesRequest { get; set; }

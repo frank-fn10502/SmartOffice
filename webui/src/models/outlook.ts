@@ -214,6 +214,9 @@ export interface MailItemDto {
   body: string
   bodyHtml: string
   folderPath: string
+  conversationId: string
+  conversationTopic: string
+  conversationIndex: string
   categories: string
   isRead: boolean
   isMarkedAsTask: boolean
@@ -257,6 +260,14 @@ export interface MailAttachmentsDto {
   mailId: string
   folderPath: string
   attachments: MailAttachmentDto[]
+}
+
+export interface MailConversationDto {
+  mailId: string
+  folderPath: string
+  conversationId: string
+  conversationTopic: string
+  mails: MailItemDto[]
 }
 
 export interface ExportedMailAttachmentDto {

@@ -97,6 +97,7 @@ namespace SmartOffice.Hub.Services
         private readonly Dictionary<string, MailSearchProgressDto> _mailSearchProgress = new();
         private readonly Dictionary<string, SearchMailsRequest> _mailSearchRequests = new();
         private readonly Dictionary<string, MailAttachmentsDto> _attachments = new();
+        private readonly Dictionary<string, MailConversationDto> _conversations = new();
         private readonly Dictionary<string, ExportedMailAttachmentDto> _exportedAttachments = new();
 
         public void SetMails(List<MailItemDto> mails)
@@ -162,6 +163,25 @@ namespace SmartOffice.Hub.Services
             {
                 return _attachments.TryGetValue(mailId, out var attachments)
                     ? CloneMailAttachments(attachments)
+                    : null;
+            }
+        }
+
+        public void SetMailConversation(MailConversationDto conversation)
+        {
+            lock (_lock)
+            {
+                NormalizeMailConversation(conversation);
+                _conversations[conversation.MailId] = CloneMailConversation(conversation);
+            }
+        }
+
+        public MailConversationDto? GetMailConversation(string mailId)
+        {
+            lock (_lock)
+            {
+                return _conversations.TryGetValue(mailId, out var conversation)
+                    ? CloneMailConversation(conversation)
                     : null;
             }
         }
@@ -701,6 +721,9 @@ namespace SmartOffice.Hub.Services
                 Body = mail.Body,
                 BodyHtml = mail.BodyHtml,
                 FolderPath = mail.FolderPath,
+                ConversationId = mail.ConversationId,
+                ConversationTopic = mail.ConversationTopic,
+                ConversationIndex = mail.ConversationIndex,
                 Categories = mail.Categories,
                 IsRead = mail.IsRead,
                 IsMarkedAsTask = mail.IsMarkedAsTask,
@@ -817,6 +840,18 @@ namespace SmartOffice.Hub.Services
             };
         }
 
+        private static MailConversationDto CloneMailConversation(MailConversationDto conversation)
+        {
+            return new MailConversationDto
+            {
+                MailId = conversation.MailId,
+                FolderPath = conversation.FolderPath,
+                ConversationId = conversation.ConversationId,
+                ConversationTopic = conversation.ConversationTopic,
+                Mails = conversation.Mails.Select(CloneMail).ToList(),
+            };
+        }
+
         private static MailAttachmentDto CloneMailAttachment(MailAttachmentDto attachment)
         {
             return new MailAttachmentDto
@@ -869,6 +904,18 @@ namespace SmartOffice.Hub.Services
                 if (string.IsNullOrWhiteSpace(attachment.MailId))
                     attachment.MailId = attachments.MailId;
                 NormalizeMailAttachment(attachment);
+            }
+        }
+
+        private static void NormalizeMailConversation(MailConversationDto conversation)
+        {
+            conversation.Mails ??= new List<MailItemDto>();
+            foreach (var mail in conversation.Mails)
+            {
+                if (string.IsNullOrWhiteSpace(mail.ConversationId))
+                    mail.ConversationId = conversation.ConversationId;
+                if (string.IsNullOrWhiteSpace(mail.ConversationTopic))
+                    mail.ConversationTopic = conversation.ConversationTopic;
             }
         }
 

@@ -18,6 +18,11 @@ function formatAttachmentMeta(contentType: string, size: number) {
   return `${contentType.trim() || 'unknown'} · ${formatAttachmentSize(size)}`
 }
 
+function mailPreviewText(body: string, bodyHtml: string) {
+  const text = body || bodyHtml.replace(/<[^>]+>/g, ' ')
+  return text.replace(/\s+/g, ' ').trim()
+}
+
 const {
   addMailCategoryDraft,
   applyMailProperties,
@@ -27,6 +32,8 @@ const {
   dialogLoading,
   dialogMail,
   dialogMailAttachments,
+  dialogMailConversation,
+  dialogMailConversationItems,
   dialogMailFolderName,
   dialogMailHasIdentity,
   exportMailAttachment,
@@ -35,6 +42,7 @@ const {
   flagTagType,
   isAttachmentExporting,
   isAttachmentListLoading,
+  isConversationLoading,
   isMailBodyLoading,
   loadingCategories,
   mailDialogHtml,
@@ -163,6 +171,35 @@ const {
                 </el-button>
               </span>
             </div>
+          </div>
+        </div>
+
+        <div class="dialog-mail-conversation">
+          <div class="attachment-header">
+            <span class="attachment-header-title">
+              <span>討論串</span>
+              <el-tag effect="plain">{{ dialogMailConversationItems.length }}</el-tag>
+            </span>
+            <small v-if="dialogMailConversation?.conversationTopic">{{ dialogMailConversation.conversationTopic }}</small>
+          </div>
+          <div v-if="isConversationLoading(dialogMail)" class="dialog-loading-block compact">
+            <el-skeleton animated :rows="2" />
+          </div>
+          <p v-else-if="dialogMailConversationItems.length === 0" class="hint">目前沒有可顯示的討論串。</p>
+          <div v-else class="conversation-list">
+            <article
+              v-for="item in dialogMailConversationItems"
+              :key="item.id"
+              class="conversation-item"
+              :class="{ current: item.id === dialogMail.id }"
+            >
+              <span class="conversation-marker" />
+              <span class="conversation-main">
+                <strong>{{ item.subject || '(No subject)' }}</strong>
+                <span>{{ formatMailSender(item) }} · {{ formatDateTime(item.receivedTime) }} · {{ item.folderPath }}</span>
+                <small v-if="mailPreviewText(item.body, item.bodyHtml)">{{ mailPreviewText(item.body, item.bodyHtml) }}</small>
+              </span>
+            </article>
           </div>
         </div>
       </div>

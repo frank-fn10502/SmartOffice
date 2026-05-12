@@ -15,6 +15,9 @@ namespace SmartOffice.Hub.Models
         public string Body { get; set; } = string.Empty;
         public string BodyHtml { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
+        public string ConversationId { get; set; } = string.Empty;
+        public string ConversationTopic { get; set; } = string.Empty;
+        public string ConversationIndex { get; set; } = string.Empty;
         public string Categories { get; set; } = string.Empty;
         public bool IsRead { get; set; }
         public bool IsMarkedAsTask { get; set; }
@@ -118,6 +121,15 @@ namespace SmartOffice.Hub.Models
         public string FolderPath { get; set; } = string.Empty;
         public string Body { get; set; } = string.Empty;
         public string BodyHtml { get; set; } = string.Empty;
+    }
+
+    public class MailConversationDto
+    {
+        public string MailId { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public string ConversationId { get; set; } = string.Empty;
+        public string ConversationTopic { get; set; } = string.Empty;
+        public List<MailItemDto> Mails { get; set; } = new();
     }
 
     public class MailAttachmentDto

@@ -58,6 +58,8 @@ namespace SmartOffice.Hub.Services
                 command.MailBodyRequest.FolderPath = ToAddinPath(command.MailBodyRequest.FolderPath);
             if (command.MailAttachmentsRequest is not null)
                 command.MailAttachmentsRequest.FolderPath = ToAddinPath(command.MailAttachmentsRequest.FolderPath);
+            if (command.MailConversationRequest is not null)
+                command.MailConversationRequest.FolderPath = ToAddinPath(command.MailConversationRequest.FolderPath);
             if (command.ExportMailAttachmentRequest is not null)
                 command.ExportMailAttachmentRequest.FolderPath = ToAddinPath(command.ExportMailAttachmentRequest.FolderPath);
             if (command.MailPropertiesRequest is not null)
@@ -119,6 +121,13 @@ namespace SmartOffice.Hub.Services
         {
             attachments.FolderPath = ToApiPath(attachments.FolderPath);
             return attachments;
+        }
+
+        public static MailConversationDto ToApiConversation(MailConversationDto conversation)
+        {
+            conversation.FolderPath = ToApiPath(conversation.FolderPath);
+            conversation.Mails = ToApiMails(conversation.Mails);
+            return conversation;
         }
 
         public static MailSearchProgressDto ToApiProgress(MailSearchProgressDto progress)

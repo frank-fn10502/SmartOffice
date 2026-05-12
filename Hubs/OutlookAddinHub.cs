@@ -343,6 +343,14 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
+        public async Task PushMailConversation(MailConversationDto conversation)
+        {
+            _mailStore.SetMailConversation(conversation);
+            _addinStatus.RecordPush("mail conversation", conversation.Mails.Count);
+            await _notifications.Clients.All.SendAsync("MailConversationUpdated", conversation);
+            await BroadcastStatusAndLogsAsync();
+        }
+
         public async Task PushExportedMailAttachment(ExportedMailAttachmentDto attachment)
         {
             _mailStore.UpsertExportedAttachment(attachment);

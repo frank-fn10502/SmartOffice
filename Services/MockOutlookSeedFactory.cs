@@ -40,6 +40,8 @@ namespace SmartOffice.Hub.Services
             {
                 Mail("mock-001", "週會議程與客戶需求整理", "Ada Chen", "ada.chen@example.test", now.AddMinutes(-28), MockOutlookPaths.Inbox, false, "客戶,待辦", true, "today", "今天"),
                 Mail("mock-002", "Re: 合約附件確認", "Ben Lin", "ben.lin@example.test", now.AddHours(-2), MockOutlookPaths.Inbox, true, "", false, "none", ""),
+                Mail("mock-013", "合約附件確認", "Mock User", "mock.user@example.test", now.AddHours(-8), MockOutlookPaths.Sent, true, "客戶", false, "none", ""),
+                Mail("mock-014", "Re: 合約附件確認", "Legal Desk", "legal@example.test", now.AddHours(-5), MockOutlookPaths.Inbox, false, "追蹤", true, "today", "今天"),
                 Mail("mock-003", "Office 2016 add-in hover 測試", "QA Lab", "qa@example.test", now.AddHours(-4), MockOutlookPaths.Inbox, false, "測試", false, "none", "", bodyHtml: ""),
                 Mail("mock-004", "下週 demo 時程", "Chris Wang", "chris.wang@example.test", now.AddDays(-1), MockOutlookPaths.Inbox, true, "追蹤", true, "next_week", "下週"),
                 Mail("mock-005", "專案資料夾歸檔樣本", "Dana Hsu", "dana.hsu@example.test", now.AddDays(-2), MockOutlookPaths.ClientProjects, true, "客戶", false, "none", ""),
@@ -349,6 +351,9 @@ namespace SmartOffice.Hub.Services
                 Body = body,
                 BodyHtml = bodyHtml ?? $"<article><h2>{subject}</h2><p>Mock 郵件內容，用於本機測試 Web UI 與 Outlook contract。</p></article>",
                 FolderPath = folderPath,
+                ConversationId = MockConversationId(subject),
+                ConversationTopic = NormalizeConversationTopic(subject),
+                ConversationIndex = receivedTime.Ticks.ToString("X16"),
                 Categories = categories,
                 IsRead = isRead,
                 IsMarkedAsTask = isMarkedAsTask,
@@ -399,6 +404,36 @@ namespace SmartOffice.Hub.Services
             var attachments = MockOutlookAttachmentFactory.Build(mail);
             mail.AttachmentCount = attachments.Count;
             mail.AttachmentNames = string.Join("、", attachments.Select(attachment => attachment.Name));
+        }
+
+        private static string MockConversationId(string subject)
+        {
+            return $"mock-conv-{NormalizeConversationTopic(subject).ToLowerInvariant().Replace(" ", "-")}";
+        }
+
+        private static string NormalizeConversationTopic(string subject)
+        {
+            var topic = subject.Trim();
+            while (true)
+            {
+                var normalized = topic.TrimStart();
+                if (normalized.StartsWith("Re:", StringComparison.OrdinalIgnoreCase))
+                {
+                    topic = normalized[3..].TrimStart();
+                    continue;
+                }
+                if (normalized.StartsWith("FW:", StringComparison.OrdinalIgnoreCase))
+                {
+                    topic = normalized[3..].TrimStart();
+                    continue;
+                }
+                if (normalized.StartsWith("Fwd:", StringComparison.OrdinalIgnoreCase))
+                {
+                    topic = normalized[4..].TrimStart();
+                    continue;
+                }
+                return normalized;
+            }
         }
 
         private static void RefreshFolderCounts(List<FolderDto> folders, List<MailItemDto> mails)

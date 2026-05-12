@@ -68,6 +68,7 @@ namespace SmartOffice.Hub.Services
             MailItemDto? mail = null;
             MailBodyDto? mailBody = null;
             MailAttachmentsDto? mailAttachments = null;
+            MailConversationDto? mailConversation = null;
             ExportedMailAttachmentDto? exportedAttachment = null;
             List<OutlookCategoryDto>? categories = null;
             List<OutlookRuleDto>? rules = null;
@@ -144,6 +145,10 @@ namespace SmartOffice.Hub.Services
                     case "fetch_mail_attachments":
                         mailAttachments = FetchMailAttachments(command.MailAttachmentsRequest);
                         if (mailAttachments is not null) _mailStore.SetMailAttachments(mailAttachments);
+                        break;
+                    case "fetch_mail_conversation":
+                        mailConversation = FetchMailConversation(command.MailConversationRequest);
+                        if (mailConversation is not null) _mailStore.SetMailConversation(mailConversation);
                         break;
                     case "export_mail_attachment":
                         exportedAttachment = ExportMailAttachment(command.ExportMailAttachmentRequest);
@@ -272,6 +277,7 @@ namespace SmartOffice.Hub.Services
             if (mail is not null) await _notifications.Clients.All.SendAsync("MailUpdated", mail, ct);
             if (mailBody is not null) await _notifications.Clients.All.SendAsync("MailBodyUpdated", mailBody, ct);
             if (mailAttachments is not null) await _notifications.Clients.All.SendAsync("MailAttachmentsUpdated", mailAttachments, ct);
+            if (mailConversation is not null) await _notifications.Clients.All.SendAsync("MailConversationUpdated", mailConversation, ct);
             if (exportedAttachment is not null) await _notifications.Clients.All.SendAsync("MailAttachmentExported", exportedAttachment, ct);
             if (categories is not null) await _notifications.Clients.All.SendAsync("CategoriesUpdated", categories, ct);
             if (rules is not null) await _notifications.Clients.All.SendAsync("RulesUpdated", rules, ct);
@@ -512,6 +518,49 @@ namespace SmartOffice.Hub.Services
             };
         }
 
+        private MailConversationDto? FetchMailConversation(FetchMailConversationRequest? request)
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.MailId)) return null;
+            var mail = _mockMails.FirstOrDefault(item =>
+                item.Id == request.MailId
+                && (string.IsNullOrWhiteSpace(request.FolderPath) || item.FolderPath == request.FolderPath));
+            if (mail is null) return null;
+
+            var maxCount = Math.Clamp(request.MaxCount <= 0 ? 100 : request.MaxCount, 1, 300);
+            var conversationId = string.IsNullOrWhiteSpace(mail.ConversationId)
+                ? MockConversationId(mail.Subject)
+                : mail.ConversationId;
+            var topic = string.IsNullOrWhiteSpace(mail.ConversationTopic)
+                ? NormalizeConversationTopic(mail.Subject)
+                : mail.ConversationTopic;
+            var mails = _mockMails
+                .Where(item =>
+                    (!string.IsNullOrWhiteSpace(item.ConversationId) && item.ConversationId == conversationId)
+                    || string.Equals(NormalizeConversationTopic(item.Subject), topic, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(item => item.ReceivedTime)
+                .Take(maxCount)
+                .Select(CloneMail)
+                .ToList();
+
+            if (!request.IncludeBody)
+            {
+                foreach (var item in mails)
+                {
+                    item.Body = string.Empty;
+                    item.BodyHtml = string.Empty;
+                }
+            }
+
+            return new MailConversationDto
+            {
+                MailId = mail.Id,
+                FolderPath = mail.FolderPath,
+                ConversationId = conversationId,
+                ConversationTopic = topic,
+                Mails = mails,
+            };
+        }
+
         private ExportedMailAttachmentDto? ExportMailAttachment(ExportMailAttachmentRequest? request)
         {
             if (request is null || string.IsNullOrWhiteSpace(request.MailId) || string.IsNullOrWhiteSpace(request.AttachmentId)) return null;
@@ -706,6 +755,36 @@ namespace SmartOffice.Hub.Services
                 "no_date" => null,
                 _ => null,
             };
+        }
+
+        private static string MockConversationId(string subject)
+        {
+            return $"mock-conv-{NormalizeConversationTopic(subject).ToLowerInvariant().Replace(" ", "-")}";
+        }
+
+        private static string NormalizeConversationTopic(string subject)
+        {
+            var topic = subject.Trim();
+            while (true)
+            {
+                var normalized = topic.TrimStart();
+                if (normalized.StartsWith("Re:", StringComparison.OrdinalIgnoreCase))
+                {
+                    topic = normalized[3..].TrimStart();
+                    continue;
+                }
+                if (normalized.StartsWith("FW:", StringComparison.OrdinalIgnoreCase))
+                {
+                    topic = normalized[3..].TrimStart();
+                    continue;
+                }
+                if (normalized.StartsWith("Fwd:", StringComparison.OrdinalIgnoreCase))
+                {
+                    topic = normalized[4..].TrimStart();
+                    continue;
+                }
+                return normalized;
+            }
         }
 
         private static string BuildChatReply(string text)
@@ -1001,6 +1080,9 @@ namespace SmartOffice.Hub.Services
                 Body = mail.Body,
                 BodyHtml = mail.BodyHtml,
                 FolderPath = mail.FolderPath,
+                ConversationId = mail.ConversationId,
+                ConversationTopic = mail.ConversationTopic,
+                ConversationIndex = mail.ConversationIndex,
                 Categories = mail.Categories,
                 IsRead = mail.IsRead,
                 IsMarkedAsTask = mail.IsMarkedAsTask,

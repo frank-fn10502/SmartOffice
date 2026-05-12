@@ -18,6 +18,7 @@ import type {
   FolderTreeNode,
   MailAttachmentDto,
   MailAttachmentsDto,
+  MailConversationDto,
   MailItemDto,
   MailPropertiesDraft,
   MailSearchProgressDto,
@@ -138,7 +139,9 @@ export function useOutlookDashboard() {
   const expandedFolders = ref<Set<string>>(new Set())
   const loadingMailBodyIds = ref<Set<string>>(new Set())
   const mailAttachmentsByMailId = ref<Record<string, MailAttachmentDto[]>>({})
+  const mailConversationsByMailId = ref<Record<string, MailConversationDto>>({})
   const loadingAttachmentMailIds = ref<Set<string>>(new Set())
+  const loadingConversationMailIds = ref<Set<string>>(new Set())
   const exportingAttachmentIds = ref<Set<string>>(new Set())
   const mailLookbackHours = ref(168)
   const mailCount = ref(30)
@@ -394,6 +397,12 @@ export function useOutlookDashboard() {
     return dialogMail.value?.id ? mailAttachmentsByMailId.value[dialogMail.value.id] ?? [] : []
   })
 
+  const dialogMailConversation = computed(() => {
+    return dialogMail.value?.id ? mailConversationsByMailId.value[dialogMail.value.id] ?? null : null
+  })
+
+  const dialogMailConversationItems = computed(() => dialogMailConversation.value?.mails ?? [])
+
   const selectedRule = computed(() => {
     return selectedRuleIndex.value === null ? null : rules.value[selectedRuleIndex.value] ?? null
   })
@@ -402,7 +411,7 @@ export function useOutlookDashboard() {
 
   const dialogLoading = computed(() => {
     const mail = dialogMail.value
-    return Boolean(mail && (isMailBodyLoading(mail) || isAttachmentListLoading(mail)))
+    return Boolean(mail && (isMailBodyLoading(mail) || isAttachmentListLoading(mail) || isConversationLoading(mail)))
   })
 
   const dialogMailFolderName = computed(() => {
@@ -661,6 +670,15 @@ function categoryTagStyle(name: string) {
       [payload.mailId]: payload.attachments,
     }
     completeAttachmentLoad(payload.mailId)
+  }
+
+  function patchMailConversation(payload: MailConversationDto) {
+    if (!payload.mailId) return
+    mailConversationsByMailId.value = {
+      ...mailConversationsByMailId.value,
+      [payload.mailId]: payload,
+    }
+    completeConversationLoad(payload.mailId)
   }
 
   function collectExistingFolderCounts() {
@@ -1067,6 +1085,7 @@ function categoryTagStyle(name: string) {
     mailDialogVisible.value = true
     void requestMailBody(mail)
     void requestMailAttachments(mail)
+    void requestMailConversation(mail)
   }
 
   function closeMailDialog() {
@@ -1479,6 +1498,16 @@ function categoryTagStyle(name: string) {
     attachmentTimeoutIds.clear()
   }
 
+  function completeConversationLoad(mailId: string) {
+    const next = new Set(loadingConversationMailIds.value)
+    next.delete(mailId)
+    loadingConversationMailIds.value = next
+  }
+
+  function clearConversationLoads() {
+    loadingConversationMailIds.value = new Set()
+  }
+
   function isMailBodyLoading(mail: MailItemDto) {
     return Boolean(mail.id && loadingMailBodyIds.value.has(mail.id))
   }
@@ -1493,6 +1522,10 @@ function categoryTagStyle(name: string) {
 
   function isAttachmentExporting(mail: MailItemDto, attachment: MailAttachmentDto) {
     return Boolean(mail.id && exportingAttachmentIds.value.has(attachmentKey(mail.id, attachment.attachmentId)))
+  }
+
+  function isConversationLoading(mail: MailItemDto) {
+    return Boolean(mail.id && loadingConversationMailIds.value.has(mail.id))
   }
 
   async function requestMailBody(mail: MailItemDto) {
@@ -1532,6 +1565,57 @@ function categoryTagStyle(name: string) {
       patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
     } catch {
       completeAttachmentLoad(mail.id)
+    }
+  }
+
+  async function requestMailConversation(mail: MailItemDto) {
+    if (!mail.id?.trim() || isConversationLoading(mail) || mailConversationsByMailId.value[mail.id]) return
+    loadingConversationMailIds.value = new Set(loadingConversationMailIds.value).add(mail.id)
+    try {
+      const response = await outlookApi.requestMailConversation({
+        mailId: mail.id,
+        folderPath: mail.folderPath,
+        maxCount: 100,
+        includeBody: true,
+      })
+      await waitForRequest(response)
+      const requestId = requestIdFromResponse(response)
+      const items: MailItemDto[] = []
+      let cursor = ''
+      let conversation: MailConversationDto | null = null
+      do {
+        const state = await outlookApi.fetchResult<{
+          mailId?: string
+          folderPath?: string
+          conversationId?: string
+          conversationTopic?: string
+          mails?: unknown[]
+        }>(fetchResultEndpoint(response), {
+          requestId,
+          cursor,
+          take: 100,
+        })
+        const data = state.data ?? {}
+        conversation = {
+          mailId: data.mailId || mail.id,
+          folderPath: data.folderPath || mail.folderPath,
+          conversationId: data.conversationId || mail.conversationId,
+          conversationTopic: data.conversationTopic || mail.conversationTopic || mail.subject,
+          mails: items,
+        }
+        items.push(...normalizeMailItems(data.mails))
+        cursor = state.next.cursor
+        if (!state.next.hasMore) break
+      } while (cursor)
+
+      if (conversation) {
+        conversation.mails = items
+        patchMailConversation(conversation)
+      } else {
+        patchMailConversation(await outlookApi.getMailConversation(mail.id))
+      }
+    } catch {
+      completeConversationLoad(mail.id)
     }
   }
 
@@ -2029,6 +2113,7 @@ function categoryTagStyle(name: string) {
     cancelScheduledMailFetch()
     clearMailBodyLoads()
     clearAttachmentLoads()
+    clearConversationLoads()
     void connection?.stop()
   })
 
@@ -2097,10 +2182,13 @@ function categoryTagStyle(name: string) {
     mailSearchResults,
     isAttachmentExporting,
     isAttachmentListLoading,
+    isConversationLoading,
     isMailBodyLoading,
     mailHasBody,
     dialogMail,
     dialogMailAttachments,
+    dialogMailConversation,
+    dialogMailConversationItems,
     dialogMailFolderName,
     dialogMailHasIdentity,
     dialogLoading,
