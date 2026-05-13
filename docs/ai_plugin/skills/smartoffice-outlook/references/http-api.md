@@ -98,6 +98,44 @@ Response:
 
 若 `request-*` 回 HTTP 409 / 400 / 502 / 504，body 通常仍包含 `state`、`message` 與可能存在的 `requestId`。Caller 應回報該狀態；不要自行擴大 folder scope、改成空 `scopeFolderPaths`，或猜測 folder path 重試。
 
+### Request Body 格式錯誤
+
+SmartOffice API 不接受未文件化欄位。若 request body 使用錯欄位名，會回 HTTP 400：
+
+```json
+{
+  "status": "invalid_request_body",
+  "state": "failed",
+  "message": "Request JSON does not match this endpoint schema. Remove unknown fields and use the exact property names documented in Swagger.",
+  "errors": {
+    "$.query": [
+      "The JSON property 'query' could not be mapped to any .NET member contained in type 'SmartOffice.Hub.Contracts.SearchMailsRequest'."
+    ]
+  }
+}
+```
+
+遇到 `invalid_request_body` 時，修正欄位名稱後重送同一 endpoint；不要改成其他 endpoint，也不要擴大搜尋範圍。常見錯誤：
+
+- `request-mail-search` 使用 `keyword`，不是 `query`、`text` 或 `searchText`。
+- `request-mail-search.scopeFolderPaths` 必須是 string array，例如 `["/主要信箱 - User/收件匣"]`。
+- `request-calendar` 使用 `daysForward` 或 `startDate` / `endDate`，不是 `lookaheadDays` / `lookbackDays`。
+- `request-folder-children` 使用 `parentEntryId` / `parentFolderPath`，不是 folder data 裡的 `entryId` / `folderPath`。
+- mail body、attachment、conversation、mutation endpoints 都需要從 `data.mails[]` 取得的 `mailId` 與同筆 `folderPath`。
+
+缺少必要欄位時會回：
+
+```json
+{
+  "status": "missing_required_fields",
+  "state": "failed",
+  "message": "Missing required request field(s): folderPath.",
+  "requiredFields": ["folderPath"]
+}
+```
+
+遇到 `missing_required_fields` 時，只補齊 `requiredFields` 列出的欄位後重送。
+
 ### Paired Fetch Result Endpoints
 
 | Request endpoint | Fetch result endpoint | 主要 `data` 欄位 |

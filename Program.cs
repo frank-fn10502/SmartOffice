@@ -1,6 +1,7 @@
 ﻿using SmartOffice.Hub.Hubs;
 using SmartOffice.Hub.Services;
 using SmartOffice.Hub.Swagger;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
 using System.Text.Json.Serialization;
@@ -19,7 +20,35 @@ namespace SmartOffice.Hub
                 .AddJsonOptions(options =>
                 {
                     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                    options.JsonSerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
                 });
+            builder.Services.Configure<ApiBehaviorOptions>(options =>
+            {
+                options.InvalidModelStateResponseFactory = context =>
+                {
+                    var allErrors = context.ModelState
+                        .Where(item => item.Value?.Errors.Count > 0)
+                        .ToDictionary(
+                            item => item.Key,
+                            item => item.Value!.Errors.Select(error =>
+                                string.IsNullOrWhiteSpace(error.ErrorMessage)
+                                    ? error.Exception?.Message ?? "Invalid value."
+                                    : error.ErrorMessage).ToArray());
+                    var errors = allErrors.Count <= 1
+                        ? allErrors
+                        : allErrors
+                            .Where(item => item.Key is not "req" and not "msg" and not "entry")
+                            .ToDictionary(item => item.Key, item => item.Value);
+
+                    return new BadRequestObjectResult(new
+                    {
+                        status = "invalid_request_body",
+                        state = "failed",
+                        message = "Request JSON does not match this endpoint schema. Remove unknown fields and use the exact property names documented in Swagger.",
+                        errors,
+                    });
+                };
+            });
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {

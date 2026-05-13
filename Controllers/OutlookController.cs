@@ -62,6 +62,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-mail-body")]
         public async Task<IActionResult> RequestMailBody([FromBody] FetchMailBodyRequest req, CancellationToken ct)
         {
+            var error = RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
+            if (error is not null) return error;
+
             var cmd = new PendingCommand
             {
                 Type = "fetch_mail_body",
@@ -76,6 +79,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-mail-attachments")]
         public async Task<IActionResult> RequestMailAttachments([FromBody] FetchMailAttachmentsRequest req, CancellationToken ct)
         {
+            var error = RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
+            if (error is not null) return error;
+
             var cmd = new PendingCommand
             {
                 Type = "fetch_mail_attachments",
@@ -91,6 +97,9 @@ namespace SmartOffice.Hub.Controllers
         public async Task<IActionResult> RequestMailConversation([FromBody] FetchMailConversationRequest req, CancellationToken ct)
         {
             req ??= new FetchMailConversationRequest();
+            var error = RequireFields(("mailId", req.MailId), ("folderPath", req.FolderPath));
+            if (error is not null) return error;
+
             req.MaxCount = Math.Clamp(req.MaxCount <= 0 ? 100 : req.MaxCount, 1, 300);
             var cmd = new PendingCommand
             {
@@ -106,7 +115,13 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-export-mail-attachment")]
         public async Task<IActionResult> RequestExportMailAttachment([FromBody] ExportMailAttachmentRequest req, CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(req.ExportRootPath))
+            var error = RequireFields(
+                ("mailId", req?.MailId),
+                ("folderPath", req?.FolderPath),
+                ("attachmentId", req?.AttachmentId));
+            if (error is not null) return error;
+
+            if (string.IsNullOrWhiteSpace(req!.ExportRootPath))
                 req.ExportRootPath = _attachmentExports.RootPath;
 
             var cmd = new PendingCommand
@@ -123,7 +138,10 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("open-exported-attachment")]
         public IActionResult OpenExportedAttachment([FromBody] OpenExportedAttachmentRequest req)
         {
-            if (!_mailStore.TryGetExportedAttachment(req.ExportedAttachmentId, out var attachment))
+            var error = RequireFields(("exportedAttachmentId", req?.ExportedAttachmentId));
+            if (error is not null) return error;
+
+            if (!_mailStore.TryGetExportedAttachment(req!.ExportedAttachmentId, out var attachment))
                 return NotFound(new { status = "not_found" });
 
             try
@@ -146,9 +164,12 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("attachment-export-settings")]
         public IActionResult UpdateAttachmentExportSettings([FromBody] UpdateAttachmentExportSettingsRequest req)
         {
+            var error = RequireFields(("rootPath", req?.RootPath));
+            if (error is not null) return error;
+
             try
             {
-                return Ok(_attachmentExports.UpdateSettings(req.RootPath));
+                return Ok(_attachmentExports.UpdateSettings(req!.RootPath));
             }
             catch (Exception ex)
             {
@@ -325,10 +346,24 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-calendar")]
         public async Task<IActionResult> RequestCalendar([FromBody] FetchCalendarRequest? req, CancellationToken ct)
         {
+            req ??= new FetchCalendarRequest();
+            req.DaysForward = Math.Clamp(req.DaysForward <= 0 ? 31 : req.DaysForward, 1, 366);
+            req.StartDate = UtcDateTime.Normalize(req.StartDate);
+            req.EndDate = UtcDateTime.Normalize(req.EndDate);
+            if (req.StartDate.HasValue && req.EndDate.HasValue && req.StartDate > req.EndDate)
+            {
+                return BadRequest(new
+                {
+                    status = "invalid_calendar_range",
+                    state = "failed",
+                    message = "startDate must be earlier than or equal to endDate."
+                });
+            }
+
             var cmd = new PendingCommand
             {
                 Type = "fetch_calendar",
-                CalendarRequest = req ?? new FetchCalendarRequest()
+                CalendarRequest = req
             };
             return await DispatchCommandAsync(cmd, ct);
         }
@@ -336,6 +371,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-update-mail-properties")]
         public async Task<IActionResult> RequestUpdateMailProperties([FromBody] MailPropertiesCommandRequest req, CancellationToken ct)
         {
+            var error = RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
+            if (error is not null) return error;
+
             if (!CanUpdateMailProperties(req?.MailId, out var unsupported))
                 return UnsupportedMailPropertiesUpdate(unsupported);
 
@@ -350,6 +388,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-upsert-category")]
         public async Task<IActionResult> RequestUpsertCategory([FromBody] CategoryCommandRequest req, CancellationToken ct)
         {
+            var error = RequireFields(("name", req?.Name));
+            if (error is not null) return error;
+
             var cmd = new PendingCommand
             {
                 Type = "upsert_category",
@@ -361,6 +402,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-create-folder")]
         public async Task<IActionResult> RequestCreateFolder([FromBody] CreateFolderRequest req, CancellationToken ct)
         {
+            var error = RequireFields(("parentFolderPath", req?.ParentFolderPath), ("name", req?.Name));
+            if (error is not null) return error;
+
             var cmd = new PendingCommand
             {
                 Type = "create_folder",
@@ -372,6 +416,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-delete-folder")]
         public async Task<IActionResult> RequestDeleteFolder([FromBody] DeleteFolderRequest req, CancellationToken ct)
         {
+            var error = RequireFields(("folderPath", req?.FolderPath));
+            if (error is not null) return error;
+
             var cmd = new PendingCommand
             {
                 Type = "delete_folder",
@@ -383,6 +430,12 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-move-mail")]
         public async Task<IActionResult> RequestMoveMail([FromBody] MoveMailRequest req, CancellationToken ct)
         {
+            var error = RequireFields(
+                ("mailId", req?.MailId),
+                ("sourceFolderPath", req?.SourceFolderPath),
+                ("destinationFolderPath", req?.DestinationFolderPath));
+            if (error is not null) return error;
+
             var cmd = new PendingCommand
             {
                 Type = "move_mail",
@@ -394,8 +447,18 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-move-mails")]
         public async Task<IActionResult> RequestMoveMails([FromBody] MoveMailsRequest req, CancellationToken ct)
         {
+            var error = RequireFields(("destinationFolderPath", req?.DestinationFolderPath));
+            if (error is not null) return error;
+            if (req is null)
+                return MissingRequiredFields("destinationFolderPath", "mailIds");
+
             req.MailIds ??= new List<string>();
             req.SourceFolderPaths ??= new List<string>();
+
+            if (req.MailIds.Count == 0)
+                return MissingRequiredFields("mailIds");
+            if (string.IsNullOrWhiteSpace(req.SourceFolderPath) && req.SourceFolderPaths.Count == 0)
+                return MissingRequiredFields("sourceFolderPath");
 
             if (req.MailIds.Count > MaxMoveMailsBatchSize)
             {
@@ -419,12 +482,35 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-delete-mail")]
         public async Task<IActionResult> RequestDeleteMail([FromBody] DeleteMailRequest req, CancellationToken ct)
         {
+            var error = RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
+            if (error is not null) return error;
+
             var cmd = new PendingCommand
             {
                 Type = "delete_mail",
                 DeleteMailRequest = req
             };
             return await DispatchCommandAsync(cmd, ct);
+        }
+
+        private static IActionResult? RequireFields(params (string Name, string? Value)[] fields)
+        {
+            var missing = fields
+                .Where(field => string.IsNullOrWhiteSpace(field.Value))
+                .Select(field => field.Name)
+                .ToArray();
+            return missing.Length == 0 ? null : MissingRequiredFields(missing);
+        }
+
+        private static IActionResult MissingRequiredFields(params string[] fields)
+        {
+            return new BadRequestObjectResult(new
+            {
+                status = "missing_required_fields",
+                state = "failed",
+                message = $"Missing required request field(s): {string.Join(", ", fields)}.",
+                requiredFields = fields,
+            });
         }
 
         private bool CanUpdateMailProperties(string? mailId, out MailItemDto? unsupported)
@@ -520,12 +606,23 @@ namespace SmartOffice.Hub.Controllers
         private (FetchMailsRequest Request, IActionResult? Error) BuildFetchMailsRequest(RequestMailsApiRequest req)
         {
             req ??= new RequestMailsApiRequest();
+            if (string.IsNullOrWhiteSpace(req.FolderPath))
+            {
+                return (new FetchMailsRequest(), BadRequest(new
+                {
+                    status = "missing_required_fields",
+                    state = "failed",
+                    message = "Missing required request field(s): folderPath.",
+                    requiredFields = new[] { "folderPath" }
+                }));
+            }
+
             var request = new FetchMailsRequest
             {
                 FolderPath = req.FolderPath,
                 ReceivedFrom = UtcDateTime.Normalize(req.ReceivedFrom),
                 ReceivedTo = UtcDateTime.Normalize(req.ReceivedTo),
-                MaxCount = req.MaxCount,
+                MaxCount = Math.Clamp(req.MaxCount <= 0 ? 30 : req.MaxCount, 1, 500),
             };
             if (req.LookbackHours is null) return (request, null);
 
