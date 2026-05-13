@@ -153,20 +153,26 @@ namespace SmartOffice.Hub.Services
             {
                 new()
                 {
+                    StoreId = "mock-store-primary",
                     Name = "客戶郵件標記",
                     Enabled = true,
                     ExecutionOrder = 1,
-                    Conditions = new List<string> { "sender contains example.test" },
-                    Actions = new List<string> { "assign category 客戶" },
+                    RuleType = "receive",
+                    CanModifyDefinition = true,
+                    Conditions = new List<string> { "SenderAddress: Address=example.test" },
+                    Actions = new List<string> { "AssignToCategory: Categories=客戶", "Stop: (enabled)" },
                 },
                 new()
                 {
+                    StoreId = "mock-store-primary",
                     Name = "重要追蹤提醒",
                     Enabled = false,
                     ExecutionOrder = 2,
-                    Conditions = new List<string> { "subject contains demo" },
-                    Actions = new List<string> { "mark importance high", "flag for follow up" },
-                    Exceptions = new List<string> { "sender is mock.user@example.test" },
+                    RuleType = "receive",
+                    CanModifyDefinition = true,
+                    Conditions = new List<string> { "Subject: Text=demo" },
+                    Actions = new List<string> { "MarkAsTask: (enabled)", "Stop: (enabled)" },
+                    Exceptions = new List<string>(),
                 }
             };
         }

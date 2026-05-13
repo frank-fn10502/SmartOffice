@@ -1242,7 +1242,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function saveRule() {
-    if (outlookBusy.value || !ruleDraft.value.ruleName.trim()) return
+    if (outlookBusy.value || !ruleDraft.value.ruleName.trim()) return false
     const hasCondition = splitRuleInput(ruleDraft.value.subjectContains).length > 0
       || splitRuleInput(ruleDraft.value.bodyContains).length > 0
       || splitRuleInput(ruleDraft.value.senderAddressContains).length > 0
@@ -1254,10 +1254,10 @@ function categoryTagStyle(name: string) {
       || ruleDraft.value.stopProcessingMoreRules
     if (!hasCondition || !hasAction) {
       ElMessage.warning('Rule 需要至少一個條件與一個動作。')
-      return
+      return false
     }
 
-    await runMailOperation(
+    return await runMailOperation(
       () => outlookApi.requestManageRule(buildRulePayload('upsert')),
       async () => {
         await loadCachedRules()
