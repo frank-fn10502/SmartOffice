@@ -1,4 +1,4 @@
-# Agents SKILL 設計文件
+﻿# Agents SKILL 設計文件
 
 本文件是 SmartOffice Outlook Agents SKILL 的設計入口。Agents SKILL 適合做輕量版操作手冊、prompt workflow 或 helper script，不一定需要啟動 MCP server。
 

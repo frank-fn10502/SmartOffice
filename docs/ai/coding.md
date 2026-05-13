@@ -1,4 +1,4 @@
-# Coding Notes for AI Agents
+﻿# Coding Notes for AI Agents
 
 ## 語言規範
 

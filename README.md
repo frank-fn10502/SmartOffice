@@ -1,4 +1,4 @@
-# SmartOffice.Hub
+﻿# SmartOffice.Hub
 
 SmartOffice.Hub 是 Office 2016 Add-in、Web UI 與外部整合工具之間的本機中介服務。這個專案主要服務於受限的 Windows office 工作環境，讓桌面版 Office 不需要直接與 cloud AI service 溝通，也能取得 AI 協助。
 

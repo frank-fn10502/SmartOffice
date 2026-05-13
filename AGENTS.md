@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 這份文件是本 repository 的 AI coding agent 主要入口文件。Codex 可直接讀取本檔；GitHub Copilot 的入口請見 `.github/copilot-instructions.md`，內容會指回本檔。
 

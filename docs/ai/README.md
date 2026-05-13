@@ -1,4 +1,4 @@
-# AI 協作文件
+﻿# AI 協作文件
 
 本資料夾是給本 repository 的 AI coding agent 與維護者看的內部文件，包含專案邊界、coding 規範、前端限制、驗證方式與任務切分方式。
 

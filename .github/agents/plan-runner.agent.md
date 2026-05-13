@@ -1,4 +1,4 @@
----
+﻿---
 name: Plan Runner
 description: 依序執行 Plan/status.md 中尚未完成的小任務，並使用 Plan Worker 處理單一任務
 tools: ['agent', 'read', 'search', 'edit', 'execute']

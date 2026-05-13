@@ -1,4 +1,4 @@
-# SmartOffice Outlook HTTP API Reference
+﻿# SmartOffice Outlook HTTP API Reference
 
 ## Base URL
 

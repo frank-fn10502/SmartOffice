@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using SmartOffice.Hub.Models;
 using SmartOffice.Hub.Services;
 

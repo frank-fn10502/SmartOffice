@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Document } from '@element-plus/icons-vue'
 import CategoryManagerDialog from '../components/CategoryManagerDialog.vue'
 import FlagEditorDialog from '../components/FlagEditorDialog.vue'

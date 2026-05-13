@@ -1,4 +1,4 @@
-namespace SmartOffice.Hub.Services
+﻿namespace SmartOffice.Hub.Services
 {
     internal static class UtcDateTime
     {

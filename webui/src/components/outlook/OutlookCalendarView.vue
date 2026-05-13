@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ArrowLeft, ArrowRight, Calendar, Refresh } from '@element-plus/icons-vue'
 import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'
 import { formatDateTime, formatTime } from '../../utils/formatters'

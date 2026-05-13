@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue'
 import { Connection, FolderOpened, Operation, Refresh, Setting, Warning } from '@element-plus/icons-vue'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'

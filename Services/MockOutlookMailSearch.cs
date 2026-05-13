@@ -1,4 +1,4 @@
-using SmartOffice.Hub.Models;
+﻿using SmartOffice.Hub.Models;
 
 namespace SmartOffice.Hub.Services
 {

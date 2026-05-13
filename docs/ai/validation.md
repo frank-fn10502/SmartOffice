@@ -1,4 +1,4 @@
-# Validation Notes for AI Agents
+﻿# Validation Notes for AI Agents
 
 ## Quick Mode
 

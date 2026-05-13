@@ -1,4 +1,4 @@
-import type { MailItemDto, OutlookRecipientDto } from '../models/outlook'
+﻿import type { MailItemDto, OutlookRecipientDto } from '../models/outlook'
 
 const addressInAngleBracketsPattern = /<[^<>]*>/
 const smtpAddressPattern = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/

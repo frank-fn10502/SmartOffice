@@ -1,4 +1,4 @@
-# Project Notes for AI Agents
+﻿# Project Notes for AI Agents
 
 ## 專案使命
 

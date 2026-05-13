@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
 import type { OutlookCategoryDto } from '../models/outlook'
 

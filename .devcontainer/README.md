@@ -1,4 +1,4 @@
-# SmartOffice.Hub devcontainer
+﻿# SmartOffice.Hub devcontainer
 
 這個資料夾提供「可選」的 devcontainer 開發環境。它不取代本機快速開發流程，只是在你需要完整 container 開發環境時提供一致的 .NET 8 SDK、Node.js 22 與 VS Code 設定。
 

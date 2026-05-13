@@ -1,4 +1,4 @@
-# MCP / Agents SKILL Integration Notes
+﻿# MCP / Agents SKILL Integration Notes
 
 本文件說明 AI client 如何透過 MCP 或 Agents SKILL 呼叫 SmartOffice API，再由 SmartOffice API 操作工作機 Outlook AddIn。
 

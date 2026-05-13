@@ -1,4 +1,4 @@
-namespace SmartOffice.Hub.Hubs
+﻿namespace SmartOffice.Hub.Hubs
 {
     public class NotificationHub : Microsoft.AspNetCore.SignalR.Hub
     {

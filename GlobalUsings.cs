@@ -1,1 +1,1 @@
-global using SmartOffice.Hub.Contracts;
+﻿global using SmartOffice.Hub.Contracts;

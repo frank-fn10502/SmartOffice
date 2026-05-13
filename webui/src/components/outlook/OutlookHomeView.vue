@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import MailListPane from '../MailListPane.vue'
 import OutlookFolderPane from './OutlookFolderPane.vue'
 import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'

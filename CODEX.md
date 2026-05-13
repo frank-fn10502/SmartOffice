@@ -1,4 +1,4 @@
-# CODEX.md
+﻿# CODEX.md
 
 本 repository 的 Codex 指引集中在 `AGENTS.md`。
 

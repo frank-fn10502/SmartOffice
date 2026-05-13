@@ -1,4 +1,4 @@
-# SmartOffice Outlook Skill Acceptance Scenarios
+﻿# SmartOffice Outlook Skill Acceptance Scenarios
 
 本文件是 SmartOffice Outlook Agents SKILL 的驗收情境清單。每個情境都應以使用者角度模擬：agent 必須照 `SKILL.md`、`references/workflows.md` 與 `references/http-api.md` 操作，不可跳過 request / fetch-result pattern，也不可猜 folder path、mail id 或 Outlook category color。
 

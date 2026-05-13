@@ -1,4 +1,4 @@
-# MCP 設計文件
+﻿# MCP 設計文件
 
 本文件是 SmartOffice Outlook MCP adapter 的設計入口。MCP server 應保持薄層，只負責把 MCP tool call 轉成 SmartOffice Outlook HTTP API call，並用 `POST /api/outlook/fetch-result-*` 等待 request 完成。
 

@@ -1,4 +1,4 @@
-# Protocol Notes for AI Agents
+﻿# Protocol Notes for AI Agents
 
 Office 2016 Outlook AddIn 功能 checklist 請參考 `../SmartOffice/docs/outlook-addin/features-checklist.md`。工作機傳送與接收格式請參考 `../SmartOffice/docs/outlook-addin/signalr-contract.md`。Office 2016 Outlook AddIn 線上文件請參考 `../SmartOffice/docs/outlook-addin/outlook-references.md`。工作機測試回報格式請參考 `../SmartOffice/docs/outlook-addin/test-report.md`。
 

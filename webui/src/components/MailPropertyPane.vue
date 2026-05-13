@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { PriceTag } from '@element-plus/icons-vue'
 import type { MailItemDto, MailPropertiesDraft, OutlookCategoryDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'

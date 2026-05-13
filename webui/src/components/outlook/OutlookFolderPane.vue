@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Folder, Refresh } from '@element-plus/icons-vue'
 import FolderNode from '../FolderNode.vue'
 import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'

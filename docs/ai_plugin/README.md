@@ -1,4 +1,4 @@
-# AI Plugin 文件
+﻿# AI Plugin 文件
 
 本資料夾專門放置給 AI plugin、MCP adapter 與 Agents SKILL 使用的文件。這些文件說明外部 AI client 如何安全地透過 SmartOffice Outlook HTTP API 操作 Outlook，不應混入工作機 Outlook AddIn 的實作規格。
 

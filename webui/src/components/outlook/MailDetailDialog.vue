@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import MailPropertyPane from '../MailPropertyPane.vue'
 import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'
 import { formatDateTime } from '../../utils/formatters'

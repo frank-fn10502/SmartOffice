@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ArrowRight, Folder, Search } from '@element-plus/icons-vue'
 import OutlookFolderPane from './OutlookFolderPane.vue'
 import SearchResultMailRow from './SearchResultMailRow.vue'

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'
 
 const props = defineProps<{

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Delete, Edit, Plus, Refresh, Select } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
 import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'

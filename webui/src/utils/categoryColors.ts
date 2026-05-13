@@ -1,4 +1,4 @@
-export const categoryColorOptions = [
+﻿export const categoryColorOptions = [
   { label: '無色', value: 'olCategoryColorNone', color: '#eef2f7' },
   { label: '紅色', value: 'olCategoryColorRed', color: '#f87171' },
   { label: '橘色', value: 'olCategoryColorOrange', color: '#fb923c' },

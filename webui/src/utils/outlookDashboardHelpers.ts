@@ -1,4 +1,4 @@
-import type { CalendarEventDto, OutlookStoreDto } from '../models/outlook'
+﻿import type { CalendarEventDto, OutlookStoreDto } from '../models/outlook'
 
 export const flagIntervalOptions = [
   { label: '不設定旗標', value: 'none' },

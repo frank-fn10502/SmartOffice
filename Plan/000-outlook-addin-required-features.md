@@ -1,4 +1,4 @@
-# Outlook AddIn 目前所需功能
+﻿# Outlook AddIn 目前所需功能
 
 ## 目的
 

@@ -1,4 +1,4 @@
-export function formatTime(value?: string) {
+﻿export function formatTime(value?: string) {
   if (!value) return '-'
   return new Date(value).toLocaleTimeString()
 }

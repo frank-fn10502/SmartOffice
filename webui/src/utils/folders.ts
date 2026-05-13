@@ -1,4 +1,4 @@
-import type { FolderDto, FolderSnapshotDto, FolderSyncBatchDto, FolderTreeNode, OutlookStoreDto } from '../models/outlook'
+﻿import type { FolderDto, FolderSnapshotDto, FolderSyncBatchDto, FolderTreeNode, OutlookStoreDto } from '../models/outlook'
 
 const hiddenFolderNames = [
   'common views',

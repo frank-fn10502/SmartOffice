@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Monitor, Platform } from '@element-plus/icons-vue'
 import { useOutlookDashboard } from './composables/useOutlookDashboard'

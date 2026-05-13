@@ -1,4 +1,4 @@
-# GitHub Copilot Instructions
+﻿# GitHub Copilot Instructions
 
 本 repository 的 AI coding agent 指引集中在 `AGENTS.md`。
 

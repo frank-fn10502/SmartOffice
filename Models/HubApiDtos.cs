@@ -1,4 +1,4 @@
-namespace SmartOffice.Hub.Models
+﻿namespace SmartOffice.Hub.Models
 {
     // Hub HTTP API / Web UI 專用 DTO：這些型別描述 Hub 自己的 response、settings 與 diagnostics。
     public class MailSearchProgressDto

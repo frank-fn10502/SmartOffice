@@ -1,4 +1,4 @@
-export type OutlookFolderType =
+﻿export type OutlookFolderType =
   | 'Unknown'
   | 'StoreRoot'
   | 'Mail'

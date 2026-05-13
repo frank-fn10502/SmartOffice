@@ -1,4 +1,4 @@
-# Plan 任務切分與工作機 AI 交付規範
+﻿# Plan 任務切分與工作機 AI 交付規範
 
 本文件定義未來將 `Plan/` 任務切分給另一台主機 AI 時的粒度、必要文件、狀態追蹤與驗證要求。目標是讓任務可以被 VS Code Copilot custom agent、工作機 AI 或其他 coding agent 穩定地逐項執行。
 

@@ -1,4 +1,4 @@
-# SmartOffice Outlook Workflows
+﻿# SmartOffice Outlook Workflows
 
 本文件描述操作順序與判斷規則，不指定工具。Agent 可使用任何 HTTP client、MCP tool、SDK helper 或 shell，只要能送出 HTTP request 並以結構化方式解析 JSON。
 
