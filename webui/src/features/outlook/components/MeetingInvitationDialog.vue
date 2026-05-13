@@ -20,6 +20,7 @@ function formatAttachmentMeta(contentType: string, size: number) {
 
 const {
   closeMailDialog,
+  activeView,
   dialogLoading,
   dialogMail,
   dialogMailAttachments,
@@ -32,8 +33,15 @@ const {
   mailHasBody,
   mailHtmlSandbox,
   openExportedAttachment,
+  requestCalendar,
   splitCategories,
 } = props.dashboard
+
+async function openCalendarView() {
+  activeView.value = 'calendar'
+  mailDialogVisible.value = false
+  await requestCalendar()
+}
 </script>
 
 <template>
@@ -111,9 +119,14 @@ const {
       <main class="meeting-dialog-main">
         <div class="meeting-section-head">
           <strong>會議內容</strong>
-          <el-button v-if="mailHasBody(dialogMail)" size="small" @click="mailDialogHtml = !mailDialogHtml">
-            {{ mailDialogHtml ? '切到文字' : '切到 HTML' }}
-          </el-button>
+          <span class="meeting-section-actions">
+            <el-button size="small" type="primary" plain @click="openCalendarView">
+              前往月曆
+            </el-button>
+            <el-button v-if="mailHasBody(dialogMail)" size="small" @click="mailDialogHtml = !mailDialogHtml">
+              {{ mailDialogHtml ? '切到文字' : '切到 HTML' }}
+            </el-button>
+          </span>
         </div>
 
         <div class="meeting-body-frame">
