@@ -9,7 +9,7 @@ namespace SmartOffice.Hub.Controllers
     [ApiController]
     [ApiExplorerSettings(GroupName = "outlook-v1")]
     [Route("api/outlook")]
-    public class OutlookController : ControllerBase
+    public partial class OutlookController : ControllerBase
     {
         private const int MaxMoveMailsBatchSize = 500;
 
@@ -722,62 +722,6 @@ namespace SmartOffice.Hub.Controllers
                 or "move_mail"
                 or "move_mails"
                 or "delete_mail";
-        }
-
-        private IActionResult? ValidateRuleRequest(OutlookRuleCommandRequest? req)
-        {
-            if (req is null)
-                return BadRequest(new { status = "missing_rule_request", message = "rule request is required." });
-
-            req.Operation = string.IsNullOrWhiteSpace(req.Operation) ? "upsert" : req.Operation.Trim().ToLowerInvariant();
-            req.RuleType = string.IsNullOrWhiteSpace(req.RuleType) ? "receive" : req.RuleType.Trim().ToLowerInvariant();
-            req.RuleName = req.RuleName.Trim();
-            req.OriginalRuleName = req.OriginalRuleName.Trim();
-            req.Conditions ??= new OutlookRuleConditionsRequest();
-            req.Actions ??= new OutlookRuleActionsRequest();
-            NormalizeRuleList(req.Conditions.SubjectContains);
-            NormalizeRuleList(req.Conditions.BodyContains);
-            NormalizeRuleList(req.Conditions.SenderAddressContains);
-            NormalizeRuleList(req.Conditions.Categories);
-            NormalizeRuleList(req.Actions.AssignCategories);
-            req.Actions.MoveToFolderPath = OutlookFolderPathMapper.ToAddinPath(req.Actions.MoveToFolderPath.Trim());
-
-            if (req.Operation is not "upsert" and not "delete" and not "set_enabled")
-                return BadRequest(new { status = "invalid_rule_operation", message = "operation must be upsert, delete, or set_enabled." });
-            if (req.RuleType is not "receive" and not "send")
-                return BadRequest(new { status = "invalid_rule_type", message = "ruleType must be receive or send." });
-            if (string.IsNullOrWhiteSpace(req.RuleName) && string.IsNullOrWhiteSpace(req.OriginalRuleName))
-                return BadRequest(new { status = "missing_rule_name", message = "ruleName or originalRuleName is required." });
-            if (req.Conditions.HasAttachment == false)
-                return BadRequest(new { status = "unsupported_rule_condition", message = "Outlook object model only supports the has-attachment rule condition." });
-
-            if (req.Operation is "delete" or "set_enabled") return null;
-
-            var hasCondition = req.Conditions.SubjectContains.Count > 0
-                || req.Conditions.BodyContains.Count > 0
-                || req.Conditions.SenderAddressContains.Count > 0
-                || req.Conditions.Categories.Count > 0
-                || req.Conditions.HasAttachment is not null;
-            var hasAction = !string.IsNullOrWhiteSpace(req.Actions.MoveToFolderPath)
-                || req.Actions.AssignCategories.Count > 0
-                || req.Actions.MarkAsTask
-                || req.Actions.StopProcessingMoreRules;
-            if (!hasCondition)
-                return BadRequest(new { status = "missing_rule_condition", message = "至少需要一個可由 Outlook object model 建立的條件。" });
-            if (!hasAction)
-                return BadRequest(new { status = "missing_rule_action", message = "至少需要一個可由 Outlook object model 建立的動作。" });
-            return null;
-        }
-
-        private static void NormalizeRuleList(List<string> values)
-        {
-            var normalized = values
-                .Select(value => value.Trim())
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            values.Clear();
-            values.AddRange(normalized);
         }
 
         private Func<bool>? DataReadyPredicate(PendingCommand cmd)

@@ -399,27 +399,6 @@ namespace SmartOffice.Hub.Services
             };
         }
 
-        private static List<string> BuildRuleConditionSummaries(OutlookRuleConditionsRequest conditions)
-        {
-            var result = new List<string>();
-            if (conditions.SubjectContains.Count > 0) result.Add($"Subject: Text={string.Join(", ", conditions.SubjectContains)}");
-            if (conditions.BodyContains.Count > 0) result.Add($"Body: Text={string.Join(", ", conditions.BodyContains)}");
-            if (conditions.SenderAddressContains.Count > 0) result.Add($"SenderAddress: Address={string.Join(", ", conditions.SenderAddressContains)}");
-            if (conditions.Categories.Count > 0) result.Add($"Category: Categories={string.Join(", ", conditions.Categories)}");
-            if (conditions.HasAttachment == true) result.Add("HasAttachment: (enabled)");
-            return result;
-        }
-
-        private static List<string> BuildRuleActionSummaries(OutlookRuleActionsRequest actions)
-        {
-            var result = new List<string>();
-            if (!string.IsNullOrWhiteSpace(actions.MoveToFolderPath)) result.Add($"MoveToFolder: FolderPath={actions.MoveToFolderPath}");
-            if (actions.AssignCategories.Count > 0) result.Add($"AssignToCategory: Categories={string.Join(", ", actions.AssignCategories)}");
-            if (actions.MarkAsTask) result.Add("MarkAsTask: (enabled)");
-            if (actions.StopProcessingMoreRules) result.Add("Stop: (enabled)");
-            return result;
-        }
-
         private void ReorderMockRules()
         {
             _mockRules = _mockRules

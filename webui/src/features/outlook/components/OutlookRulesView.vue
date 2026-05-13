@@ -31,14 +31,26 @@ const ruleNameMissing = computed(() => !ruleDraft.value.ruleName.trim())
 const ruleHasCondition = computed(() => Boolean(
   ruleDraft.value.subjectContains.trim()
     || ruleDraft.value.bodyContains.trim()
+    || ruleDraft.value.bodyOrSubjectContains.trim()
+    || ruleDraft.value.messageHeaderContains.trim()
     || ruleDraft.value.senderAddressContains.trim()
+    || ruleDraft.value.recipientAddressContains.trim()
     || ruleDraft.value.categories.length
-    || ruleDraft.value.hasAttachment !== 'any',
+    || ruleDraft.value.hasAttachment !== 'any'
+    || ruleDraft.value.importance !== 'any'
+    || ruleDraft.value.toMe
+    || ruleDraft.value.toOrCcMe
+    || ruleDraft.value.onlyToMe
+    || ruleDraft.value.meetingInviteOrUpdate,
 ))
 const ruleHasAction = computed(() => Boolean(
   ruleDraft.value.moveToFolderPath
+    || ruleDraft.value.copyToFolderPath
     || ruleDraft.value.assignCategories.length
+    || ruleDraft.value.clearCategories
     || ruleDraft.value.markAsTask
+    || ruleDraft.value.delete
+    || ruleDraft.value.desktopAlert
     || ruleDraft.value.stopProcessingMoreRules,
 ))
 const ruleCanSave = computed(() => !outlookBusy.value && !ruleNameMissing.value && ruleHasCondition.value && ruleHasAction.value)
@@ -202,15 +214,32 @@ async function submitRule() {
             <el-form-item label="Body contains">
               <el-input v-model="ruleDraft.bodyContains" :disabled="outlookBusy" placeholder="keyword" />
             </el-form-item>
+            <el-form-item label="Subject or body contains">
+              <el-input v-model="ruleDraft.bodyOrSubjectContains" :disabled="outlookBusy" placeholder="keyword" />
+            </el-form-item>
+            <el-form-item label="Message header contains">
+              <el-input v-model="ruleDraft.messageHeaderContains" :disabled="outlookBusy" placeholder="X-header or keyword" />
+            </el-form-item>
             <el-form-item label="Sender address contains">
               <el-input v-model="ruleDraft.senderAddressContains" :disabled="outlookBusy" placeholder="example.com" />
+            </el-form-item>
+            <el-form-item label="Recipient address contains">
+              <el-input v-model="ruleDraft.recipientAddressContains" :disabled="outlookBusy" placeholder="team@example.com" />
             </el-form-item>
             <el-form-item label="Category">
               <el-select v-model="ruleDraft.categories" multiple filterable :disabled="outlookBusy" placeholder="選擇分類">
                 <el-option v-for="category in categories" :key="category.name" :label="category.name" :value="category.name" />
               </el-select>
             </el-form-item>
-            <el-form-item label="Attachment" class="rule-field-wide">
+            <el-form-item label="Importance">
+              <el-select v-model="ruleDraft.importance" :disabled="outlookBusy">
+                <el-option label="不限" value="any" />
+                <el-option label="Low" value="low" />
+                <el-option label="Normal" value="normal" />
+                <el-option label="High" value="high" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Attachment">
               <el-segmented
                 v-model="ruleDraft.hasAttachment"
                 :options="[
@@ -220,6 +249,12 @@ async function submitRule() {
                 :disabled="outlookBusy"
               />
             </el-form-item>
+            <div class="rule-option-row rule-field-wide">
+              <el-checkbox v-model="ruleDraft.toMe" :disabled="outlookBusy">寄給我</el-checkbox>
+              <el-checkbox v-model="ruleDraft.toOrCcMe" :disabled="outlookBusy">To 或 CC 我</el-checkbox>
+              <el-checkbox v-model="ruleDraft.onlyToMe" :disabled="outlookBusy">只寄給我</el-checkbox>
+              <el-checkbox v-model="ruleDraft.meetingInviteOrUpdate" :disabled="outlookBusy">會議邀請/更新</el-checkbox>
+            </div>
             <div v-if="!ruleHasCondition" class="rule-validation-hint rule-field-wide">
               請至少填寫一個條件。
             </div>
@@ -237,14 +272,31 @@ async function submitRule() {
                 <el-option v-for="folder in folderOptions" :key="folder.folderPath" :label="folder.label" :value="folder.folderPath" />
               </el-select>
             </el-form-item>
+            <el-form-item label="Copy to folder">
+              <el-select v-model="ruleDraft.copyToFolderPath" filterable clearable :disabled="outlookBusy" placeholder="不複製">
+                <el-option v-for="folder in folderOptions" :key="folder.folderPath" :label="folder.label" :value="folder.folderPath" />
+              </el-select>
+            </el-form-item>
             <el-form-item label="Assign categories">
               <el-select v-model="ruleDraft.assignCategories" multiple filterable :disabled="outlookBusy" placeholder="不設定分類">
                 <el-option v-for="category in categories" :key="category.name" :label="category.name" :value="category.name" />
               </el-select>
             </el-form-item>
+            <el-form-item label="Task interval">
+              <el-select v-model="ruleDraft.markAsTaskInterval" :disabled="outlookBusy || !ruleDraft.markAsTask">
+                <el-option label="Today" value="today" />
+                <el-option label="Tomorrow" value="tomorrow" />
+                <el-option label="This week" value="this_week" />
+                <el-option label="Next week" value="next_week" />
+                <el-option label="No date" value="no_date" />
+              </el-select>
+            </el-form-item>
           </div>
           <div class="rule-option-row">
             <el-checkbox v-model="ruleDraft.markAsTask" :disabled="outlookBusy">Mark as task</el-checkbox>
+            <el-checkbox v-model="ruleDraft.clearCategories" :disabled="outlookBusy">Clear categories</el-checkbox>
+            <el-checkbox v-model="ruleDraft.desktopAlert" :disabled="outlookBusy">Desktop alert</el-checkbox>
+            <el-checkbox v-model="ruleDraft.delete" :disabled="outlookBusy">Move to Deleted Items</el-checkbox>
             <el-checkbox v-model="ruleDraft.stopProcessingMoreRules" :disabled="outlookBusy">Stop processing more rules</el-checkbox>
           </div>
           <div v-if="!ruleHasAction" class="rule-validation-hint">

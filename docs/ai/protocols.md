@@ -48,7 +48,7 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `POST /api/outlook/request-mail-conversation`：建立單封郵件所屬 Outlook conversation 載入 operation；AddIn 應回推同一討論串的 mail metadata，`includeBody=true` 時可一併包含 body/bodyHtml，方便 Web UI 一次性檢視討論串。
 - `MailItemDto.messageClass` 必須保留 Outlook `MessageClass`。一般郵件是 `IPM.Note`；收件匣裡可開啟的會議邀請/更新通常是 `IPM.Schedule.Meeting.*`。Hub/Web UI 可讀取這類 item 的列表、body 與附件；`request-move-mail(s)` / `request-delete-mail` 可處理可移動的 Outlook item；`request-update-mail-properties` 只適用一般郵件，若 Hub cache 已知 item 不是 `IPM.Note`，API 應回 `unsupported_outlook_item_type`。
 - `POST /api/outlook/request-rules`：建立 Outlook rule fetch operation。
-- `POST /api/outlook/request-manage-rule`：建立 Outlook rule mutation operation；只支援 Microsoft Rules object model 可建立的條件與動作，特殊 rule 只允許啟用/停用或刪除。
+- `POST /api/outlook/request-manage-rule`：建立 Outlook rule mutation operation；支援 Microsoft Rules object model 可建立的常見條件與動作，包含 subject/body/body-or-subject/header text、sender/recipient address、category、has attachment、importance、to me 類條件，以及 move/copy folder、assign/clear categories、mark task、delete、desktop alert、stop 等動作；特殊 rule 只允許啟用/停用或刪除。
 - `POST /api/outlook/request-categories`：建立 Outlook master category fetch operation。
 - `POST /api/outlook/request-signalr-ping`：透過正式 AddIn channel 建立 `ping` 測試 operation。
 - `POST /api/outlook/request-calendar`：建立 Outlook calendar fetch operation。

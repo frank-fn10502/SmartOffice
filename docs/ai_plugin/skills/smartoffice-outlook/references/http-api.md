@@ -516,8 +516,52 @@ Result：
 
 - `POST /api/outlook/request-calendar` with `{ "daysForward": 31, "startDate": null, "endDate": null }` -> `POST /api/outlook/fetch-result-calendar`
 - `POST /api/outlook/request-rules` -> `POST /api/outlook/fetch-result-rules`
+- `POST /api/outlook/request-manage-rule` with `OutlookRuleCommandRequest` -> `POST /api/outlook/fetch-result-manage-rule`
 - `POST /api/outlook/request-categories` -> `POST /api/outlook/fetch-result-categories`
 - `POST /api/outlook/request-upsert-category` with category object -> `POST /api/outlook/fetch-result-upsert-category`
+
+`OutlookRuleCommandRequest` 常用欄位：
+
+```json
+{
+  "operation": "upsert",
+  "storeId": "",
+  "ruleName": "客戶郵件標記",
+  "originalRuleName": "",
+  "originalExecutionOrder": null,
+  "ruleType": "receive",
+  "enabled": true,
+  "executionOrder": null,
+  "conditions": {
+    "subjectContains": ["報價"],
+    "bodyContains": [],
+    "bodyOrSubjectContains": [],
+    "messageHeaderContains": [],
+    "senderAddressContains": ["example.com"],
+    "recipientAddressContains": [],
+    "categories": ["客戶"],
+    "hasAttachment": true,
+    "importance": "high",
+    "toMe": false,
+    "toOrCcMe": false,
+    "onlyToMe": false,
+    "meetingInviteOrUpdate": false
+  },
+  "actions": {
+    "moveToFolderPath": "\\\\主要信箱 - User\\Inbox\\客戶",
+    "copyToFolderPath": "",
+    "assignCategories": ["客戶"],
+    "clearCategories": false,
+    "markAsTask": true,
+    "markAsTaskInterval": "this_week",
+    "delete": false,
+    "desktopAlert": true,
+    "stopProcessingMoreRules": true
+  }
+}
+```
+
+`importance` 可用 `any`、`low`、`normal`、`high`；`markAsTaskInterval` 可用 `today`、`tomorrow`、`this_week`、`next_week`、`no_date`。`hasAttachment=false` 不支援，因 Outlook Rules object model 只能建立「有附件」條件。
 
 `CategoryCommandRequest`：
 

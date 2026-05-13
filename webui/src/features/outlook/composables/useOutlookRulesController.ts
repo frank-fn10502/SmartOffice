@@ -72,12 +72,24 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
     if (outlookBusy.value || !ruleDraft.value.ruleName.trim()) return false
     const hasCondition = splitRuleInput(ruleDraft.value.subjectContains).length > 0
       || splitRuleInput(ruleDraft.value.bodyContains).length > 0
+      || splitRuleInput(ruleDraft.value.bodyOrSubjectContains).length > 0
+      || splitRuleInput(ruleDraft.value.messageHeaderContains).length > 0
       || splitRuleInput(ruleDraft.value.senderAddressContains).length > 0
+      || splitRuleInput(ruleDraft.value.recipientAddressContains).length > 0
       || ruleDraft.value.categories.length > 0
       || ruleDraft.value.hasAttachment === 'yes'
+      || ruleDraft.value.importance !== 'any'
+      || ruleDraft.value.toMe
+      || ruleDraft.value.toOrCcMe
+      || ruleDraft.value.onlyToMe
+      || ruleDraft.value.meetingInviteOrUpdate
     const hasAction = Boolean(ruleDraft.value.moveToFolderPath)
+      || Boolean(ruleDraft.value.copyToFolderPath)
       || ruleDraft.value.assignCategories.length > 0
+      || ruleDraft.value.clearCategories
       || ruleDraft.value.markAsTask
+      || ruleDraft.value.delete
+      || ruleDraft.value.desktopAlert
       || ruleDraft.value.stopProcessingMoreRules
     if (!hasCondition || !hasAction) {
       ElMessage.warning('請至少設定一個條件與一個動作。')

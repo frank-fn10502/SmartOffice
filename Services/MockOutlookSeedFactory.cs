@@ -159,8 +159,8 @@ namespace SmartOffice.Hub.Services
                     ExecutionOrder = 1,
                     RuleType = "receive",
                     CanModifyDefinition = true,
-                    Conditions = new List<string> { "SenderAddress: Address=example.test" },
-                    Actions = new List<string> { "AssignToCategory: Categories=客戶", "Stop: (enabled)" },
+                    Conditions = new List<string> { "SenderAddress: Address=example.test", "Importance: Importance=high" },
+                    Actions = new List<string> { "AssignToCategory: Categories=客戶", "DesktopAlert: (enabled)", "Stop: (enabled)" },
                 },
                 new()
                 {
@@ -170,8 +170,8 @@ namespace SmartOffice.Hub.Services
                     ExecutionOrder = 2,
                     RuleType = "receive",
                     CanModifyDefinition = true,
-                    Conditions = new List<string> { "Subject: Text=demo" },
-                    Actions = new List<string> { "MarkAsTask: (enabled)", "Stop: (enabled)" },
+                    Conditions = new List<string> { "BodyOrSubject: Text=demo", "HasAttachment: (enabled)" },
+                    Actions = new List<string> { "CopyToFolder: FolderPath=\\\\Mock Mailbox\\Inbox\\Archive", "MarkAsTask: MarkInterval=this_week", "Stop: (enabled)" },
                     Exceptions = new List<string>(),
                 }
             };

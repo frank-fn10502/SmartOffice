@@ -225,16 +225,29 @@ namespace SmartOffice.Hub.Contracts
     {
         public List<string> SubjectContains { get; set; } = new List<string>();
         public List<string> BodyContains { get; set; } = new List<string>();
+        public List<string> BodyOrSubjectContains { get; set; } = new List<string>();
+        public List<string> MessageHeaderContains { get; set; } = new List<string>();
         public List<string> SenderAddressContains { get; set; } = new List<string>();
+        public List<string> RecipientAddressContains { get; set; } = new List<string>();
         public List<string> Categories { get; set; } = new List<string>();
         public bool? HasAttachment { get; set; }
+        public string Importance { get; set; } = "any";
+        public bool ToMe { get; set; }
+        public bool ToOrCcMe { get; set; }
+        public bool OnlyToMe { get; set; }
+        public bool MeetingInviteOrUpdate { get; set; }
     }
 
     public class OutlookRuleActionsRequest
     {
         public string MoveToFolderPath { get; set; } = string.Empty;
+        public string CopyToFolderPath { get; set; } = string.Empty;
         public List<string> AssignCategories { get; set; } = new List<string>();
+        public bool ClearCategories { get; set; }
         public bool MarkAsTask { get; set; }
+        public string MarkAsTaskInterval { get; set; } = "today";
+        public bool Delete { get; set; }
+        public bool DesktopAlert { get; set; }
         public bool StopProcessingMoreRules { get; set; } = true;
     }
 

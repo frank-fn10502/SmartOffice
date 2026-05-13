@@ -349,15 +349,28 @@ export interface OutlookRuleDto {
 export interface OutlookRuleConditionsRequest {
   subjectContains: string[]
   bodyContains: string[]
+  bodyOrSubjectContains: string[]
+  messageHeaderContains: string[]
   senderAddressContains: string[]
+  recipientAddressContains: string[]
   categories: string[]
   hasAttachment?: boolean
+  importance: 'any' | 'low' | 'normal' | 'high'
+  toMe: boolean
+  toOrCcMe: boolean
+  onlyToMe: boolean
+  meetingInviteOrUpdate: boolean
 }
 
 export interface OutlookRuleActionsRequest {
   moveToFolderPath: string
+  copyToFolderPath: string
   assignCategories: string[]
+  clearCategories: boolean
   markAsTask: boolean
+  markAsTaskInterval: 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'no_date'
+  delete: boolean
+  desktopAlert: boolean
   stopProcessingMoreRules: boolean
 }
 
