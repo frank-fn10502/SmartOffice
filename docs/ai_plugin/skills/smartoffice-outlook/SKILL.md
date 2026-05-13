@@ -13,8 +13,8 @@ metadata:
 - 一律透過 Outlook HTTP API 操作 Outlook；不要繞過 API 使用其他通道。
 - 預設 base URL 是 `http://localhost:2805`；若使用者明確提供其他 API URL，才改用該 URL。
 - 可用任何可呼叫 HTTP 與解析 JSON 的工具；不要把 `curl`、PowerShell 或特定 shell 視為必要條件。
-- 每次 `request-*` 後，先解析 request response 的固定欄位：`requestId`、`request`、`state`、`message`、`data`。`data` 是各 request 自己的 struct；response 沒有 `success` 欄位，`accepted` 只代表 SmartOffice API 已收下 request，不代表 Outlook 操作已成功。
-- 取得 `requestId` 後呼叫配對的 `POST /api/outlook/fetch-result-*`；回應固定提供 `requestId`、`request`、`state`、`message`、`next`、`data`。
+- 每次 `request-*` 後，先解析 request response 的固定欄位：`requestId`、`request`、`state`、`message`、`data`。`data.fetchResultEndpoint` 是下一步要呼叫的 paired endpoint；response 沒有 `success` 欄位，`accepted` 只代表 SmartOffice API 已收下 request，不代表 Outlook 操作已成功。
+- 取得 `requestId` 後呼叫 `data.fetchResultEndpoint`；回應固定提供 `requestId`、`request`、`state`、`message`、`next`、`data`。
 - 使用者或 AI 只需要 loop paired `fetch-result-*` 到 `state=completed`；若 `next.hasMore=true`，下一次 body 帶 `cursor=next.cursor`。
 - 若 `request-*` 回 HTTP 409 / 400 / 502 / 504，仍先解析 body 的 `state`、`message` 與可能存在的 `requestId`；不要靠猜測重試，也不要改用更大的搜尋範圍。
 - HTTP request body 不接受未文件化欄位；未知欄位會回 `400 invalid_request_body`。看到這個錯誤時，改用 Swagger / `references/http-api.md` 裡的精確欄位名稱，不要猜 alias，例如 `request-mail-search` 用 `keyword` 而不是 `query`，`request-calendar` 用 `daysForward` 而不是 `lookaheadDays`。

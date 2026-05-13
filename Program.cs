@@ -26,6 +26,9 @@ namespace SmartOffice.Hub
             {
                 options.InvalidModelStateResponseFactory = context =>
                 {
+                    var requestName = context.HttpContext.Request.Path.Value?
+                        .Split('/', StringSplitOptions.RemoveEmptyEntries)
+                        .LastOrDefault() ?? string.Empty;
                     var allErrors = context.ModelState
                         .Where(item => item.Value?.Errors.Count > 0)
                         .ToDictionary(
@@ -42,10 +45,12 @@ namespace SmartOffice.Hub
 
                     return new BadRequestObjectResult(new
                     {
+                        request = requestName,
                         status = "invalid_request_body",
                         state = "failed",
                         message = "Request JSON does not match this endpoint schema. Remove unknown fields and use the exact property names documented in Swagger.",
                         errors,
+                        data = new { },
                     });
                 };
             });
@@ -56,7 +61,7 @@ namespace SmartOffice.Hub
                 {
                     Title = "SmartOffice.Hub Outlook API",
                     Version = "v1",
-                    Description = "Hub/Web UI/AI integration API for Outlook command routing and cached snapshots.",
+                    Description = "Hub/Web UI/AI integration API for Outlook request routing and fetch-result data retrieval.",
                 });
                 options.DocInclusionPredicate((documentName, apiDescription) =>
                     string.Equals(apiDescription.GroupName, documentName, StringComparison.OrdinalIgnoreCase));
@@ -77,8 +82,8 @@ namespace SmartOffice.Hub
                 options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
 
-            // Hub 目前是 process-local：AddIn 將 Office data 透過 SignalR push 到這裡，
-            // Web UI 與未來 MCP client 讀取最新 cached snapshot。
+            // Hub 目前是 process-local：執行端將 Office data 透過 SignalR push 到這裡，
+            // Web UI 與 API caller 透過 request-* / fetch-result-* 讀取結果。
             builder.Services.AddSingleton<MailStore>();
             builder.Services.AddSingleton<ChatStore>();
             builder.Services.AddSingleton<CommandResultStore>();

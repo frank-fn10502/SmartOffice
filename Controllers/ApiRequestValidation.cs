@@ -17,10 +17,12 @@ namespace SmartOffice.Hub.Controllers
         {
             return new BadRequestObjectResult(new
             {
+                request = "",
                 status = "missing_required_fields",
                 state = "failed",
                 message = $"Missing required request field(s): {string.Join(", ", fields)}.",
                 requiredFields = fields,
+                data = new { },
             });
         }
     }

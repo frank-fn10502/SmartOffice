@@ -34,7 +34,7 @@ namespace SmartOffice.Hub.Services
                     .OrderByDescending(contact => contact.RelationScore)
                     .ThenByDescending(contact => contact.LastSeen ?? DateTime.MinValue)
                     .ThenBy(contact => contact.DisplayName)
-                    .Take(Math.Clamp(take <= 0 ? 200 : take, 1, 500))
+                    .Take(Math.Clamp(take <= 0 ? 200 : take, 1, 5000))
                     .Select(CloneAddressBookContact)
                     .ToList();
             }

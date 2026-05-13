@@ -46,8 +46,11 @@ namespace SmartOffice.Hub.Controllers
             {
                 return BadRequest(new
                 {
+                    request = RequestName("search_mails"),
                     status = "missing_search_scope",
+                    state = "failed",
                     message = "scopeFolderPaths or storeId is required. Set allowGlobalScope=true only for an explicit global search.",
+                    data = new { },
                 });
             }
 
@@ -71,7 +74,14 @@ namespace SmartOffice.Hub.Controllers
         {
             req ??= new FolderMailsRequest();
             if (string.IsNullOrWhiteSpace(req.FolderPath))
-                return BadRequest(new { status = "missing_folder_path", message = "folderPath is required." });
+                return BadRequest(new
+                {
+                    request = RequestName("list_folder_mails"),
+                    status = "missing_folder_path",
+                    state = "failed",
+                    message = "folderPath is required.",
+                    data = new { },
+                });
             req.MaxCount = Math.Clamp(req.MaxCount <= 0 ? 30 : req.MaxCount, 1, 500);
             req.ReceivedFrom = UtcDateTime.Normalize(req.ReceivedFrom);
             req.ReceivedTo = UtcDateTime.Normalize(req.ReceivedTo);
@@ -125,7 +135,7 @@ namespace SmartOffice.Hub.Controllers
             PendingCommand cmd,
             SearchMailsRequest req,
             CancellationToken ct,
-            string resultEndpoint = "/api/outlook/mail-search")
+            string resultEndpoint = "/api/outlook/fetch-result-mail-search")
         {
             var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct, loadPendingChildren: req.IncludeSubFolders);
             if (!folderReady)
@@ -314,7 +324,7 @@ namespace SmartOffice.Hub.Controllers
                 {
                     folderMailsId = cmd.Id,
                     sliceCount = slices.Count,
-                    resultEndpoint = "/api/outlook/folder-mails",
+                    resultEndpoint = "/api/outlook/fetch-result-folder-mails",
                 },
             };
             return result.Success ? Ok(body) : StatusCode(result.HttpStatusCode, body);
@@ -570,7 +580,7 @@ namespace SmartOffice.Hub.Controllers
         {
             req ??= new FetchResultRequest();
             if (string.IsNullOrWhiteSpace(req.RequestId))
-                return BadRequest(new { state = "failed", message = "requestId is required." });
+                return BadRequest(new { requestId = "", request = "", state = "failed", message = "requestId is required.", next = new FetchResultNext(), data = new { } });
 
             var status = _commandResults.Get(req.RequestId);
             if (status is null)
@@ -622,7 +632,19 @@ namespace SmartOffice.Hub.Controllers
                 command.Type,
                 "accepted",
                 "Request accepted. Poll the paired fetch-result-* endpoint for state and data.",
-                data);
+                ResultDataWithFetchEndpoint(command.Type, data));
+        }
+
+        private static Dictionary<string, object?> ResultDataWithFetchEndpoint(string commandType, object? data)
+        {
+            var result = new Dictionary<string, object?>
+            {
+                ["fetchResultEndpoint"] = $"/api/outlook/{RequestName(commandType).Replace("request-", "fetch-result-")}",
+            };
+            if (data is null) return result;
+            foreach (var property in data.GetType().GetProperties())
+                result[property.Name] = property.GetValue(data);
+            return result;
         }
 
         private static object ResultEnvelope(string requestId, string commandType, string state, string message, object? data = null)
@@ -643,7 +665,7 @@ namespace SmartOffice.Hub.Controllers
             {
                 "pending" => "running",
                 "completed" or "mocked" => "completed",
-                "addin_unavailable" => "unavailable",
+                "outlook_unavailable" => "unavailable",
                 "timeout" => "timeout",
                 _ => "failed",
             };

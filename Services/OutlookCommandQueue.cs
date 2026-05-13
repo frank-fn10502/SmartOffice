@@ -85,17 +85,17 @@ namespace SmartOffice.Hub.Services
         {
             if (_mockOutlook.IsEnabled) return OutlookQueuedCommandResult.Completed(string.Empty, "mock_ready", "Mock Outlook backend is ready.");
             if (_lastReadyAt.HasValue && DateTime.Now - _lastReadyAt.Value < ReadyFreshness)
-                return OutlookQueuedCommandResult.Completed(string.Empty, "ready", "Outlook AddIn was recently verified.");
+                return OutlookQueuedCommandResult.Completed(string.Empty, "ready", "Outlook request executor was recently verified.");
 
             if (!await WaitForSignalRConnectionAsync(ConnectionTimeout, ct))
-                return OutlookQueuedCommandResult.AddinUnavailable("No Outlook AddIn SignalR connection is available.");
+                return OutlookQueuedCommandResult.AddinUnavailable("Outlook request executor is not available.");
 
             var ping = await DispatchAndWaitAsync(new PendingCommand { Type = "ping" }, null, PingTimeout, ct);
             if (!ping.Success) return ping;
 
             _lastReadyAt = DateTime.Now;
 
-            return OutlookQueuedCommandResult.Completed(string.Empty, "ready", "Outlook AddIn is ready.");
+            return OutlookQueuedCommandResult.Completed(string.Empty, "ready", "Outlook request executor is ready.");
         }
 
         private async Task<bool> WaitForSignalRConnectionAsync(TimeSpan timeout, CancellationToken ct)
@@ -135,7 +135,7 @@ namespace SmartOffice.Hub.Services
             if (!await _commandDispatcher.DispatchAsync(command, ct))
             {
                 _commandResults.RecordUnavailable(command);
-                return OutlookQueuedCommandResult.AddinUnavailable(command.Id, "No Outlook AddIn SignalR connection is available.");
+                return OutlookQueuedCommandResult.AddinUnavailable(command.Id, "Outlook request executor is not available.");
             }
 
             var deadline = DateTime.Now.Add(timeout);
@@ -147,7 +147,7 @@ namespace SmartOffice.Hub.Services
                     if (status.Status == "completed")
                     {
                         if (dataReady is not null && !dataReady.Invoke())
-                            return OutlookQueuedCommandResult.Failed(command.Id, "cache_not_ready", $"{command.Type} completed but the expected cache is not ready.");
+                            return OutlookQueuedCommandResult.Failed(command.Id, "result_not_ready", $"{command.Type} completed but the expected result data is not ready.");
 
                         if (command.Type == "delete_mail")
                             _mailStore.RemoveMailFromCachedResults(command.DeleteMailRequest?.MailId);
@@ -155,7 +155,7 @@ namespace SmartOffice.Hub.Services
                         return OutlookQueuedCommandResult.Completed(command.Id, "completed", status.Message);
                     }
 
-                    return status.Status == "addin_unavailable"
+                    return status.Status == "outlook_unavailable"
                         ? OutlookQueuedCommandResult.AddinUnavailable(command.Id, status.Message)
                         : OutlookQueuedCommandResult.Failed(command.Id, status.Status, status.Message);
                 }
@@ -167,7 +167,7 @@ namespace SmartOffice.Hub.Services
             {
                 CommandId = command.Id,
                 Success = false,
-                Message = $"{command.Type} timed out waiting for Outlook AddIn result.",
+                Message = $"{command.Type} timed out waiting for Outlook request result.",
                 Timestamp = DateTime.Now,
             };
             _commandResults.RecordResult(timeoutResult);
@@ -205,7 +205,7 @@ namespace SmartOffice.Hub.Services
             return new OutlookQueuedCommandResult
             {
                 CommandId = commandId,
-                Status = "addin_unavailable",
+                Status = "outlook_unavailable",
                 Message = message,
                 Success = false,
                 HttpStatusCode = StatusCodes.Status409Conflict,

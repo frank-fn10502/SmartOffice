@@ -9,27 +9,27 @@ namespace SmartOffice.Hub.Controllers
         private IActionResult? ValidateRuleRequest(OutlookRuleCommandRequest? req)
         {
             if (req is null)
-                return BadRequest(new { status = "missing_rule_request", message = "rule request is required." });
+                return BadRequest(ErrorEnvelope("manage_rule", "missing_rule_request", "rule request is required."));
 
             NormalizeRuleRequest(req);
             if (req.Operation is not "upsert" and not "delete" and not "set_enabled")
-                return BadRequest(new { status = "invalid_rule_operation", message = "operation must be upsert, delete, or set_enabled." });
+                return BadRequest(ErrorEnvelope("manage_rule", "invalid_rule_operation", "operation must be upsert, delete, or set_enabled."));
             if (req.RuleType is not "receive" and not "send")
-                return BadRequest(new { status = "invalid_rule_type", message = "ruleType must be receive or send." });
+                return BadRequest(ErrorEnvelope("manage_rule", "invalid_rule_type", "ruleType must be receive or send."));
             if (string.IsNullOrWhiteSpace(req.RuleName) && string.IsNullOrWhiteSpace(req.OriginalRuleName))
-                return BadRequest(new { status = "missing_rule_name", message = "ruleName or originalRuleName is required." });
+                return BadRequest(ErrorEnvelope("manage_rule", "missing_rule_name", "ruleName or originalRuleName is required."));
             if (req.Conditions.HasAttachment == false)
-                return BadRequest(new { status = "unsupported_rule_condition", message = "Outlook object model only supports the has-attachment rule condition." });
+                return BadRequest(ErrorEnvelope("manage_rule", "unsupported_rule_condition", "Outlook object model only supports the has-attachment rule condition."));
             if (req.Conditions.Importance is not "any" and not "low" and not "normal" and not "high")
-                return BadRequest(new { status = "invalid_rule_importance", message = "importance must be any, low, normal, or high." });
+                return BadRequest(ErrorEnvelope("manage_rule", "invalid_rule_importance", "importance must be any, low, normal, or high."));
             if (req.Actions.MarkAsTaskInterval is not "today" and not "tomorrow" and not "this_week" and not "next_week" and not "no_date")
-                return BadRequest(new { status = "invalid_rule_task_interval", message = "markAsTaskInterval must be today, tomorrow, this_week, next_week, or no_date." });
+                return BadRequest(ErrorEnvelope("manage_rule", "invalid_rule_task_interval", "markAsTaskInterval must be today, tomorrow, this_week, next_week, or no_date."));
 
             if (req.Operation is "delete" or "set_enabled") return null;
             if (!HasSupportedRuleCondition(req.Conditions))
-                return BadRequest(new { status = "missing_rule_condition", message = "至少需要一個可由 Outlook object model 建立的條件。" });
+                return BadRequest(ErrorEnvelope("manage_rule", "missing_rule_condition", "至少需要一個可由 Outlook object model 建立的條件。"));
             if (!HasSupportedRuleAction(req.Actions))
-                return BadRequest(new { status = "missing_rule_action", message = "至少需要一個可由 Outlook object model 建立的動作。" });
+                return BadRequest(ErrorEnvelope("manage_rule", "missing_rule_action", "至少需要一個可由 Outlook object model 建立的動作。"));
             return null;
         }
 

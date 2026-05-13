@@ -5,7 +5,7 @@
     {
         public string SearchId { get; set; } = string.Empty;
         public string CommandId { get; set; } = string.Empty;
-        public string Status { get; set; } = "pending"; // pending、running、completed、failed、addin_unavailable。
+        public string Status { get; set; } = "pending"; // pending、running、completed、failed、outlook_unavailable。
         public string Phase { get; set; } = string.Empty; // dispatch、store、folder、filter、completed。
         public int ProcessedStores { get; set; }
         public int TotalStores { get; set; }
@@ -104,7 +104,7 @@
     {
         public string CommandId { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
-        public string Status { get; set; } = "pending"; // pending、completed、failed、addin_unavailable。
+        public string Status { get; set; } = "pending"; // pending、completed、failed、outlook_unavailable。
         public bool? Success { get; set; }
         public string Message { get; set; } = string.Empty;
         public string Payload { get; set; } = string.Empty;

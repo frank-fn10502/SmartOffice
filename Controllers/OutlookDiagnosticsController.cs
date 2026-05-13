@@ -41,7 +41,7 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult LookupAddressBookContact([FromQuery] string email)
         {
             if (string.IsNullOrWhiteSpace(email))
-                return BadRequest(new { state = "failed", message = "email is required." });
+                return BadRequest(new { state = "failed", message = "email is required.", data = new { } });
 
             var contact = _mailStore.FindAddressBookContact(email);
             var suggestions = contact is null

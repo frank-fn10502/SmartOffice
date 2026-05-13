@@ -18,7 +18,7 @@ namespace SmartOffice.Hub.Services
         {
             req ??= new FetchResultRequest();
             if (string.IsNullOrWhiteSpace(req.RequestId))
-                return new BadRequestObjectResult(new { state = "failed", message = "requestId is required." });
+                return new BadRequestObjectResult(new { requestId = "", request = "", state = "failed", message = "requestId is required.", next = new FetchResultNext(), data = new { } });
 
             var status = _commandResults.Get(req.RequestId);
             if (status is null)
@@ -151,7 +151,7 @@ namespace SmartOffice.Hub.Services
                 }
                 case "fetch_address_book":
                 {
-                    var page = Page(_mailStore.GetAddressBookContacts(take: 500), offset, take);
+                    var page = Page(_mailStore.GetAddressBookContacts(take: 5000), offset, take);
                     return (new { contacts = page.Items }, page.Next);
                 }
                 default:
@@ -217,7 +217,7 @@ namespace SmartOffice.Hub.Services
             {
                 "pending" => "running",
                 "completed" or "mocked" => "completed",
-                "addin_unavailable" => "unavailable",
+                "outlook_unavailable" => "unavailable",
                 "timeout" => "timeout",
                 _ => "failed",
             };

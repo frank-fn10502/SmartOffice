@@ -103,8 +103,11 @@ namespace SmartOffice.Hub.Controllers
             {
                 return BadRequest(new
                 {
+                    request = RequestName("find_folder"),
                     status = "missing_folder_query",
-                    message = "name, folderPath, or folderType is required."
+                    state = "failed",
+                    message = "name, folderPath, or folderType is required.",
+                    data = new { },
                 });
             }
 
@@ -229,9 +232,11 @@ namespace SmartOffice.Hub.Controllers
             {
                 return BadRequest(new
                 {
+                    request = RequestName("fetch_calendar"),
                     status = "invalid_calendar_range",
                     state = "failed",
-                    message = "startDate must be earlier than or equal to endDate."
+                    message = "startDate must be earlier than or equal to endDate.",
+                    data = new { },
                 });
             }
 
@@ -357,10 +362,13 @@ namespace SmartOffice.Hub.Controllers
             {
                 return BadRequest(new
                 {
+                    request = RequestName("move_mails"),
                     status = "too_many_mail_ids",
+                    state = "failed",
                     message = $"move_mails 單次最多只能移動 {MaxMoveMailsBatchSize} 封郵件；請由 caller 分批呼叫。",
                     maxBatchSize = MaxMoveMailsBatchSize,
-                    actualCount = req.MailIds.Count
+                    actualCount = req.MailIds.Count,
+                    data = new { },
                 });
             }
 
@@ -407,10 +415,13 @@ namespace SmartOffice.Hub.Controllers
             return BadRequest(new
             {
                 status = "unsupported_outlook_item_type",
+                state = "failed",
+                request = RequestName("update_mail_properties"),
                 operation = "update_mail_properties",
                 mailId = mail?.Id ?? "",
                 messageClass = mail?.MessageClass ?? "",
-                message = "此 Outlook item 不是一般郵件，不能更新一般郵件屬性；會議邀請可讀取與搬移，但分類、旗標、已讀狀態需要 Outlook 會議/行事曆流程。"
+                message = "此 Outlook item 不是一般郵件，不能更新一般郵件屬性；會議邀請可讀取與搬移，但分類、旗標、已讀狀態需要 Outlook 會議/行事曆流程。",
+                data = new { },
             });
         }
 
@@ -418,7 +429,7 @@ namespace SmartOffice.Hub.Controllers
         {
             OutlookFolderPathMapper.NormalizeRequest(cmd);
 
-            // Hub 已收下的 AddIn request 要由中心 queue 控制完成，避免外部 client 斷線造成 Outlook automation 半路取消。
+            // Hub 已收下的 Outlook request 要由中心 queue 控制完成，避免外部 client 斷線造成 Outlook automation 半路取消。
             _commandResults.RecordDispatched(cmd);
             _ = Task.Run(() => _commandQueue.ExecuteExclusiveAsync(async operationCt =>
             {
@@ -454,28 +465,6 @@ namespace SmartOffice.Hub.Controllers
             return Task.FromResult<IActionResult>(Ok(OperationAccepted(cmd)));
         }
 
-        private static object OperationAccepted(PendingCommand command, object? data = null)
-        {
-            return ResultEnvelope(
-                command.Id,
-                command.Type,
-                "accepted",
-                "Request accepted. Poll the paired fetch-result-* endpoint for state and data.",
-                data);
-        }
-
-        private static object ResultEnvelope(string requestId, string commandType, string state, string message, object? data = null)
-        {
-            return new
-            {
-                requestId,
-                request = RequestName(commandType),
-                state,
-                message,
-                data = data ?? new { },
-            };
-        }
-
         private (FetchMailsRequest Request, IActionResult? Error) BuildFetchMailsRequest(RequestMailsApiRequest req)
         {
             req ??= new RequestMailsApiRequest();
@@ -483,10 +472,12 @@ namespace SmartOffice.Hub.Controllers
             {
                 return (new FetchMailsRequest(), BadRequest(new
                 {
+                    request = RequestName("fetch_mails"),
                     status = "missing_required_fields",
                     state = "failed",
                     message = "Missing required request field(s): folderPath.",
-                    requiredFields = new[] { "folderPath" }
+                    requiredFields = new[] { "folderPath" },
+                    data = new { },
                 }));
             }
 
@@ -503,8 +494,11 @@ namespace SmartOffice.Hub.Controllers
             {
                 return (request, BadRequest(new
                 {
+                    request = RequestName("fetch_mails"),
                     status = "invalid_lookback_hours",
-                    message = "lookbackHours 必須大於 0，例如 12 代表過去 12 小時、24 代表過去 1 天。"
+                    state = "failed",
+                    message = "lookbackHours 必須大於 0，例如 12 代表過去 12 小時、24 代表過去 1 天。",
+                    data = new { },
                 }));
             }
 
@@ -512,8 +506,11 @@ namespace SmartOffice.Hub.Controllers
             {
                 return (request, BadRequest(new
                 {
+                    request = RequestName("fetch_mails"),
                     status = "invalid_lookback_hours",
-                    message = "lookbackHours 不可超過 8760 小時。若需要更大的範圍，請改用 receivedFrom / receivedTo。"
+                    state = "failed",
+                    message = "lookbackHours 不可超過 8760 小時。若需要更大的範圍，請改用 receivedFrom / receivedTo。",
+                    data = new { },
                 }));
             }
 
@@ -689,47 +686,6 @@ namespace SmartOffice.Hub.Controllers
         private IActionResult FetchResult(FetchResultRequest req, params string[] expectedTypes)
         {
             return _fetchResults.FetchResult(req, expectedTypes);
-        }
-
-        private static string ResultState(string status)
-        {
-            return status switch
-            {
-                "pending" => "running",
-                "completed" or "mocked" => "completed",
-                "addin_unavailable" => "unavailable",
-                "timeout" => "timeout",
-                _ => "failed",
-            };
-        }
-
-        private static string RequestName(string commandType)
-        {
-            return commandType switch
-            {
-                "fetch_folder_roots" => "request-folders",
-                "fetch_folder_children" => "request-folder-children",
-                "find_folder" => "request-find-folder",
-                "fetch_mails" => "request-mails",
-                "fetch_mail_body" => "request-mail-body",
-                "fetch_mail_attachments" => "request-mail-attachments",
-                "fetch_mail_conversation" => "request-mail-conversation",
-                "export_mail_attachment" => "request-export-mail-attachment",
-                "fetch_rules" => "request-rules",
-                "manage_rule" => "request-manage-rule",
-                "fetch_categories" => "request-categories",
-                "ping" => "request-signalr-ping",
-                "fetch_calendar" => "request-calendar",
-                "fetch_address_book" => "request-address-book",
-                "update_mail_properties" => "request-update-mail-properties",
-                "upsert_category" => "request-upsert-category",
-                "create_folder" => "request-create-folder",
-                "delete_folder" => "request-delete-folder",
-                "move_mail" => "request-move-mail",
-                "move_mails" => "request-move-mails",
-                "delete_mail" => "request-delete-mail",
-                _ => commandType,
-            };
         }
 
         private static bool RequiresFolderCache(PendingCommand cmd)

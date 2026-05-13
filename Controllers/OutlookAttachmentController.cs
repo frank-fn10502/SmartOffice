@@ -188,7 +188,10 @@ namespace SmartOffice.Hub.Controllers
                 request = RequestName(command.Type),
                 state = "accepted",
                 message = "Request accepted. Poll the paired fetch-result-* endpoint for state and data.",
-                data = new { },
+                data = new
+                {
+                    fetchResultEndpoint = $"/api/outlook/{RequestName(command.Type).Replace("request-", "fetch-result-")}",
+                },
             };
         }
 

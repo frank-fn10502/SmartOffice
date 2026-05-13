@@ -47,9 +47,9 @@ namespace SmartOffice.Hub.Services
                 }
                 _requestCommands[command.Id] = command;
 
-                status.Status = "addin_unavailable";
+                status.Status = "outlook_unavailable";
                 status.Success = false;
-                status.Message = "No Outlook AddIn SignalR connection is available.";
+                status.Message = "Outlook request executor is not available.";
                 status.ResultTimestamp = DateTime.Now;
                 TrimIfNeeded();
             }
