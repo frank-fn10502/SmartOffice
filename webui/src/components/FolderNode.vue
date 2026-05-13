@@ -10,7 +10,7 @@ import {
   Warning,
 } from '@element-plus/icons-vue'
 import type { FolderTreeNode, OutlookStoreDto } from '../models/outlook'
-import { folderType, visibleChildren } from '../utils/folders'
+import { folderType, isMailSelectableFolder, visibleChildren } from '../utils/folders'
 
 const props = defineProps<{
   folder: FolderTreeNode
@@ -65,6 +65,11 @@ function folderTitle(folder: FolderTreeNode) {
   ].filter(Boolean)
   return parts.join('\n')
 }
+
+function handleFolderClick() {
+  if (isMailSelectableFolder(props.folder)) emit('select', props.folder.folderPath)
+  else if (props.folder.hasChildren || visibleChildren(props.folder).length > 0) emit('toggle', props.folder.folderPath)
+}
 </script>
 
 <template>
@@ -74,19 +79,20 @@ function folderTitle(folder: FolderTreeNode) {
       :class="[
         folderType(folder.name),
         {
-          selected: selectedFolderPath === folder.folderPath,
+          selected: selectedFolderPath === folder.folderPath && isMailSelectableFolder(folder),
           'store-root': folder.isStoreRoot,
-          'drop-target': canDropMail && !folderBusy,
+          'container-node': !isMailSelectableFolder(folder),
+          'drop-target': canDropMail && !folderBusy && isMailSelectableFolder(folder),
           'drop-active': activeDropFolderPath === folder.folderPath,
         },
       ]"
       :style="{ paddingLeft: `${level * 16 + 6}px` }"
       :title="folderTitle(folder)"
-      @click="emit('select', folder.folderPath)"
-      @contextmenu.prevent="emit('context', { path: folder.folderPath, x: $event.clientX, y: $event.clientY })"
-      @dragenter.prevent.stop="!folderBusy && emit('dragMailOver', folder.folderPath)"
-      @dragover.prevent.stop="!folderBusy && emit('dragMailOver', folder.folderPath)"
-      @drop.prevent.stop="!folderBusy && emit('dropMail', folder.folderPath)"
+      @click="handleFolderClick"
+      @contextmenu.prevent="isMailSelectableFolder(folder) && emit('context', { path: folder.folderPath, x: $event.clientX, y: $event.clientY })"
+      @dragenter.prevent.stop="!folderBusy && isMailSelectableFolder(folder) && emit('dragMailOver', folder.folderPath)"
+      @dragover.prevent.stop="!folderBusy && isMailSelectableFolder(folder) && emit('dragMailOver', folder.folderPath)"
+      @drop.prevent.stop="!folderBusy && isMailSelectableFolder(folder) && emit('dropMail', folder.folderPath)"
     >
       <button
         class="folder-toggle"
@@ -102,7 +108,7 @@ function folderTitle(folder: FolderTreeNode) {
       </el-icon>
       <span class="folder-name">{{ folder.name }}</span>
       <span v-if="storeLabel(folder)" class="store-kind" :class="store?.storeKind">{{ storeLabel(folder) }}</span>
-      <span class="folder-count">{{ folder.itemCount }}</span>
+      <span v-if="isMailSelectableFolder(folder)" class="folder-count">{{ folder.itemCount }}</span>
     </div>
 
     <div

@@ -36,7 +36,7 @@ import {
   categoryOptionColor,
   categoryTextColor,
 } from '../utils/categoryColors'
-import { buildFolderTree, collectFolderOptions, findFolderByPath, folderType, visibleRootFolders } from '../utils/folders'
+import { buildFolderTree, collectFolderOptions, findFolderByPath, folderType, isMailSelectableFolder, visibleRootFolders } from '../utils/folders'
 import {
   addMonths,
   buildCalendarWeeks,
@@ -735,7 +735,7 @@ function categoryTagStyle(name: string) {
   }
 
   function findLoadedInboxFolder() {
-    const inboxes = folderOptions.value.filter((folder) => folderType(folder.name) === 'inbox')
+    const inboxes = folderOptions.value.filter((folder) => isMailSelectableFolder(folder) && folderType(folder.name) === 'inbox')
     return (
       inboxes.find((folder) => folderStore(folder)?.storeKind?.toLowerCase() === 'ost')
       ?? inboxes.find((folder) => ['exchange', 'ost'].includes(folderStore(folder)?.storeKind?.toLowerCase() ?? ''))
@@ -745,7 +745,7 @@ function categoryTagStyle(name: string) {
   }
 
   function findPreferredInboxFolder() {
-    return findLoadedInboxFolder() ?? folderOptions.value[0] ?? null
+    return findLoadedInboxFolder() ?? folderOptions.value.find(isMailSelectableFolder) ?? null
   }
 
   function findPreferredInboxRootFolder() {
@@ -831,6 +831,11 @@ function categoryTagStyle(name: string) {
 
   function selectFolder(path: string) {
     if (outlookBusy.value) return
+    const folder = folderOptions.value.find((item) => item.folderPath === path)
+    if (!folder || !isMailSelectableFolder(folder)) {
+      void toggleFolder(path)
+      return
+    }
     selectedFolderPath.value = path
     selectedMailIndex.value = null
     scheduleMailFetch()
@@ -839,6 +844,8 @@ function categoryTagStyle(name: string) {
   function scheduleMailFetch() {
     cancelScheduledMailFetch()
     if (!selectedFolderPath.value) return
+    const folder = folderOptions.value.find((item) => item.folderPath === selectedFolderPath.value)
+    if (!folder || !isMailSelectableFolder(folder)) return
     scheduledMailFetchAt.value = Date.now() + mailFetchDelayMs
     mailFetchCountdownTick.value = Date.now()
     mailFetchCountdownIntervalId = window.setInterval(() => {
@@ -859,6 +866,8 @@ function categoryTagStyle(name: string) {
 
   function openFolderContextMenu(payload: { path: string; x: number; y: number }) {
     if (outlookBusy.value) return
+    const folder = folderOptions.value.find((item) => item.folderPath === payload.path)
+    if (!folder || !isMailSelectableFolder(folder)) return
     selectedFolderPath.value = payload.path
     selectedMailIndex.value = null
     folderContextMenu.value = {
@@ -885,6 +894,11 @@ function categoryTagStyle(name: string) {
   }
 
   async function fetchMailsFromContext() {
+    const folder = folderOptions.value.find((item) => item.folderPath === folderContextMenu.value.folderPath)
+    if (!folder || !isMailSelectableFolder(folder)) {
+      closeFolderContextMenu()
+      return
+    }
     selectedFolderPath.value = folderContextMenu.value.folderPath
     closeFolderContextMenu()
     await requestMails()
@@ -932,7 +946,8 @@ function categoryTagStyle(name: string) {
 
   async function requestMails(force = false) {
     cancelScheduledMailFetch()
-    if ((outlookBusy.value && !force) || !selectedFolderPath.value) {
+    const selectedFolder = folderOptions.value.find((folder) => folder.folderPath === selectedFolderPath.value)
+    if ((outlookBusy.value && !force) || !selectedFolderPath.value || !selectedFolder || !isMailSelectableFolder(selectedFolder)) {
       if (!selectedFolderPath.value && !initialMailsFetchCompleted) {
         initialMailsFetchCompleted = true
         updateOutlookFirstLoadCompleted()
@@ -1771,6 +1786,8 @@ function categoryTagStyle(name: string) {
   async function createFolder(parentPath = creatingFolderParentPath.value, name = creatingFolderName.value) {
     const folderName = name.trim()
     if (!parentPath || !folderName || outlookBusy.value) return
+    const parent = folderOptions.value.find((folder) => folder.folderPath === parentPath)
+    if (!parent || !isMailSelectableFolder(parent)) return
     requestLoading.value = true
     try {
       const response = await outlookApi.requestCreateFolder({
@@ -1788,6 +1805,8 @@ function categoryTagStyle(name: string) {
 
   async function deleteFolder(targetPath: string) {
     if (!targetPath || outlookBusy.value) return
+    const targetFolder = folderOptions.value.find((folder) => folder.folderPath === targetPath)
+    if (!targetFolder || !isMailSelectableFolder(targetFolder)) return
     const targetName = folderOptions.value.find((folder) => folder.folderPath === targetPath)?.label.trim() ?? targetPath
     if (isInDeletedFolder(targetPath)) {
       ElMessage.warning(manualOutlookDeleteMessage)
@@ -1957,6 +1976,8 @@ function categoryTagStyle(name: string) {
 
   function setDragOverFolder(path: string) {
     if (!draggedMailId.value || outlookBusy.value) return
+    const folder = folderOptions.value.find((item) => item.folderPath === path)
+    if (!folder || !isMailSelectableFolder(folder)) return
     dragOverFolderPath.value = path
   }
 
@@ -1964,6 +1985,8 @@ function categoryTagStyle(name: string) {
     const mailId = draggedMailId.value
     clearMailDrag()
     if (!mailId || outlookBusy.value) return
+    const destination = folderOptions.value.find((item) => item.folderPath === destinationFolderPath)
+    if (!destination || !isMailSelectableFolder(destination)) return
     const mail = mails.value.find((item) => item.id === mailId)
     if (!mail) return
     if (selectedMailIds.value.has(mailId) && selectedMailIds.value.size > 1) {

@@ -48,6 +48,15 @@ export function isOperableFolder(folder: FolderDto) {
     && !isHiddenFolder(folder.name)
 }
 
+export function isMailSelectableFolder(folder: FolderDto) {
+  return !folder.isStoreRoot
+    && folder.defaultItemType === 0
+    && allowedMailFolderTypes.has(folder.folderType)
+    && !folder.isHidden
+    && !folder.isSystem
+    && !isHiddenFolder(folder.name)
+}
+
 export function visibleChildren(folder: FolderTreeNode) {
   return (folder.subFolders ?? []).filter(isOperableFolder)
 }
