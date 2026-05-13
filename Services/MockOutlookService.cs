@@ -212,6 +212,7 @@ namespace SmartOffice.Hub.Services
                         break;
                     case "delete_mail":
                         DeleteMail(command.DeleteMailRequest);
+                        _mailStore.RemoveMailFromCachedResults(command.DeleteMailRequest?.MailId);
                         mails = SyncVisibleMails(command.DeleteMailRequest?.MailId);
                         _mailStore.SetMails(mails);
                         folderBatch = BuildFolderCountsBatch(command.DeleteMailRequest?.FolderPath);

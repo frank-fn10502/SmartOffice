@@ -19,8 +19,6 @@ type MailListControllerOptions = {
   deletedFolderForPath: (path: string) => { folderPath: string; folderType: string; label: string } | null
   isInDeletedFolder: (path: string) => boolean
   loadCachedFolders: () => Promise<void>
-  loadCachedMails: () => Promise<void>
-  loadCachedMailSearchResults: () => Promise<void>
   runMailOperation: (action: () => Promise<unknown>, afterSuccess?: () => Promise<void>) => Promise<boolean>
 }
 
@@ -33,8 +31,6 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     folderOptions,
     isInDeletedFolder,
     loadCachedFolders,
-    loadCachedMailSearchResults,
-    loadCachedMails,
     mailListMode,
     mailSearchResults,
     mails,
@@ -151,6 +147,18 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     if (selectedMailIndex.value === null) lastSelectedMailIndex = -1
   }
 
+  function hideDeletedMails(mailIds: string[]) {
+    const deletedIds = new Set(mailIds.filter(Boolean))
+    if (deletedIds.size === 0) return
+
+    folderMails.value = folderMails.value.filter((mail) => !deletedIds.has(mail.id))
+    mailSearchResults.value = mailSearchResults.value.filter((mail) => !deletedIds.has(mail.id))
+    selectedMailIds.value = new Set([...selectedMailIds.value].filter((id) => !deletedIds.has(id)))
+    const nextIndex = firstSelectedMailIndex(selectedMailIds.value)
+    selectedMailIndex.value = nextIndex >= 0 ? nextIndex : null
+    if (selectedMailIndex.value === null) lastSelectedMailIndex = -1
+  }
+
   function restoreFailedMailMove(snapshot: ReturnType<typeof captureMailListSnapshot>) {
     restoreMailListSnapshot(snapshot)
     ElMessage.error('移動郵件失敗，已還原畫面。')
@@ -215,10 +223,13 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     const targetName = deletedFolder?.label.trim() || '刪除的郵件 / Deleted Items'
     const confirmed = window.confirm(`將郵件「${mail.subject || mail.id}」移到「${targetName}」？`)
     if (!confirmed) return
-    await runMailOperation(
+    const snapshot = captureMailListSnapshot()
+    hideDeletedMails([mail.id])
+    const succeeded = await runMailOperation(
       () => outlookApi.requestDeleteMail({ mailId: mail.id, folderPath: mail.folderPath }),
-      async () => { await Promise.allSettled([loadCachedMails(), loadCachedMailSearchResults(), loadCachedFolders()]) },
+      async () => { await loadCachedFolders() },
     )
+    if (!succeeded) restoreFailedMailMove(snapshot)
   }
 
   function startMailDrag(mail: MailItemDto, index: number, event: DragEvent) {

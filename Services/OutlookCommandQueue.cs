@@ -149,6 +149,9 @@ namespace SmartOffice.Hub.Services
                         if (dataReady is not null && !dataReady.Invoke())
                             return OutlookQueuedCommandResult.Failed(command.Id, "cache_not_ready", $"{command.Type} completed but the expected cache is not ready.");
 
+                        if (command.Type == "delete_mail")
+                            _mailStore.RemoveMailFromCachedResults(command.DeleteMailRequest?.MailId);
+
                         return OutlookQueuedCommandResult.Completed(command.Id, "completed", status.Message);
                     }
 

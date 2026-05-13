@@ -644,8 +644,6 @@ export function useOutlookDashboard() {
     folderOptions,
     isInDeletedFolder,
     loadCachedFolders,
-    loadCachedMailSearchResults,
-    loadCachedMails,
     mailListMode,
     mailSearchResults,
     mails,

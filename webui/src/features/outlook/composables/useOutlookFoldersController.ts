@@ -114,6 +114,7 @@ export function useOutlookFoldersController(options: FoldersControllerOptions) {
       const response = await outlookApi.requestFolders()
       await waitForRequest(response)
       await loadCachedFolders()
+      await loadVisibleRootChildren()
       markInitialFoldersComplete()
       loadingFolders.value = false
     } catch {
@@ -163,6 +164,25 @@ export function useOutlookFoldersController(options: FoldersControllerOptions) {
       await loadCachedFolders({ preserveExistingCounts: true })
     } finally {
       loadingFolders.value = false
+    }
+  }
+
+  async function loadVisibleRootChildren() {
+    const roots = visibleFolders.value.filter((folder) => folder.hasChildren && !folder.childrenLoaded)
+    for (const root of roots) {
+      const next = new Set(expandedFolders.value)
+      next.add(root.folderPath)
+      expandedFolders.value = next
+
+      const response = await outlookApi.requestFolderChildren({
+        storeId: root.storeId,
+        parentEntryId: root.entryId,
+        parentFolderPath: root.folderPath,
+        maxDepth: 1,
+        maxChildren: 50,
+      })
+      await waitForRequest(response)
+      await loadCachedFolders({ preserveExistingCounts: true })
     }
   }
 
