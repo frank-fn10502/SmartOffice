@@ -1,8 +1,8 @@
 ﻿<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Monitor, Platform } from '@element-plus/icons-vue'
-import { useOutlookDashboard } from './composables/useOutlookDashboard'
-import type { HubPage } from './models/outlook'
+import { useOutlookDashboard } from './features/outlook/composables/useOutlookDashboard'
+import type { HubPage } from './features/outlook/models/outlook'
 import AdminPage from './views/AdminPage.vue'
 import OutlookPage from './views/OutlookPage.vue'
 

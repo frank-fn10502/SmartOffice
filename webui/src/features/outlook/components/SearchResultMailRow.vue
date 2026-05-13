@@ -1,10 +1,10 @@
 ﻿<script setup lang="ts">
 import type { CSSProperties } from 'vue'
 import { Rank, View } from '@element-plus/icons-vue'
-import type { MailItemDto } from '../../models/outlook'
-import { formatDateTime } from '../../utils/formatters'
-import { formatMailSender } from '../../utils/mailAddresses'
-import { canMoveOutlookItem, outlookItemTypeLabel } from '../../utils/outlookItemTypes'
+import type { MailItemDto } from '../models/outlook'
+import { formatDateTime } from '../utils/formatters'
+import { formatMailSender } from '../utils/mailAddresses'
+import { canMoveOutlookItem, outlookItemTypeLabel } from '../utils/outlookItemTypes'
 
 defineProps<{
   mail: MailItemDto

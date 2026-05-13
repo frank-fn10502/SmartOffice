@@ -1,8 +1,8 @@
 ﻿<script setup lang="ts">
 import { Delete, Edit, Plus, Refresh, Select } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
-import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'
-import type { OutlookRuleDto } from '../../models/outlook'
+import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
+import type { OutlookRuleDto } from '../models/outlook'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState

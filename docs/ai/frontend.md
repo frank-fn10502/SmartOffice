@@ -48,6 +48,20 @@ wwwroot/
 
 `wwwroot/` 是 Vue/Vite 產物目錄，build 時會清空後重建。不要在 `wwwroot/` 放手寫檔案，包括 README；修改 UI 時請改 `webui/src/`。
 
+Outlook domain code 採 feature folder：
+
+```text
+webui/src/features/outlook/
+  api/
+  components/
+  composables/
+  models/
+  styles/
+  utils/
+```
+
+`webui/src` 根層只保留 app shell、views 與 global style。Outlook-specific 檔案不要再新增到根層 `api/`、`components/`、`composables/`、`models/` 或 `utils/`；若未來新增其他 domain，請建立新的 `features/<domain>/`，不要把不同 domain 混在同一個泛用資料夾。
+
 ## 檔案切分原則
 
 前端要避免單一檔案長期膨脹。修改 `webui/src/` 時，行數限制是硬性規則：

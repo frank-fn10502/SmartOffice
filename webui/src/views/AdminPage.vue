@@ -1,8 +1,8 @@
 ﻿<script setup lang="ts">
 import { computed } from 'vue'
 import { Connection, FolderOpened, Operation, Refresh, Setting, Warning } from '@element-plus/icons-vue'
-import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
-import { formatTime } from '../utils/formatters'
+import type { OutlookDashboardState } from '../features/outlook/composables/useOutlookDashboard'
+import { formatTime } from '../features/outlook/utils/formatters'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState

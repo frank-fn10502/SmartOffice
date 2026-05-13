@@ -2,7 +2,7 @@
 import { ArrowRight, Folder, Search } from '@element-plus/icons-vue'
 import OutlookFolderPane from './OutlookFolderPane.vue'
 import SearchResultMailRow from './SearchResultMailRow.vue'
-import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'
+import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState

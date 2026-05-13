@@ -13,6 +13,7 @@
 - `Plan/status.md` 是 VS Code Copilot custom agent 的任務佇列狀態檔；切分或執行 `Plan/` 任務時也必須遵守 `docs/ai/plan-splitting.md`。
 - Outlook AddIn 實作者文件已移到 sibling solution 的 `../SmartOffice/docs/outlook-addin/`。Hub 文件只保留 Hub protocol、route、endpoint 與 AI/MCP 協作資訊；不要在本 repository 重新建立 Outlook AddIn 規格來源。
 - 修改時維持 SmartOffice.Hub 的邊界：Add-in 負責 Office automation，Hub 負責 HTTP API、SignalR、command routing 與 temporary state，Web UI 負責檢視、手動 request、chat 與 diagnostics。
+- Web UI 採 feature folder。Outlook domain 程式應集中在 `webui/src/features/outlook/`；不要把 Outlook-specific api、models、utils、components 或 composables 新增回 `webui/src` 根層泛用資料夾。
 - 新增或修改任何會被 Outlook Add-in 實作的功能時，Hub/mock 是第一階段驗證目標：實作前先查 Microsoft 官方文件確認 Outlook/Office API 概念可行；再更新 Hub DTO、Controller、SignalR Hub、in-memory store、mock backend、Web UI 與 `docs/ai/protocols.md`；用 Mock 環境確認 HTTP API 與 Web UI 行為都符合文件、使用者操作路徑沒有基本 UI 錯誤，並通過 container build 後，才進入 sibling `../SmartOffice/OutlookAddIn` 的 VSTO 真實實作。Web UI 不是唯一 client；若 raw API response 讓其他 caller 難以理解狀態、下一步、資料含義或錯誤原因，必須修正 API contract。
 - 本 repository 是 PoC / prototype，不預設保留舊版相容程式碼；contract、DTO、UI state、mock 與文件都應以目前正式行為為準。
 - 修改 contract 或流程時，請刪除未使用的舊欄位、舊模式、相容 shim、fallback branch 與死碼；不要留下「可能以後會用」但目前無法驗證或無法處理的相容垃圾。

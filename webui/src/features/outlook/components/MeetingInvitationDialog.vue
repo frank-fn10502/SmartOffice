@@ -1,8 +1,8 @@
 ﻿<script setup lang="ts">
-import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'
-import { formatDateTime } from '../../utils/formatters'
-import { formatMailSender, formatRecipient, formatRecipients, shouldShowRecipientSmtpAddress } from '../../utils/mailAddresses'
-import { outlookItemTypeLabel } from '../../utils/outlookItemTypes'
+import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
+import { formatDateTime } from '../utils/formatters'
+import { formatMailSender, formatRecipient, formatRecipients, shouldShowRecipientSmtpAddress } from '../utils/mailAddresses'
+import { outlookItemTypeLabel } from '../utils/outlookItemTypes'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState

@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { ChatDotRound } from '@element-plus/icons-vue'
-import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'
-import { formatTime } from '../../utils/formatters'
+import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
+import { formatTime } from '../utils/formatters'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState
