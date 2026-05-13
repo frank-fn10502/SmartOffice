@@ -1099,6 +1099,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function requestRules() {
+    if (loadingRules.value) return
     if (outlookBusy.value) return
     loadingRules.value = true
     try {

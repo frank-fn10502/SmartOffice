@@ -87,7 +87,7 @@ async function submitRule() {
         </div>
         <div class="panel-actions">
           <el-button :icon="Plus" :disabled="outlookBusy" @click="openNewRuleDialog()">新增</el-button>
-          <el-button :icon="Refresh" :loading="loadingRules" :disabled="outlookBusy && !loadingRules" @click="requestRules()">
+          <el-button :icon="Refresh" :loading="loadingRules" :disabled="outlookBusy" @click="requestRules()">
             同步
           </el-button>
         </div>
