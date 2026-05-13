@@ -8,9 +8,7 @@
 - README、AGENTS、CLAUDE、Dockerfile comment、shell script comment、C# XML summary 與 inline code comment 也必須遵守繁體中文規範。
 - 本 repository 是 `SmartOffice.Hub`，只包含 Hub/Web UI/contract/mock，不是工作機完整 SmartOffice / Outlook AddIn solution。
 - `SmartOffice.Hub.Contracts/` 是 Hub-owned contract project；Hub 與工作機 Outlook Add-in 都應引用此 project/package，不要在 Add-in repo 維護 DTO copy。
-- 工作機上的完整 SmartOffice solution 會以 `..\SmartOffice.Hub\SmartOffice.Hub.csproj` 參考本 Hub 專案；真正的 Outlook AddIn / Office automation 實作必須在工作機 SmartOffice solution 中完成。
-- 在本 repository 的 `Plan/` 任務是交給工作機 AI 使用的 AddIn 實作指引；除非使用者明確要求修改 Hub contract，否則不要把 `Plan/` 任務解讀成要修改 Hub 程式碼。
-- `Plan/status.md` 是 VS Code Copilot custom agent 的任務佇列狀態檔；切分或執行 `Plan/` 任務時也必須遵守 `docs/ai/plan-splitting.md`。
+- Outlook AddIn / Office automation 實作可在本機同步開發；涉及真實 Outlook COM/VSTO 行為時，仍需 Windows / Outlook / Office 環境編譯與實測。
 - Outlook AddIn 實作者文件已移到 sibling solution 的 `../SmartOffice/docs/outlook-addin/`。Hub 文件只保留 Hub protocol、route、endpoint 與 AI/MCP 協作資訊；不要在本 repository 重新建立 Outlook AddIn 規格來源。
 - 修改時維持 SmartOffice.Hub 的邊界：Add-in 負責 Office automation，Hub 負責 HTTP API、SignalR、command routing 與 temporary state，Web UI 負責檢視、手動 request、chat 與 diagnostics。
 - Web UI 採 feature folder。Outlook domain 程式應集中在 `webui/src/features/outlook/`；不要把 Outlook-specific api、models、utils、components 或 composables 新增回 `webui/src` 根層泛用資料夾。跨 Office Add-in 共用的 workspace shell、navigation 型別與通用 UI contract 放在 `webui/src/features/office/`；未來新增 Word、Excel、PowerPoint 或其他 VSTO AddIn 操作介面時，請建立自己的 `webui/src/features/<domain>/`，並重用 `features/office/` 的 workspace 基礎，不要複製 Outlook-specific shell。
@@ -27,17 +25,17 @@
 
 - `docs/ai/project.md`：專案使命、架構邊界、repository layout 與技術選擇。
 - `docs/ai/coding.md`：coding rules、Web UI 規範、security notes 與文件期待。
+- `docs/ai/backend.md`：後端多 Office AddIn feature boundary、service registration、Swagger、SignalR 與 request/fetch-result 擴充原則。
 - `docs/ai/frontend.md`：前端框架選擇、限制與導入原則。
 - `docs/ai/protocols.md`：Office AddIn SignalR protocol、route 與 SignalR event。
 - `docs/ai/workstation-solution.md`：Hub 與工作機 SmartOffice solution 的關係，以及 AddIn 任務應在哪裡實作。
-- `docs/ai/plan-splitting.md`：切分 `Plan/` 任務給工作機 AI 或 VS Code Copilot custom agent 的粒度、必要文件與狀態追蹤規範。
 - `docs/ai_plugin/README.md`：MCP 與 Agents SKILL 文件入口。
 - `docs/ai_plugin/mcp.md`：MCP adapter 與 tool 設計入口。
 - `docs/ai_plugin/agents-skill.md`：Agents SKILL 設計入口。
 - `docs/ai_plugin/skills/smartoffice-outlook/SKILL.md`：外部 AI 實際讀取的可安裝 SKILL；修改 HTTP API、request/fetch-result workflow、DTO、route、錯誤語意或安全限制時必須同步更新。
 - `docs/ai_plugin/skills/smartoffice-outlook/` 是外部 AI 的使用手冊，不是 changelog 或遷移紀錄。內容只能描述當下正式系統如何操作；不要寫「舊的 endpoint」、「legacy」、「保留相容」、「已移除」、「改成」、「目前只/目前需」這類文件更新或歷史脈絡用語。若需要記錄設計演進，放在內部開發文件或 commit/PR 說明，不要放進可安裝 SKILL。
-- `../SmartOffice/docs/outlook-addin/README.md`：工作機 Outlook AddIn 實作者文件入口。
-- `../SmartOffice/docs/outlook-addin/features-checklist.md`：工作機 AI 對照 AddIn command、完成定義與驗收項目的 checklist。
+- `../SmartOffice/docs/outlook-addin/README.md`：Outlook AddIn 實作者文件入口。
+- `../SmartOffice/docs/outlook-addin/features-checklist.md`：AddIn command、完成定義與驗收項目的 checklist。
 - `../SmartOffice/docs/outlook-addin/outlook-references.md`：Office 2016 Add-in 線上文件入口。
 - `../SmartOffice/docs/outlook-addin/signalr-contract.md`：工作機需要傳送與接收的目前格式。
 - `../SmartOffice/docs/outlook-addin/test-report.md`：工作機實測資料、差異與錯誤回報格式。

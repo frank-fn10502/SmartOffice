@@ -1,17 +1,11 @@
-﻿using SmartOffice.Hub.Hubs;
-using SmartOffice.Hub.Services;
-using SmartOffice.Hub.Swagger;
+﻿using SmartOffice.Hub.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi.Models;
-using System.Reflection;
 using System.Text.Json.Serialization;
 
 namespace SmartOffice.Hub
 {
     public class Program
     {
-        private const string OutlookSwaggerDocumentName = "outlook-v1";
-
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
@@ -57,25 +51,7 @@ namespace SmartOffice.Hub
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {
-                options.SwaggerDoc(OutlookSwaggerDocumentName, new OpenApiInfo
-                {
-                    Title = "SmartOffice.Hub Outlook API",
-                    Version = "v1",
-                    Description = "Hub/Web UI/AI integration API for Outlook request routing and fetch-result data retrieval.",
-                });
-                options.DocInclusionPredicate((documentName, apiDescription) =>
-                    string.Equals(apiDescription.GroupName, documentName, StringComparison.OrdinalIgnoreCase));
-                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-                if (File.Exists(xmlPath))
-                    options.IncludeXmlComments(xmlPath);
-                options.CustomSchemaIds(type => type.Name switch
-                {
-                    "AddinStatusDto" => "OutlookWorkerStatusDto",
-                    "AddinLogEntry" => "OutlookWorkerLogEntry",
-                    _ => type.Name,
-                });
-                options.OperationFilter<OutlookSwaggerOperationFilter>();
+                options.AddOutlookSwaggerDocument();
             });
             // SignalR 預設 incoming message 上限較小；folder tree 必須使用
             // BeginFolderSync / PushFolderBatch 小批次回推。
@@ -90,16 +66,7 @@ namespace SmartOffice.Hub
 
             // Hub 目前是 process-local：執行端將 Office data 透過 SignalR push 到這裡，
             // Web UI 與 API caller 透過 request-* / fetch-result-* 讀取結果。
-            builder.Services.AddSingleton<MailStore>();
-            builder.Services.AddSingleton<ChatStore>();
-            builder.Services.AddSingleton<CommandResultStore>();
-            builder.Services.AddSingleton<AddinStatusStore>();
-            builder.Services.AddSingleton<AttachmentExportService>();
-            builder.Services.AddSingleton<OutlookSignalRCommandDispatcher>();
-            builder.Services.AddSingleton<OutlookCommandQueue>();
-            builder.Services.AddSingleton<OutlookFolderCacheService>();
-            builder.Services.AddSingleton<OutlookFetchResultService>();
-            builder.Services.AddSingleton<MockOutlookService>();
+            builder.Services.AddOutlookFeature();
 
             builder.Services.AddCors(options =>
             {
@@ -115,7 +82,7 @@ namespace SmartOffice.Hub
             app.UseSwaggerUI(options =>
             {
                 options.DocumentTitle = "SmartOffice.Hub API";
-                options.SwaggerEndpoint($"/swagger/{OutlookSwaggerDocumentName}/swagger.json", "Outlook API v1");
+                options.SwaggerEndpoint($"/swagger/{OutlookFeatureRegistration.SwaggerDocumentName}/swagger.json", "Outlook API v1");
             });
 
             app.UseCors();
@@ -123,10 +90,9 @@ namespace SmartOffice.Hub
             app.UseStaticFiles();
             app.UseAuthorization();
             app.MapControllers();
-            app.MapHub<NotificationHub>("/hub/notifications");
-            app.MapHub<OutlookAddinHub>("/hub/outlook-addin");
+            app.MapOutlookFeatureHubs();
 
-            app.Services.GetRequiredService<MockOutlookService>().Seed();
+            app.Services.SeedOutlookMock();
 
             app.Run();
         }
