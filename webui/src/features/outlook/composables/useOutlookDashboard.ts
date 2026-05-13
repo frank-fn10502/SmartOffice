@@ -94,6 +94,7 @@ export function useOutlookDashboard() {
     { label: 'Rules', value: 'rules', disabled: outlookDependentViewsLocked.value },
     { label: 'Chat', value: 'chat', disabled: outlookDependentViewsLocked.value },
     { label: 'Calendar', value: 'calendar', disabled: outlookDependentViewsLocked.value },
+    { label: 'Contacts', value: 'contacts', disabled: outlookDependentViewsLocked.value },
   ])
 
   const folderOptions = computed(() => collectFolderOptions(visibleFolders.value))

@@ -119,4 +119,44 @@
         public DateTime? LastPushTime { get; set; }
         public string LastCommand { get; set; } = string.Empty;
     }
+
+    public class AddressBookContactDto
+    {
+        public string DisplayName { get; set; } = string.Empty;
+        public string SmtpAddress { get; set; } = string.Empty;
+        public string Domain { get; set; } = string.Empty;
+        public bool IsKnown { get; set; }
+        public bool IsLikelySelf { get; set; }
+        public int RelationScore { get; set; }
+        public int MailCount { get; set; }
+        public int CalendarCount { get; set; }
+        public int SenderCount { get; set; }
+        public int RecipientCount { get; set; }
+        public int OrganizerCount { get; set; }
+        public int AttendeeCount { get; set; }
+        public int GroupMemberCount { get; set; }
+        public DateTime? FirstSeen { get; set; }
+        public DateTime? LastSeen { get; set; }
+        public List<string> RelationKinds { get; set; } = new();
+        public List<string> Sources { get; set; } = new();
+        public List<string> FolderPaths { get; set; } = new();
+        public List<string> RecentMailIds { get; set; } = new();
+        public List<string> SampleSubjects { get; set; } = new();
+    }
+
+    public class AddressBookResponse
+    {
+        public string Query { get; set; } = string.Empty;
+        public int TotalCount { get; set; }
+        public List<AddressBookContactDto> Contacts { get; set; } = new();
+    }
+
+    public class AddressBookLookupResponse
+    {
+        public string Query { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public AddressBookContactDto? Contact { get; set; }
+        public List<AddressBookContactDto> Suggestions { get; set; } = new();
+    }
 }

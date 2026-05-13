@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using SmartOffice.Hub.Hubs;
+using SmartOffice.Hub.Models;
 using SmartOffice.Hub.Services;
 
 namespace SmartOffice.Hub.Controllers
@@ -102,6 +103,47 @@ namespace SmartOffice.Hub.Controllers
         public IActionResult GetCalendar()
         {
             return Ok(_mailStore.GetCalendarEvents());
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 取得由 Hub cache 彙整的通訊錄關聯。
+        /// </summary>
+        [HttpGet("address-book")]
+        public IActionResult GetAddressBook([FromQuery] string query = "", [FromQuery] int take = 200)
+        {
+            var contacts = _mailStore.GetAddressBookContacts(query, take);
+            return Ok(new AddressBookResponse
+            {
+                Query = query ?? string.Empty,
+                TotalCount = contacts.Count,
+                Contacts = contacts,
+            });
+        }
+
+        /// <summary>
+        /// Web UI、AI 或 MCP client 依 email 查詢收件者是否出現在 Hub 已知互動裡。
+        /// </summary>
+        [HttpGet("address-book/lookup")]
+        public IActionResult LookupAddressBookContact([FromQuery] string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest(new { state = "failed", message = "email is required." });
+
+            var contact = _mailStore.FindAddressBookContact(email);
+            var suggestions = contact is null
+                ? _mailStore.GetAddressBookContacts(email, 5)
+                : new List<AddressBookContactDto>();
+
+            return Ok(new AddressBookLookupResponse
+            {
+                Query = email,
+                State = contact is null ? "unknown" : "known",
+                Message = contact is null
+                    ? "No cached mail or calendar relationship was found for this email."
+                    : "Cached mail or calendar relationship found.",
+                Contact = contact,
+                Suggestions = suggestions,
+            });
         }
 
         /// <summary>

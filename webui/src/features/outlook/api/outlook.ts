@@ -1,6 +1,9 @@
 ﻿import type {
   AddinLogEntry,
   AddinStatusDto,
+  AddressBookContactDto,
+  AddressBookLookupResponse,
+  AddressBookResponse,
   AttachmentExportSettingsDto,
   CalendarEventDto,
   CategoryCommandRequest,
@@ -236,6 +239,55 @@ export function normalizeCalendarEvents(items: unknown): CalendarEventDto[] {
   return Array.isArray(items) ? items.map(normalizeCalendarEvent) : []
 }
 
+export function normalizeAddressBookContact(item: unknown): AddressBookContactDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    displayName: readString(source, 'displayName', 'DisplayName'),
+    smtpAddress: readString(source, 'smtpAddress', 'SmtpAddress'),
+    domain: readString(source, 'domain', 'Domain'),
+    isKnown: readBoolean(source, 'isKnown', 'IsKnown'),
+    isLikelySelf: readBoolean(source, 'isLikelySelf', 'IsLikelySelf'),
+    relationScore: readNumber(source, 'relationScore', 'RelationScore'),
+    mailCount: readNumber(source, 'mailCount', 'MailCount'),
+    calendarCount: readNumber(source, 'calendarCount', 'CalendarCount'),
+    senderCount: readNumber(source, 'senderCount', 'SenderCount'),
+    recipientCount: readNumber(source, 'recipientCount', 'RecipientCount'),
+    organizerCount: readNumber(source, 'organizerCount', 'OrganizerCount'),
+    attendeeCount: readNumber(source, 'attendeeCount', 'AttendeeCount'),
+    groupMemberCount: readNumber(source, 'groupMemberCount', 'GroupMemberCount'),
+    firstSeen: readDate(source, 'firstSeen', 'FirstSeen'),
+    lastSeen: readDate(source, 'lastSeen', 'LastSeen'),
+    relationKinds: readStringArray(source.relationKinds ?? source.RelationKinds),
+    sources: readStringArray(source.sources ?? source.Sources),
+    folderPaths: readStringArray(source.folderPaths ?? source.FolderPaths),
+    recentMailIds: readStringArray(source.recentMailIds ?? source.RecentMailIds),
+    sampleSubjects: readStringArray(source.sampleSubjects ?? source.SampleSubjects),
+  }
+}
+
+function normalizeAddressBookResponse(item: unknown): AddressBookResponse {
+  const source = (item ?? {}) as LooseRecord
+  const contacts = source.contacts ?? source.Contacts
+  return {
+    query: readString(source, 'query', 'Query'),
+    totalCount: readNumber(source, 'totalCount', 'TotalCount'),
+    contacts: Array.isArray(contacts) ? contacts.map(normalizeAddressBookContact) : [],
+  }
+}
+
+function normalizeAddressBookLookupResponse(item: unknown): AddressBookLookupResponse {
+  const source = (item ?? {}) as LooseRecord
+  const suggestions = source.suggestions ?? source.Suggestions
+  const contact = source.contact ?? source.Contact
+  return {
+    query: readString(source, 'query', 'Query'),
+    state: readString(source, 'state', 'State'),
+    message: readString(source, 'message', 'Message'),
+    contact: contact ? normalizeAddressBookContact(contact) : null,
+    suggestions: Array.isArray(suggestions) ? suggestions.map(normalizeAddressBookContact) : [],
+  }
+}
+
 export function normalizeExportedMailAttachment(item: unknown): ExportedMailAttachmentDto {
   const source = (item ?? {}) as LooseRecord
   const attachmentId = readString(source, 'attachmentId', 'AttachmentId') || readString(source, 'id', 'Id') || readString(source, 'index', 'Index')
@@ -341,6 +393,10 @@ export const outlookApi = {
   getRules: async () => normalizeOutlookRules(await getJson<unknown>('/api/outlook/rules')),
   getCategories: async () => normalizeOutlookCategories(await getJson<unknown>('/api/outlook/categories')),
   getCalendar: async () => normalizeCalendarEvents(await getJson<unknown>('/api/outlook/calendar')),
+  getAddressBook: async (query = '', take = 200) =>
+    normalizeAddressBookResponse(await getJson<unknown>(`/api/outlook/address-book?query=${encodeURIComponent(query)}&take=${take}`)),
+  lookupAddressBookContact: async (email: string) =>
+    normalizeAddressBookLookupResponse(await getJson<unknown>(`/api/outlook/address-book/lookup?email=${encodeURIComponent(email)}`)),
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
   getAdminLogs: () => getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),

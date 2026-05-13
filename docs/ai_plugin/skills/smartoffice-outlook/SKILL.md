@@ -20,6 +20,7 @@ metadata:
 - HTTP request body 不接受未文件化欄位；未知欄位會回 `400 invalid_request_body`。看到這個錯誤時，改用 Swagger / `references/http-api.md` 裡的精確欄位名稱，不要猜 alias，例如 `request-mail-search` 用 `keyword` 而不是 `query`，`request-calendar` 用 `daysForward` 而不是 `lookaheadDays`。
 - 看到 `400 missing_required_fields` 時，只補齊 `requiredFields` 列出的欄位後重送；不要更換 endpoint、擴大搜尋範圍或省略 `folderPath`。
 - `request-mail-search` 是多數 mail workflow 的前置定位與篩選入口，不只是「文字搜尋」。凡是使用者用 subject、sender、日期、category、附件、已讀、旗標或 folder scope 描述目標 mails，優先用 `request-mail-search` 找出候選 metadata，再決定是否讀 body 或 mutation。
+- 撰寫信件前若需要確認收件者是否為已知關聯，優先用 `GET /api/outlook/address-book/lookup?email={email}`；`state=unknown` 只代表目前 Hub cache 未知，不代表 Outlook 裡一定沒有。
 - 修改郵件前必須先從 `fetch-result-*` 的 `data.mails` 取得 `MailItemDto.id` 與 `folderPath`，不可只用 subject、sender 或 folder name 猜目標。
 - 修改屬性前必須確認 `MailItemDto.messageClass`。空字串或 `IPM.Note` 可視為一般郵件；`IPM.Schedule.Meeting.*` 是會議邀請/更新，可讀 metadata/body/attachments，也可移動或移到 Deleted Items，但不可呼叫 `request-update-mail-properties`。API 若回 `unsupported_outlook_item_type`，停止並告知使用者需用 Outlook 會議/行事曆流程處理該屬性操作。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。

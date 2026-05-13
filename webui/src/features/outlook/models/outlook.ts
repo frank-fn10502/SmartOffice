@@ -399,6 +399,43 @@ export interface CalendarEventDto {
   busyStatus: string
 }
 
+export interface AddressBookContactDto {
+  displayName: string
+  smtpAddress: string
+  domain: string
+  isKnown: boolean
+  isLikelySelf: boolean
+  relationScore: number
+  mailCount: number
+  calendarCount: number
+  senderCount: number
+  recipientCount: number
+  organizerCount: number
+  attendeeCount: number
+  groupMemberCount: number
+  firstSeen?: string
+  lastSeen?: string
+  relationKinds: string[]
+  sources: string[]
+  folderPaths: string[]
+  recentMailIds: string[]
+  sampleSubjects: string[]
+}
+
+export interface AddressBookResponse {
+  query: string
+  totalCount: number
+  contacts: AddressBookContactDto[]
+}
+
+export interface AddressBookLookupResponse {
+  query: string
+  state: 'known' | 'unknown' | 'failed' | string
+  message: string
+  contact?: AddressBookContactDto | null
+  suggestions: AddressBookContactDto[]
+}
+
 export interface ChatMessageDto {
   id?: string
   source: string
@@ -419,6 +456,6 @@ export interface AddinLogEntry {
   timestamp: string
 }
 
-export type AppView = 'outlook' | 'search' | 'rules' | 'chat' | 'calendar'
+export type AppView = 'outlook' | 'search' | 'rules' | 'chat' | 'calendar' | 'contacts'
 export type HubPage = 'outlook' | 'admin' | 'swagger'
 export type SignalRState = 'connected' | 'reconnecting' | 'disconnected'

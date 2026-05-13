@@ -204,11 +204,24 @@ Status fields：
 - `GET /api/outlook/rules` -> `OutlookRuleDto[]`
 - `GET /api/outlook/categories` -> `OutlookCategoryDto[]`
 - `GET /api/outlook/calendar` -> `CalendarEventDto[]`
+- `GET /api/outlook/address-book?query={text}&take={count}` -> `{ query, totalCount, contacts }`
+- `GET /api/outlook/address-book/lookup?email={email}` -> `{ query, state, message, contact, suggestions }`
 - `GET /api/outlook/chat` -> `ChatMessageDto[]`
 
 服務 restart 後需要重新送出相關 `request-*` 才會有最新資料。
 
 HTTP API 的 folder path 一律使用普通斜線，例如 `/主要信箱 - User/收件匣`。
+
+## Address Book Cache
+
+通訊錄 cache 是 Hub 由已載入資料彙整出的關聯視圖，不是 Outlook Contacts folder 的完整同步。資料來源包含 cached mails 的 sender / to / cc / bcc / group members，以及 cached calendar events 的 organizer / attendees。它只暴露 metadata、mail ids 與少量 subject sample，不會讀取或回傳完整 mail body。
+
+使用方式：
+
+- 想檢查一個收件者是否和使用者有已知互動：呼叫 `GET /api/outlook/address-book/lookup?email={email}`。
+- `state=known` 代表目前 Hub cache 找到 mail 或 calendar 關聯；`state=unknown` 只代表目前 cache 未知，不代表 Outlook 裡一定沒有。
+- `contact.relationKinds` 會指出 `sender`、`to`、`cc`、`bcc`、`organizer`、`attendee` 或 `group_member` 等關聯。
+- `contact.isLikelySelf=true` 代表該地址看起來是自己的寄件地址；Hub 主要從 Sent folder 的 sender 推斷。
 
 ## Folder Endpoints
 

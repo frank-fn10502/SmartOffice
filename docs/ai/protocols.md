@@ -69,6 +69,8 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `GET /api/outlook/rules`：讀取 Outlook rules。
 - `GET /api/outlook/categories`：讀取 Outlook master category list。
 - `GET /api/outlook/calendar`：讀取 Outlook calendar events。
+- `GET /api/outlook/address-book?query=...&take=...`：讀取 Hub cache 彙整的通訊錄關聯；資料來自已快取的 mail sender/recipient/group member 與 calendar organizer/attendee，不會讀取完整 mail body。
+- `GET /api/outlook/address-book/lookup?email=...`：讓 Web UI、AI 或 MCP client 檢查收件者 email 是否已出現在 Hub 已知互動裡；回傳 `state=known` 或 `unknown`、`contact` 與最多 5 筆 `suggestions`。
 - `POST /api/outlook/chat`：新增並 broadcast chat message。
 - `GET /api/outlook/chat`：讀取 chat messages。
 - `POST /api/outlook/fetch-result-*`：正式 client workflow 使用的狀態與分頁資料入口；每個 request endpoint 都有對應 fetch-result endpoint。
