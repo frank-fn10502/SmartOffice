@@ -4,6 +4,7 @@ import { Refresh, Search, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { outlookApi } from '../api/outlook'
 import type { AddressBookContactDto } from '../models/outlook'
+import { waitForOutlookRequest } from '../composables/outlookRequests'
 import { formatDateTime } from '../utils/formatters'
 
 const contacts = ref<AddressBookContactDto[]>([])
@@ -70,6 +71,23 @@ async function lookupContact() {
   }
 }
 
+async function syncAddressBook() {
+  loading.value = true
+  try {
+    const response = await outlookApi.requestAddressBook({
+      includeOutlookContacts: true,
+      includeAddressLists: true,
+      maxContacts: 1000,
+      maxAddressEntriesPerList: 500,
+    })
+    await waitForOutlookRequest(response, { timeoutMs: 120000 })
+    await loadContacts()
+    ElMessage.success('通訊錄同步完成')
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
   void loadContacts()
 })
@@ -95,6 +113,7 @@ onMounted(() => {
             @clear="loadContacts"
           />
           <el-button :icon="Refresh" :loading="loading" @click="loadContacts">重新整理</el-button>
+          <el-button type="primary" :loading="loading" @click="syncAddressBook">同步 Outlook 通訊錄</el-button>
         </div>
       </div>
 
@@ -146,6 +165,9 @@ onMounted(() => {
             <div class="rule-detail">
               <span>Email：{{ selectedContact.smtpAddress || '-' }}</span>
               <span>Domain：{{ selectedContact.domain || '-' }}</span>
+              <span>來源：{{ selectedContact.sources.join(', ') || selectedContact.source || '-' }}</span>
+              <span>公司 / 部門：{{ selectedContact.companyName || '-' }} / {{ selectedContact.department || '-' }}</span>
+              <span>職稱：{{ selectedContact.jobTitle || '-' }}</span>
               <span>最近互動：{{ selectedContact.lastSeen ? formatDateTime(selectedContact.lastSeen) : '-' }}</span>
               <span>最早出現：{{ selectedContact.firstSeen ? formatDateTime(selectedContact.firstSeen) : '-' }}</span>
               <span>關聯分數：{{ selectedContact.relationScore }}</span>

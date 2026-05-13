@@ -400,8 +400,19 @@ export interface CalendarEventDto {
 }
 
 export interface AddressBookContactDto {
+  id: string
   displayName: string
   smtpAddress: string
+  rawAddress: string
+  addressType: string
+  entryUserType: string
+  source: string
+  companyName: string
+  jobTitle: string
+  department: string
+  officeLocation: string
+  businessTelephoneNumber: string
+  mobileTelephoneNumber: string
   domain: string
   isKnown: boolean
   isLikelySelf: boolean

@@ -242,8 +242,19 @@ export function normalizeCalendarEvents(items: unknown): CalendarEventDto[] {
 export function normalizeAddressBookContact(item: unknown): AddressBookContactDto {
   const source = (item ?? {}) as LooseRecord
   return {
+    id: readString(source, 'id', 'Id'),
     displayName: readString(source, 'displayName', 'DisplayName'),
     smtpAddress: readString(source, 'smtpAddress', 'SmtpAddress'),
+    rawAddress: readString(source, 'rawAddress', 'RawAddress'),
+    addressType: readString(source, 'addressType', 'AddressType'),
+    entryUserType: readString(source, 'entryUserType', 'EntryUserType'),
+    source: readString(source, 'source', 'Source'),
+    companyName: readString(source, 'companyName', 'CompanyName'),
+    jobTitle: readString(source, 'jobTitle', 'JobTitle'),
+    department: readString(source, 'department', 'Department'),
+    officeLocation: readString(source, 'officeLocation', 'OfficeLocation'),
+    businessTelephoneNumber: readString(source, 'businessTelephoneNumber', 'BusinessTelephoneNumber'),
+    mobileTelephoneNumber: readString(source, 'mobileTelephoneNumber', 'MobileTelephoneNumber'),
     domain: readString(source, 'domain', 'Domain'),
     isKnown: readBoolean(source, 'isKnown', 'IsKnown'),
     isLikelySelf: readBoolean(source, 'isLikelySelf', 'IsLikelySelf'),
@@ -447,6 +458,8 @@ export const outlookApi = {
   requestSignalRPing: () => postJson<OutlookRequestResponse>('/api/outlook/request-signalr-ping'),
   requestCalendar: (body: { daysForward: number; startDate?: string; endDate?: string }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-calendar', body),
+  requestAddressBook: (body: { includeOutlookContacts: boolean; includeAddressLists: boolean; maxContacts: number; maxAddressEntriesPerList: number }) =>
+    postJson<OutlookRequestResponse>('/api/outlook/request-address-book', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
 
   requestUpdateMailProperties: (body: MailPropertiesCommandRequest) =>

@@ -383,6 +383,14 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
+        public async Task PushAddressBook(List<AddressBookContactDto> contacts)
+        {
+            _mailStore.SetAddressBookContacts(contacts);
+            _addinStatus.RecordPush("address book", contacts.Count);
+            await _notifications.Clients.All.SendAsync("AddressBookUpdated", contacts);
+            await BroadcastStatusAndLogsAsync();
+        }
+
         public async Task ReportAddinLog(AddinLogEntry entry)
         {
             _addinStatus.AddLog(entry.Level, entry.Message);

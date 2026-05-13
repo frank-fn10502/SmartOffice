@@ -243,6 +243,24 @@ namespace SmartOffice.Hub.Controllers
             return await DispatchCommandAsync(cmd, ct);
         }
 
+        /// <summary>
+        /// Web UI、AI 或 MCP client 要求 Outlook AddIn 背景同步真正通訊錄。
+        /// </summary>
+        [HttpPost("request-address-book")]
+        public async Task<IActionResult> RequestAddressBook([FromBody] AddressBookSyncRequest? req, CancellationToken ct)
+        {
+            req ??= new AddressBookSyncRequest();
+            req.MaxContacts = Math.Clamp(req.MaxContacts <= 0 ? 1000 : req.MaxContacts, 1, 5000);
+            req.MaxAddressEntriesPerList = Math.Clamp(req.MaxAddressEntriesPerList <= 0 ? 500 : req.MaxAddressEntriesPerList, 1, 2000);
+
+            var cmd = new PendingCommand
+            {
+                Type = "fetch_address_book",
+                AddressBookRequest = req
+            };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
         [HttpPost("request-update-mail-properties")]
         public async Task<IActionResult> RequestUpdateMailProperties([FromBody] MailPropertiesCommandRequest req, CancellationToken ct)
         {
@@ -620,6 +638,12 @@ namespace SmartOffice.Hub.Controllers
             return FetchResult(req, "fetch_calendar");
         }
 
+        [HttpPost("fetch-result-address-book")]
+        public IActionResult FetchResultAddressBook([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_address_book");
+        }
+
         [HttpPost("fetch-result-update-mail-properties")]
         public IActionResult FetchResultUpdateMailProperties([FromBody] FetchResultRequest req)
         {
@@ -696,6 +720,7 @@ namespace SmartOffice.Hub.Controllers
                 "fetch_categories" => "request-categories",
                 "ping" => "request-signalr-ping",
                 "fetch_calendar" => "request-calendar",
+                "fetch_address_book" => "request-address-book",
                 "update_mail_properties" => "request-update-mail-properties",
                 "upsert_category" => "request-upsert-category",
                 "create_folder" => "request-create-folder",

@@ -149,6 +149,11 @@ namespace SmartOffice.Hub.Services
                     var page = Page(_mailStore.GetCalendarEvents(), offset, take);
                     return (new { calendarEvents = page.Items }, page.Next);
                 }
+                case "fetch_address_book":
+                {
+                    var page = Page(_mailStore.GetAddressBookContacts(take: 500), offset, take);
+                    return (new { contacts = page.Items }, page.Next);
+                }
                 default:
                     return (new { }, new FetchResultNext());
             }
@@ -235,6 +240,7 @@ namespace SmartOffice.Hub.Services
                 "fetch_categories" => "request-categories",
                 "ping" => "request-signalr-ping",
                 "fetch_calendar" => "request-calendar",
+                "fetch_address_book" => "request-address-book",
                 "update_mail_properties" => "request-update-mail-properties",
                 "upsert_category" => "request-upsert-category",
                 "create_folder" => "request-create-folder",

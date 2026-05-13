@@ -4,6 +4,19 @@ namespace SmartOffice.Hub.Services
 {
     public partial class MailStore
     {
+        private List<AddressBookContactDto> _addressBookContacts = new();
+
+        public void SetAddressBookContacts(List<AddressBookContactDto> contacts)
+        {
+            lock (_lock)
+            {
+                _addressBookContacts = contacts
+                    .Where(contact => !string.IsNullOrWhiteSpace(contact.SmtpAddress) || !string.IsNullOrWhiteSpace(contact.DisplayName))
+                    .Select(CloneAddressBookContact)
+                    .ToList();
+            }
+        }
+
         public List<AddressBookContactDto> GetAddressBookContacts(string query = "", int take = 200)
         {
             lock (_lock)
@@ -45,6 +58,9 @@ namespace SmartOffice.Hub.Services
             var contacts = new Dictionary<string, AddressBookAccumulator>(StringComparer.OrdinalIgnoreCase);
             var selfAddresses = InferSelfAddresses();
 
+            foreach (var contact in _addressBookContacts)
+                AddCachedAddressBookContact(contacts, contact);
+
             var knownMails = _mails
                 .Concat(_mailSearchResults)
                 .Concat(_folderMailResults)
@@ -73,6 +89,24 @@ namespace SmartOffice.Hub.Services
                 .Select(item => item.ToDto(selfAddresses))
                 .Where(contact => !string.IsNullOrWhiteSpace(contact.SmtpAddress) || !string.IsNullOrWhiteSpace(contact.DisplayName))
                 .ToList();
+        }
+
+        private static void AddCachedAddressBookContact(
+            Dictionary<string, AddressBookAccumulator> contacts,
+            AddressBookContactDto source)
+        {
+            var key = NormalizeEmail(source.SmtpAddress);
+            if (string.IsNullOrWhiteSpace(key))
+                key = source.DisplayName.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(key)) return;
+
+            if (!contacts.TryGetValue(key, out var contact))
+            {
+                contact = new AddressBookAccumulator();
+                contacts[key] = contact;
+            }
+
+            contact.MergeAddressBookContact(source);
         }
 
         private HashSet<string> InferSelfAddresses()
@@ -201,8 +235,19 @@ namespace SmartOffice.Hub.Services
         {
             return new AddressBookContactDto
             {
+                Id = contact.Id,
                 DisplayName = contact.DisplayName,
                 SmtpAddress = contact.SmtpAddress,
+                RawAddress = contact.RawAddress,
+                AddressType = contact.AddressType,
+                EntryUserType = contact.EntryUserType,
+                Source = contact.Source,
+                CompanyName = contact.CompanyName,
+                JobTitle = contact.JobTitle,
+                Department = contact.Department,
+                OfficeLocation = contact.OfficeLocation,
+                BusinessTelephoneNumber = contact.BusinessTelephoneNumber,
+                MobileTelephoneNumber = contact.MobileTelephoneNumber,
                 Domain = contact.Domain,
                 IsKnown = contact.IsKnown,
                 IsLikelySelf = contact.IsLikelySelf,
@@ -233,7 +278,18 @@ namespace SmartOffice.Hub.Services
             private readonly List<(string Subject, DateTime SeenAt)> _sampleSubjects = new();
 
             public string DisplayName { get; set; } = string.Empty;
+            public string Id { get; set; } = string.Empty;
             public string SmtpAddress { get; set; } = string.Empty;
+            public string RawAddress { get; set; } = string.Empty;
+            public string AddressType { get; set; } = string.Empty;
+            public string EntryUserType { get; set; } = string.Empty;
+            public string Source { get; set; } = string.Empty;
+            public string CompanyName { get; set; } = string.Empty;
+            public string JobTitle { get; set; } = string.Empty;
+            public string Department { get; set; } = string.Empty;
+            public string OfficeLocation { get; set; } = string.Empty;
+            public string BusinessTelephoneNumber { get; set; } = string.Empty;
+            public string MobileTelephoneNumber { get; set; } = string.Empty;
             public int MailCount { get; private set; }
             public int CalendarCount { get; private set; }
             public int SenderCount { get; private set; }
@@ -266,17 +322,47 @@ namespace SmartOffice.Hub.Services
                 else AttendeeCount++;
             }
 
+            public void MergeAddressBookContact(AddressBookContactDto source)
+            {
+                Id = PreferLonger(Id, source.Id);
+                DisplayName = PreferLonger(DisplayName, source.DisplayName);
+                SmtpAddress = PreferEmail(SmtpAddress, source.SmtpAddress, source.RawAddress);
+                RawAddress = PreferLonger(RawAddress, source.RawAddress);
+                AddressType = PreferLonger(AddressType, source.AddressType);
+                EntryUserType = PreferLonger(EntryUserType, source.EntryUserType);
+                Source = PreferLonger(Source, source.Source);
+                CompanyName = PreferLonger(CompanyName, source.CompanyName);
+                JobTitle = PreferLonger(JobTitle, source.JobTitle);
+                Department = PreferLonger(Department, source.Department);
+                OfficeLocation = PreferLonger(OfficeLocation, source.OfficeLocation);
+                BusinessTelephoneNumber = PreferLonger(BusinessTelephoneNumber, source.BusinessTelephoneNumber);
+                MobileTelephoneNumber = PreferLonger(MobileTelephoneNumber, source.MobileTelephoneNumber);
+                _sources.Add(string.IsNullOrWhiteSpace(source.Source) ? "address_book" : source.Source);
+                _relationKinds.Add("address_book");
+            }
+
             public AddressBookContactDto ToDto(HashSet<string> selfAddresses)
             {
                 var normalizedEmail = NormalizeEmail(SmtpAddress);
                 return new AddressBookContactDto
                 {
+                    Id = Id,
                     DisplayName = DisplayName,
                     SmtpAddress = SmtpAddress,
+                    RawAddress = RawAddress,
+                    AddressType = AddressType,
+                    EntryUserType = EntryUserType,
+                    Source = Source,
+                    CompanyName = CompanyName,
+                    JobTitle = JobTitle,
+                    Department = Department,
+                    OfficeLocation = OfficeLocation,
+                    BusinessTelephoneNumber = BusinessTelephoneNumber,
+                    MobileTelephoneNumber = MobileTelephoneNumber,
                     Domain = EmailDomain(SmtpAddress),
-                    IsKnown = MailCount > 0 || CalendarCount > 0,
+                    IsKnown = MailCount > 0 || CalendarCount > 0 || _sources.Count > 0,
                     IsLikelySelf = !string.IsNullOrWhiteSpace(normalizedEmail) && selfAddresses.Contains(normalizedEmail),
-                    RelationScore = SenderCount * 4 + RecipientCount * 3 + OrganizerCount * 4 + AttendeeCount * 2 + GroupMemberCount + MailCount + CalendarCount,
+                    RelationScore = SenderCount * 4 + RecipientCount * 3 + OrganizerCount * 4 + AttendeeCount * 2 + GroupMemberCount + MailCount + CalendarCount + (_sources.Count > 0 ? 5 : 0),
                     MailCount = MailCount,
                     CalendarCount = CalendarCount,
                     SenderCount = SenderCount,

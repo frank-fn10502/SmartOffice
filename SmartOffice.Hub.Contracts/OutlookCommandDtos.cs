@@ -331,6 +331,7 @@ namespace SmartOffice.Hub.Contracts
         public MoveMailRequest MoveMailRequest { get; set; }
         public MoveMailsRequest MoveMailsRequest { get; set; }
         public DeleteMailRequest DeleteMailRequest { get; set; }
+        public AddressBookSyncRequest AddressBookRequest { get; set; }
     }
 
     public class OutlookAddinClientInfo
@@ -370,6 +371,7 @@ namespace SmartOffice.Hub.Contracts
         public OutlookCommandDeleteMailRequest DeleteMailRequest { get; set; }
         public OutlookCommandFolderMailsSliceRequest FolderMailsSliceRequest { get; set; }
         public OutlookCommandRuleRequest RuleRequest { get; set; }
+        public OutlookCommandAddressBookRequest AddressBookRequest { get; set; }
     }
 
     public class OutlookCommandMailsRequest : FetchMailsRequest { }
@@ -387,6 +389,7 @@ namespace SmartOffice.Hub.Contracts
     public class OutlookCommandDeleteFolderRequest : DeleteFolderRequest { }
     public class OutlookCommandMoveMailRequest : MoveMailRequest { }
     public class OutlookCommandDeleteMailRequest : DeleteMailRequest { }
+    public class OutlookCommandAddressBookRequest : AddressBookSyncRequest { }
     public class OutlookCommandRuleConditions : OutlookRuleConditionsRequest { }
     public class OutlookCommandRuleActions : OutlookRuleActionsRequest { }
 

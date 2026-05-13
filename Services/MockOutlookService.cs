@@ -73,6 +73,7 @@ namespace SmartOffice.Hub.Services
             List<OutlookCategoryDto>? categories = null;
             List<OutlookRuleDto>? rules = null;
             List<CalendarEventDto>? calendar = null;
+            List<AddressBookContactDto>? addressBook = null;
             var resultMessage = string.Empty;
 
             lock (_lock)
@@ -170,6 +171,10 @@ namespace SmartOffice.Hub.Services
                     case "fetch_calendar":
                         calendar = FilterCalendar(command.CalendarRequest);
                         _mailStore.SetCalendarEvents(calendar);
+                        break;
+                    case "fetch_address_book":
+                        addressBook = BuildMockAddressBook(command.AddressBookRequest);
+                        _mailStore.SetAddressBookContacts(addressBook);
                         break;
                     case "upsert_category":
                         UpsertCategory(command.CategoryRequest);
@@ -283,6 +288,7 @@ namespace SmartOffice.Hub.Services
             if (categories is not null) await _notifications.Clients.All.SendAsync("CategoriesUpdated", categories, ct);
             if (rules is not null) await _notifications.Clients.All.SendAsync("RulesUpdated", rules, ct);
             if (calendar is not null) await _notifications.Clients.All.SendAsync("CalendarUpdated", calendar, ct);
+            if (addressBook is not null) await _notifications.Clients.All.SendAsync("AddressBookUpdated", addressBook, ct);
             await _notifications.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), ct);
             await _notifications.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), ct);
             await _notifications.Clients.All.SendAsync("CommandResult", new OutlookCommandResult

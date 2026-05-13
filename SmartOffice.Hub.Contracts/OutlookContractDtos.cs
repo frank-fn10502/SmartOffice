@@ -213,6 +213,49 @@ namespace SmartOffice.Hub.Contracts
         public string BusyStatus { get; set; } = string.Empty;
     }
 
+    public class AddressBookContactDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string SmtpAddress { get; set; } = string.Empty;
+        public string RawAddress { get; set; } = string.Empty;
+        public string AddressType { get; set; } = string.Empty;
+        public string EntryUserType { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public string JobTitle { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string OfficeLocation { get; set; } = string.Empty;
+        public string BusinessTelephoneNumber { get; set; } = string.Empty;
+        public string MobileTelephoneNumber { get; set; } = string.Empty;
+        public string Domain { get; set; } = string.Empty;
+        public bool IsKnown { get; set; }
+        public bool IsLikelySelf { get; set; }
+        public int RelationScore { get; set; }
+        public int MailCount { get; set; }
+        public int CalendarCount { get; set; }
+        public int SenderCount { get; set; }
+        public int RecipientCount { get; set; }
+        public int OrganizerCount { get; set; }
+        public int AttendeeCount { get; set; }
+        public int GroupMemberCount { get; set; }
+        public DateTime? FirstSeen { get; set; }
+        public DateTime? LastSeen { get; set; }
+        public List<string> RelationKinds { get; set; } = new List<string>();
+        public List<string> Sources { get; set; } = new List<string>();
+        public List<string> FolderPaths { get; set; } = new List<string>();
+        public List<string> RecentMailIds { get; set; } = new List<string>();
+        public List<string> SampleSubjects { get; set; } = new List<string>();
+    }
+
+    public class AddressBookSyncRequest
+    {
+        public bool IncludeOutlookContacts { get; set; } = true;
+        public bool IncludeAddressLists { get; set; } = true;
+        public int MaxContacts { get; set; } = 1000;
+        public int MaxAddressEntriesPerList { get; set; } = 500;
+    }
+
     public class AddinLogEntry
     {
         public string Level { get; set; } = "info";
