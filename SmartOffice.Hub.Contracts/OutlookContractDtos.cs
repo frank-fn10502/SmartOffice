@@ -231,6 +231,8 @@ namespace SmartOffice.Hub.Contracts
         public string Domain { get; set; } = string.Empty;
         public bool IsKnown { get; set; }
         public bool IsLikelySelf { get; set; }
+        public bool IsGroup { get; set; }
+        public int MemberCount { get; set; }
         public int RelationScore { get; set; }
         public int MailCount { get; set; }
         public int CalendarCount { get; set; }
@@ -243,6 +245,7 @@ namespace SmartOffice.Hub.Contracts
         public DateTime? LastSeen { get; set; }
         public List<string> RelationKinds { get; set; } = new List<string>();
         public List<string> Sources { get; set; } = new List<string>();
+        public List<string> MemberSmtpAddresses { get; set; } = new List<string>();
         public List<string> FolderPaths { get; set; } = new List<string>();
         public List<string> RecentMailIds { get; set; } = new List<string>();
         public List<string> SampleSubjects { get; set; } = new List<string>();

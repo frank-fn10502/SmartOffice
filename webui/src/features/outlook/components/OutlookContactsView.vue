@@ -165,6 +165,7 @@ onMounted(() => {
             <div class="contact-detail-title">
               <strong>{{ contactTitle(selectedContact) }}</strong>
               <el-tag v-if="selectedContact.isLikelySelf" type="warning" effect="plain">自己</el-tag>
+              <el-tag v-else-if="selectedContact.isGroup" type="info" effect="plain">群組</el-tag>
               <el-tag v-else type="success" effect="plain">已知關聯</el-tag>
             </div>
 
@@ -174,6 +175,7 @@ onMounted(() => {
               <span>來源：{{ selectedContact.sources.join(', ') || selectedContact.source || '-' }}</span>
               <span>公司 / 部門：{{ selectedContact.companyName || '-' }} / {{ selectedContact.department || '-' }}</span>
               <span>職稱：{{ selectedContact.jobTitle || '-' }}</span>
+              <span v-if="selectedContact.isGroup">成員數：{{ selectedContact.memberCount }}</span>
               <span>最近互動：{{ selectedContact.lastSeen ? formatDateTime(selectedContact.lastSeen) : '-' }}</span>
               <span>最早出現：{{ selectedContact.firstSeen ? formatDateTime(selectedContact.firstSeen) : '-' }}</span>
               <span>關聯分數：{{ selectedContact.relationScore }}</span>
@@ -187,6 +189,9 @@ onMounted(() => {
 
             <div class="contact-evidence">
               <strong>近期依據</strong>
+              <span v-if="selectedContact.memberSmtpAddresses.length > 0">
+                成員：{{ selectedContact.memberSmtpAddresses.slice(0, 8).join(', ') }}
+              </span>
               <span v-for="subject in selectedContact.sampleSubjects" :key="subject">{{ subject }}</span>
               <span v-if="selectedContact.sampleSubjects.length === 0">目前只有 calendar 或群組 metadata。</span>
             </div>

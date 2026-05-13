@@ -384,6 +384,8 @@ export interface AddressBookContactDto {
   domain: string
   isKnown: boolean
   isLikelySelf: boolean
+  isGroup: boolean
+  memberCount: number
   relationScore: number
   mailCount: number
   calendarCount: number
@@ -396,6 +398,7 @@ export interface AddressBookContactDto {
   lastSeen?: string
   relationKinds: string[]
   sources: string[]
+  memberSmtpAddresses: string[]
   folderPaths: string[]
   recentMailIds: string[]
   sampleSubjects: string[]

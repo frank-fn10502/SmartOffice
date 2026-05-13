@@ -20,6 +20,7 @@
 - `state=known` 代表 SmartOffice 找到 mail 或 calendar 關聯；`state=unknown` 只代表目前未知，不代表 Outlook 裡一定沒有。
 - 若使用者要求同步真正 Outlook 通訊錄，呼叫 `POST /api/outlook/request-address-book`，再用 `POST /api/outlook/fetch-result-address-book` 讀 `data.contacts`。
 - `contact.relationKinds` 會指出 `sender`、`to`、`cc`、`bcc`、`organizer`、`attendee` 或 `group_member` 等關聯。
+- `contact.isGroup=true` 代表該 entry 是 distribution list 或 group；用 `memberCount` 與 `memberSmtpAddresses` 摘要成員，不要假設已完整展開整個群組。
 - `contact.isLikelySelf=true` 代表該地址看起來是自己的寄件地址；Hub 主要從 Sent folder 的 sender 推斷。
 
 `request-address-book` body：

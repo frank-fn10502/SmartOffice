@@ -251,6 +251,8 @@ namespace SmartOffice.Hub.Services
                 Domain = contact.Domain,
                 IsKnown = contact.IsKnown,
                 IsLikelySelf = contact.IsLikelySelf,
+                IsGroup = contact.IsGroup,
+                MemberCount = contact.MemberCount,
                 RelationScore = contact.RelationScore,
                 MailCount = contact.MailCount,
                 CalendarCount = contact.CalendarCount,
@@ -263,6 +265,7 @@ namespace SmartOffice.Hub.Services
                 LastSeen = contact.LastSeen,
                 RelationKinds = new List<string>(contact.RelationKinds),
                 Sources = new List<string>(contact.Sources),
+                MemberSmtpAddresses = new List<string>(contact.MemberSmtpAddresses),
                 FolderPaths = new List<string>(contact.FolderPaths),
                 RecentMailIds = new List<string>(contact.RecentMailIds),
                 SampleSubjects = new List<string>(contact.SampleSubjects),
@@ -273,6 +276,7 @@ namespace SmartOffice.Hub.Services
         {
             private readonly HashSet<string> _relationKinds = new(StringComparer.OrdinalIgnoreCase);
             private readonly HashSet<string> _sources = new(StringComparer.OrdinalIgnoreCase);
+            private readonly HashSet<string> _memberSmtpAddresses = new(StringComparer.OrdinalIgnoreCase);
             private readonly HashSet<string> _folderPaths = new(StringComparer.OrdinalIgnoreCase);
             private readonly List<(string Id, DateTime SeenAt)> _recentMailIds = new();
             private readonly List<(string Subject, DateTime SeenAt)> _sampleSubjects = new();
@@ -290,6 +294,8 @@ namespace SmartOffice.Hub.Services
             public string OfficeLocation { get; set; } = string.Empty;
             public string BusinessTelephoneNumber { get; set; } = string.Empty;
             public string MobileTelephoneNumber { get; set; } = string.Empty;
+            public bool IsGroup { get; private set; }
+            public int MemberCount { get; private set; }
             public int MailCount { get; private set; }
             public int CalendarCount { get; private set; }
             public int SenderCount { get; private set; }
@@ -337,6 +343,10 @@ namespace SmartOffice.Hub.Services
                 OfficeLocation = PreferLonger(OfficeLocation, source.OfficeLocation);
                 BusinessTelephoneNumber = PreferLonger(BusinessTelephoneNumber, source.BusinessTelephoneNumber);
                 MobileTelephoneNumber = PreferLonger(MobileTelephoneNumber, source.MobileTelephoneNumber);
+                IsGroup = IsGroup || source.IsGroup || IsGroupEntryUserType(source.EntryUserType);
+                MemberCount = Math.Max(MemberCount, source.MemberCount);
+                foreach (var member in source.MemberSmtpAddresses.Where(member => !string.IsNullOrWhiteSpace(member)))
+                    _memberSmtpAddresses.Add(member.Trim());
                 _sources.Add(string.IsNullOrWhiteSpace(source.Source) ? "address_book" : source.Source);
                 _relationKinds.Add("address_book");
             }
@@ -362,6 +372,8 @@ namespace SmartOffice.Hub.Services
                     Domain = EmailDomain(SmtpAddress),
                     IsKnown = MailCount > 0 || CalendarCount > 0 || _sources.Count > 0,
                     IsLikelySelf = !string.IsNullOrWhiteSpace(normalizedEmail) && selfAddresses.Contains(normalizedEmail),
+                    IsGroup = IsGroup,
+                    MemberCount = Math.Max(MemberCount, _memberSmtpAddresses.Count),
                     RelationScore = SenderCount * 4 + RecipientCount * 3 + OrganizerCount * 4 + AttendeeCount * 2 + GroupMemberCount + MailCount + CalendarCount + (_sources.Count > 0 ? 5 : 0),
                     MailCount = MailCount,
                     CalendarCount = CalendarCount,
@@ -374,6 +386,7 @@ namespace SmartOffice.Hub.Services
                     LastSeen = LastSeen,
                     RelationKinds = _relationKinds.OrderBy(item => item).ToList(),
                     Sources = _sources.OrderBy(item => item).ToList(),
+                    MemberSmtpAddresses = _memberSmtpAddresses.OrderBy(item => item).Take(50).ToList(),
                     FolderPaths = _folderPaths.OrderBy(item => item).Take(10).ToList(),
                     RecentMailIds = _recentMailIds.OrderByDescending(item => item.SeenAt).Select(item => item.Id).Distinct().Take(5).ToList(),
                     SampleSubjects = _sampleSubjects.OrderByDescending(item => item.SeenAt).Select(item => item.Subject).Distinct().Take(3).ToList(),
@@ -392,6 +405,12 @@ namespace SmartOffice.Hub.Services
             {
                 var at = email.LastIndexOf('@');
                 return at >= 0 && at < email.Length - 1 ? email[(at + 1)..].ToLowerInvariant() : string.Empty;
+            }
+
+            private static bool IsGroupEntryUserType(string entryUserType)
+            {
+                return entryUserType.Contains("DistributionList", StringComparison.OrdinalIgnoreCase)
+                    || entryUserType.Contains("PublicGroup", StringComparison.OrdinalIgnoreCase);
             }
         }
     }
