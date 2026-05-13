@@ -17,7 +17,7 @@ metadata:
 - 取得 `requestId` 後呼叫 `data.fetchResultEndpoint`；回應固定提供 `requestId`、`request`、`state`、`message`、`next`、`data`。
 - 使用者或 AI 只需要 loop paired `fetch-result-*` 到 `state=completed`；若 `next.hasMore=true`，下一次 body 帶 `cursor=next.cursor`。
 - 若 `request-*` 回 HTTP 409 / 400 / 502 / 504，仍先解析 body 的 `state`、`message` 與可能存在的 `requestId`；不要靠猜測重試，也不要改用更大的搜尋範圍。
-- HTTP request body 不接受未文件化欄位；未知欄位會回 `400 invalid_request_body`。看到這個錯誤時，改用 Swagger / `references/http-api.md` 裡的精確欄位名稱，不要猜 alias，例如 `request-mail-search` 用 `keyword` 而不是 `query`，`request-calendar` 用 `daysForward` 而不是 `lookaheadDays`。
+- HTTP request body 不接受未文件化欄位；未知欄位會回 `400 invalid_request_body`。看到這個錯誤時，改用 Swagger 或任務對應 reference 裡的精確欄位名稱，不要猜 alias，例如 `request-mail-search` 用 `keyword` 而不是 `query`，`request-calendar` 用 `daysForward` 而不是 `lookaheadDays`。
 - 看到 `400 missing_required_fields` 時，只補齊 `requiredFields` 列出的欄位後重送；不要更換 endpoint、擴大搜尋範圍或省略 `folderPath`。
 - `request-mail-search` 是多數 mail workflow 的前置定位與篩選入口，不只是「文字搜尋」。凡是使用者用 subject、sender、日期、category、附件、已讀、旗標或 folder scope 描述目標 mails，優先用 `request-mail-search` 找出候選 metadata，再決定是否讀 body 或 mutation。
 - 撰寫信件前若需要確認收件者是否為已知關聯，可用 `GET /api/outlook/address-book/lookup?email={email}` 做輕量檢查；`state=unknown` 只代表 SmartOffice 目前未知，不代表 Outlook 裡一定沒有。需要刷新 Outlook 通訊錄時，用 `request-address-book` / `fetch-result-address-book`，但保留 `maxContacts` 與 `maxAddressEntriesPerList` 上限。
@@ -62,12 +62,16 @@ metadata:
 - 讀附件：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-attachments` -> `fetch-result-mail-attachments`。
 - 修改、移動、刪除郵件：先從 `fetch-result-* data.mails` 確認唯一目標的 `id` 與 `folderPath` -> mutation endpoint -> `fetch-result-*`。
 - 大量搬移 folder 內全部郵件：先定位來源與目的 `folderPath`，用 `request-folder-mails` 取得 ids，再以每批最多 500 封逐批呼叫 `request-move-mails`。預設包含 subfolders；只有使用者明確排除 subfolders 時才設定 `includeSubFolders=false`。
-- 大量搬移符合條件的郵件，例如 category、日期、附件、已讀或旗標：先定位來源與目的 `folderPath`，用 `request-mail-search` 篩出目標 mails，再分批 `request-move-mails`。詳細流程見 `references/workflows.md`。
+- 大量搬移符合條件的郵件，例如 category、日期、附件、已讀或旗標：先定位來源與目的 `folderPath`，用 `request-mail-search` 篩出目標 mails，再分批 `request-move-mails`。詳細流程見 `references/bulk-move.md`。
 
 ## 何時讀 references
 
-- 需要 endpoint、request/response 欄位或 enum 時，讀 `references/http-api.md`。
-- 需要操作順序、folder scope 或搜尋流程時，讀 `references/workflows.md`。
+- 需要共通 request/fetch-result envelope、錯誤格式或 endpoint 配對表時，讀 `references/http-api.md`。
+- 需要 folder discovery、Inbox 定位、folder children 或 `folderPath` 規則時，讀 `references/folders.md`。
+- 需要 mail list、mail search、body、conversation、attachment 或 attachment export 時，讀 `references/mail.md`。
+- 需要 address book、calendar、rules、categories、mail/folder mutation、chat 或 DTO 欄位時，讀 `references/organizing.md`。
+- 需要跨 endpoint 的操作順序、folder scope 判斷、日期範圍或批次搬移流程時，讀 `references/workflows.md`。
+- 需要搬移大量郵件、搬空 folder tree 或分批 `request-move-mails` 時，讀 `references/bulk-move.md`。
 
 ## 常見陷阱
 
