@@ -1,12 +1,14 @@
 ﻿<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Monitor, Platform } from '@element-plus/icons-vue'
+import { Monitor, Moon, Platform, Sunny } from '@element-plus/icons-vue'
+import { useTheme } from './composables/useTheme'
 import { useOutlookDashboard } from './features/outlook/composables/useOutlookDashboard'
 import type { HubPage } from './features/outlook/models/outlook'
 import AdminPage from './views/AdminPage.vue'
 import OutlookPage from './views/OutlookPage.vue'
 
 const dashboard = useOutlookDashboard()
+const { isDarkTheme, themeLabel, toggleTheme } = useTheme()
 const activePage = ref<HubPage>('outlook')
 const signalRState = computed(() => dashboard.signalRState.value)
 
@@ -38,6 +40,13 @@ watch(activePage, async (page) => {
         </div>
 
         <nav class="nav-actions">
+          <el-button
+            class="theme-toggle"
+            :icon="isDarkTheme ? Sunny : Moon"
+            @click="toggleTheme"
+          >
+            {{ themeLabel }}
+          </el-button>
           <el-segmented
             :model-value="activePage"
             :options="pageOptions"

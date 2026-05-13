@@ -1,3 +1,4 @@
+@import "./styles/theme.css";
 @import "./styles/base-and-rules.css";
 @import "./styles/shell-and-mail.css";
 @import "./styles/search.css";

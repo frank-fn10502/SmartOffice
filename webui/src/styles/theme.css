@@ -1,0 +1,201 @@
+:root {
+  color-scheme: light;
+  --app-bg: #eef2f7;
+  --app-topbar-bg: #1f5f99;
+  --app-topbar-text: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f6f8fb;
+  --surface-4: #edf4fb;
+  --surface-selected: #dceeff;
+  --surface-success: #dcf3e4;
+  --surface-warning: #fff8db;
+  --surface-danger: #fff7f7;
+  --border-subtle: #edf1f5;
+  --border-default: #d9e2ec;
+  --border-strong: #cfd9e5;
+  --text-main: #172033;
+  --text-normal: #344054;
+  --text-muted: #667085;
+  --text-faint: #8a98a8;
+  --accent: #1f5f99;
+  --accent-strong: #17466f;
+  --success: #16803c;
+  --success-strong: #0f6b34;
+  --warning: #a35214;
+  --danger: #b3261e;
+  --shadow-panel: 0 10px 30px rgb(15 23 42 / 6%);
+  --shadow-popover: 0 14px 32px rgb(15 23 42 / 18%);
+
+  --el-bg-color: var(--surface-1);
+  --el-bg-color-page: var(--app-bg);
+  --el-bg-color-overlay: var(--surface-1);
+  --el-text-color-primary: var(--text-main);
+  --el-text-color-regular: var(--text-normal);
+  --el-text-color-secondary: var(--text-muted);
+  --el-text-color-placeholder: var(--text-faint);
+  --el-border-color: var(--border-default);
+  --el-border-color-light: var(--border-subtle);
+  --el-border-color-lighter: var(--border-subtle);
+  --el-fill-color: var(--surface-3);
+  --el-fill-color-light: var(--surface-2);
+  --el-fill-color-lighter: var(--surface-2);
+  --el-fill-color-blank: var(--surface-1);
+  --el-color-primary: var(--accent);
+  --el-color-primary-light-3: #4f8bc1;
+  --el-color-primary-light-5: #8bb6da;
+  --el-color-primary-light-7: #bed7ec;
+  --el-color-primary-light-9: var(--surface-4);
+}
+
+:root[data-theme="dark"],
+:root.dark {
+  color-scheme: dark;
+  --app-bg: #0b1118;
+  --app-topbar-bg: #111b25;
+  --app-topbar-text: #e7edf4;
+  --surface-1: #141e29;
+  --surface-2: #182433;
+  --surface-3: #1d2b3a;
+  --surface-4: #1b3449;
+  --surface-selected: #173d59;
+  --surface-success: #153526;
+  --surface-warning: #3a2d12;
+  --surface-danger: #3a1f22;
+  --border-subtle: #233143;
+  --border-default: #2d4054;
+  --border-strong: #3a536a;
+  --text-main: #e7edf4;
+  --text-normal: #c8d4e2;
+  --text-muted: #95a7ba;
+  --text-faint: #718396;
+  --accent: #7db7ef;
+  --accent-strong: #aad1f6;
+  --success: #5ccf8a;
+  --success-strong: #8de3ad;
+  --warning: #e5b45b;
+  --danger: #ff8a8a;
+  --shadow-panel: 0 18px 40px rgb(0 0 0 / 28%);
+  --shadow-popover: 0 20px 48px rgb(0 0 0 / 38%);
+
+  --el-bg-color: var(--surface-1);
+  --el-bg-color-page: var(--app-bg);
+  --el-bg-color-overlay: #172231;
+  --el-text-color-primary: var(--text-main);
+  --el-text-color-regular: var(--text-normal);
+  --el-text-color-secondary: var(--text-muted);
+  --el-text-color-placeholder: var(--text-faint);
+  --el-border-color: var(--border-default);
+  --el-border-color-light: var(--border-subtle);
+  --el-border-color-lighter: var(--border-subtle);
+  --el-fill-color: var(--surface-3);
+  --el-fill-color-light: var(--surface-2);
+  --el-fill-color-lighter: #1a2635;
+  --el-fill-color-blank: var(--surface-1);
+  --el-color-primary: var(--accent);
+  --el-color-primary-light-3: #5f9dd8;
+  --el-color-primary-light-5: #386b98;
+  --el-color-primary-light-7: #254b6c;
+  --el-color-primary-light-9: #162d41;
+  --el-mask-color: rgb(3 8 13 / 72%);
+}
+
+:root[data-theme="dark"] .el-button:not(.el-button--primary):not(.is-text):not(.is-link) {
+  --el-button-bg-color: var(--surface-2);
+  --el-button-border-color: var(--border-strong);
+  --el-button-text-color: var(--text-normal);
+  --el-button-hover-bg-color: var(--surface-3);
+  --el-button-hover-border-color: var(--accent);
+  --el-button-hover-text-color: var(--text-main);
+}
+
+:root[data-theme="dark"] .el-segmented {
+  --el-segmented-bg-color: var(--surface-2);
+  --el-segmented-item-selected-bg-color: var(--surface-selected);
+  --el-segmented-item-selected-color: var(--text-main);
+  --el-segmented-item-hover-bg-color: var(--surface-3);
+}
+
+:root[data-theme="dark"] .el-tag {
+  --el-tag-bg-color: rgb(125 183 239 / 12%);
+  --el-tag-border-color: rgb(125 183 239 / 36%);
+  --el-tag-text-color: var(--accent-strong);
+}
+
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .outlook-folder-pane,
+:root[data-theme="dark"] .outlook-mail-pane,
+:root[data-theme="dark"] .mail-property-pane,
+:root[data-theme="dark"] .search-page-panel,
+:root[data-theme="dark"] .calendar-detail,
+:root[data-theme="dark"] .contacts-inspector,
+:root[data-theme="dark"] .chat-panel,
+:root[data-theme="dark"] .admin-card,
+:root[data-theme="dark"] .dialog-mail-content,
+:root[data-theme="dark"] .dialog-mail-side,
+:root[data-theme="dark"] .meeting-info-panel,
+:root[data-theme="dark"] .meeting-dialog-main {
+  background: var(--surface-1);
+  border-color: var(--border-default);
+  color: var(--text-normal);
+}
+
+:root[data-theme="dark"] .panel-header,
+:root[data-theme="dark"] .mail-list-header,
+:root[data-theme="dark"] .search-toolbar,
+:root[data-theme="dark"] .search-results-head,
+:root[data-theme="dark"] .contacts-toolbar,
+:root[data-theme="dark"] .dialog-mail-header,
+:root[data-theme="dark"] .attachment-header {
+  background: var(--surface-2);
+  border-color: var(--border-subtle);
+}
+
+:root[data-theme="dark"] .mail-row,
+:root[data-theme="dark"] .search-result-row,
+:root[data-theme="dark"] .attachment-row,
+:root[data-theme="dark"] .workspace-item,
+:root[data-theme="dark"] .calendar-day,
+:root[data-theme="dark"] .calendar-weekday {
+  background: var(--surface-1);
+  border-color: var(--border-subtle);
+}
+
+:root[data-theme="dark"] .mail-row:hover,
+:root[data-theme="dark"] .search-result-row:hover,
+:root[data-theme="dark"] .folder-row:hover {
+  background: var(--surface-3);
+}
+
+:root[data-theme="dark"] .mail-row.selected,
+:root[data-theme="dark"] .search-result-row.active,
+:root[data-theme="dark"] .folder-row.selected,
+:root[data-theme="dark"] .calendar-event {
+  background: var(--surface-selected);
+  border-color: var(--border-strong);
+  color: var(--text-main);
+}
+
+:root[data-theme="dark"] .calendar-grid {
+  background: var(--border-default);
+  border-color: var(--border-default);
+}
+
+:root[data-theme="dark"] .calendar-day.muted {
+  background: #101923;
+  color: var(--text-faint);
+}
+
+:root[data-theme="dark"] .calendar-event.continued {
+  background: var(--surface-success);
+  border-color: rgb(92 207 138 / 42%);
+  color: var(--success-strong);
+}
+
+:root[data-theme="dark"] .hint,
+:root[data-theme="dark"] .rule-meta,
+:root[data-theme="dark"] .mail-meta,
+:root[data-theme="dark"] .dialog-mail-meta span,
+:root[data-theme="dark"] .dialog-mail-meta small {
+  color: var(--text-muted);
+}
