@@ -83,7 +83,7 @@ function applyCustomFlag() {
 .inspector-field {
   display: grid;
   gap: 6px;
-  color: #667085;
+  color: var(--text-muted);
   font-size: 0.86rem;
 }
 

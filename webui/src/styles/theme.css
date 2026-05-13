@@ -126,6 +126,8 @@
 :root[data-theme="dark"] .outlook-folder-pane,
 :root[data-theme="dark"] .outlook-mail-pane,
 :root[data-theme="dark"] .mail-property-pane,
+:root[data-theme="dark"] .outlook-property-pane,
+:root[data-theme="dark"] .embedded-property-pane,
 :root[data-theme="dark"] .search-page-panel,
 :root[data-theme="dark"] .calendar-detail,
 :root[data-theme="dark"] .contacts-inspector,
@@ -140,13 +142,30 @@
   color: var(--text-normal);
 }
 
+:root[data-theme="dark"] .el-dialog,
+:root[data-theme="dark"] .el-popper,
+:root[data-theme="dark"] .el-card,
+:root[data-theme="dark"] .el-table,
+:root[data-theme="dark"] .mail-detail-dialog .el-dialog__body,
+:root[data-theme="dark"] .mail-detail-dialog .el-dialog__header,
+:root[data-theme="dark"] .meeting-invitation-dialog .el-dialog__body,
+:root[data-theme="dark"] .meeting-invitation-dialog .el-dialog__header {
+  background: var(--surface-1);
+  color: var(--text-normal);
+}
+
 :root[data-theme="dark"] .panel-header,
 :root[data-theme="dark"] .mail-list-header,
 :root[data-theme="dark"] .search-toolbar,
 :root[data-theme="dark"] .search-results-head,
 :root[data-theme="dark"] .contacts-toolbar,
 :root[data-theme="dark"] .dialog-mail-header,
-:root[data-theme="dark"] .attachment-header {
+:root[data-theme="dark"] .attachment-header,
+:root[data-theme="dark"] .operation-bar,
+:root[data-theme="dark"] .folder-management,
+:root[data-theme="dark"] .workspace-toolbar,
+:root[data-theme="dark"] .folder-action-panel,
+:root[data-theme="dark"] .chat-input {
   background: var(--surface-2);
   border-color: var(--border-subtle);
 }
@@ -156,9 +175,39 @@
 :root[data-theme="dark"] .attachment-row,
 :root[data-theme="dark"] .workspace-item,
 :root[data-theme="dark"] .calendar-day,
-:root[data-theme="dark"] .calendar-weekday {
+:root[data-theme="dark"] .calendar-weekday,
+:root[data-theme="dark"] .status-item,
+:root[data-theme="dark"] .mail-text,
+:root[data-theme="dark"] .mail-html,
+:root[data-theme="dark"] .dialog-mail-body,
+:root[data-theme="dark"] .dialog-mail-empty-body,
+:root[data-theme="dark"] .dialog-loading-block,
+:root[data-theme="dark"] .dialog-mail-attachments .attachment-row,
+:root[data-theme="dark"] .conversation-item,
+:root[data-theme="dark"] .meeting-body,
+:root[data-theme="dark"] .meeting-empty-body,
+:root[data-theme="dark"] .meeting-attachment-row,
+:root[data-theme="dark"] .chat-messages,
+:root[data-theme="dark"] .store-kind,
+:root[data-theme="dark"] .inspector-note {
   background: var(--surface-1);
   border-color: var(--border-subtle);
+  color: var(--text-normal);
+}
+
+:root[data-theme="dark"] .mail-html {
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .pane-loading {
+  background: rgb(11 17 24 / 74%);
+  color: var(--text-main);
+}
+
+:root[data-theme="dark"] .pane-loading span {
+  background: var(--surface-1);
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-popover);
 }
 
 :root[data-theme="dark"] .mail-row:hover,
@@ -184,6 +233,92 @@
 :root[data-theme="dark"] .calendar-day.muted {
   background: #101923;
   color: var(--text-faint);
+}
+
+:root[data-theme="dark"] .calendar-day-number,
+:root[data-theme="dark"] .calendar-weekday,
+:root[data-theme="dark"] .folder-count,
+:root[data-theme="dark"] .store-kind,
+:root[data-theme="dark"] .mail-sender,
+:root[data-theme="dark"] .mail-time,
+:root[data-theme="dark"] .chat-meta,
+:root[data-theme="dark"] .status-label,
+:root[data-theme="dark"] .context-title,
+:root[data-theme="dark"] .calendar-detail-title,
+:root[data-theme="dark"] .workspace-item-main strong,
+:root[data-theme="dark"] .folder-management-title,
+:root[data-theme="dark"] .dialog-mail-title strong,
+:root[data-theme="dark"] .dialog-mail-meta strong,
+:root[data-theme="dark"] .dialog-mail-section-head,
+:root[data-theme="dark"] .conversation-main strong,
+:root[data-theme="dark"] .meeting-dialog-title strong,
+:root[data-theme="dark"] .meeting-info-panel h3,
+:root[data-theme="dark"] .meeting-info-panel strong,
+:root[data-theme="dark"] .meeting-section-head,
+:root[data-theme="dark"] .attachment-header,
+:root[data-theme="dark"] .attachment-main span,
+:root[data-theme="dark"] .inspector-subject,
+:root[data-theme="dark"] .inspector-meta,
+:root[data-theme="dark"] .inspector-field,
+:root[data-theme="dark"] .empty-inspector,
+:root[data-theme="dark"] .field-stack > span,
+:root[data-theme="dark"] .operation-label,
+:root[data-theme="dark"] .workspace-item-main span,
+:root[data-theme="dark"] .rule-detail,
+:root[data-theme="dark"] .conversation-main span,
+:root[data-theme="dark"] .conversation-main small,
+:root[data-theme="dark"] .meeting-dialog-title span,
+:root[data-theme="dark"] .meeting-info-panel dt,
+:root[data-theme="dark"] .meeting-info-panel small,
+:root[data-theme="dark"] .dialog-mail-conversation .attachment-header small {
+  color: var(--text-muted);
+}
+
+:root[data-theme="dark"] .panel-title,
+:root[data-theme="dark"] .folder-row,
+:root[data-theme="dark"] .folder-row.store-root,
+:root[data-theme="dark"] .mail-subject,
+:root[data-theme="dark"] .context-title,
+:root[data-theme="dark"] .calendar-detail-title,
+:root[data-theme="dark"] .workspace-item-main strong,
+:root[data-theme="dark"] .folder-management-title,
+:root[data-theme="dark"] .dialog-mail-title strong,
+:root[data-theme="dark"] .dialog-mail-meta strong,
+:root[data-theme="dark"] .dialog-mail-section-head,
+:root[data-theme="dark"] .conversation-main strong,
+:root[data-theme="dark"] .meeting-dialog-title strong,
+:root[data-theme="dark"] .meeting-info-panel h3,
+:root[data-theme="dark"] .meeting-info-panel strong,
+:root[data-theme="dark"] .meeting-section-head,
+:root[data-theme="dark"] .inspector-subject {
+  color: var(--text-main);
+}
+
+:root[data-theme="dark"] .conversation-item.current,
+:root[data-theme="dark"] .meeting-kind {
+  background: var(--surface-selected);
+  border-color: var(--border-strong);
+  color: var(--accent-strong);
+}
+
+:root[data-theme="dark"] .folder-row.inbox,
+:root[data-theme="dark"] .calendar-day-count,
+:root[data-theme="dark"] .mail-summary:hover .mail-subject {
+  color: var(--accent-strong);
+}
+
+:root[data-theme="dark"] .folder-row.sent,
+:root[data-theme="dark"] .online {
+  color: var(--success-strong);
+}
+
+:root[data-theme="dark"] .folder-row.drafts {
+  color: var(--warning);
+}
+
+:root[data-theme="dark"] .folder-row.deleted,
+:root[data-theme="dark"] .offline {
+  color: var(--danger);
 }
 
 :root[data-theme="dark"] .calendar-event.continued {

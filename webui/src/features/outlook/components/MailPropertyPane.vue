@@ -191,7 +191,7 @@ defineEmits<{
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  border-left: 1px solid #edf0f5;
+  border-left: 1px solid var(--border-subtle);
   padding-left: 16px;
 }
 
@@ -216,7 +216,7 @@ defineEmits<{
 
 .inspector-subject {
   min-width: 0;
-  color: #172033;
+  color: var(--text-main);
   font-size: 1.1rem;
   font-weight: 800;
   line-height: 1.35;
@@ -227,7 +227,7 @@ defineEmits<{
 .inspector-field {
   display: grid;
   gap: 6px;
-  color: #667085;
+  color: var(--text-muted);
   font-size: 0.86rem;
 }
 
@@ -243,10 +243,10 @@ defineEmits<{
 
 .identity-warning {
   padding: 9px 10px;
-  border: 1px solid #f7c948;
+  border: 1px solid color-mix(in srgb, var(--warning) 58%, var(--border-default));
   border-radius: 6px;
-  background: #fff8db;
-  color: #8a5a00;
+  background: var(--surface-warning);
+  color: var(--warning);
   font-size: 0.84rem;
   line-height: 1.45;
 }
@@ -303,18 +303,18 @@ defineEmits<{
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid #f7c7c7;
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border-default));
   border-radius: 6px;
-  background: #fff7f7;
-  color: #912018;
+  background: var(--surface-danger);
+  color: var(--danger);
   font-size: 0.84rem;
   line-height: 1.45;
 }
 
 .flag-draft-summary.complete {
-  border-color: #a8d5ba;
-  background: #f1fbf5;
-  color: #176b3a;
+  border-color: color-mix(in srgb, var(--success) 42%, var(--border-default));
+  background: var(--surface-success);
+  color: var(--success);
 }
 
 .flag-draft-summary > span {
@@ -327,21 +327,21 @@ defineEmits<{
 }
 
 .flag-draft-date {
-  color: #b42318;
+  color: var(--danger);
   font-weight: 700;
 }
 
 .flag-draft-summary.complete .flag-draft-date {
-  color: #087443;
+  color: var(--success-strong);
 }
 
 .flag-draft-date.secondary {
-  color: #475467;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
 .flag-draft-date.muted {
-  color: #b42318;
+  color: var(--danger);
   font-weight: 600;
 }
 
@@ -360,7 +360,7 @@ defineEmits<{
 }
 
 .clickable-marker-tag:focus-visible {
-  outline: 2px solid #1f5f99;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -373,8 +373,8 @@ defineEmits<{
 .inspector-note {
   padding: 9px 10px;
   border-radius: 6px;
-  background: #f8fafc;
-  color: #667085;
+  background: var(--surface-2);
+  color: var(--text-muted);
   font-size: 0.82rem;
   line-height: 1.45;
 }
@@ -403,7 +403,7 @@ defineEmits<{
   display: grid;
   min-height: 200px;
   align-items: center;
-  color: #667085;
+  color: var(--text-muted);
   font-size: 0.9rem;
   line-height: 1.5;
 }

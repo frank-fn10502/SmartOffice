@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { Delete, Edit, Plus, Refresh, Select } from '@element-plus/icons-vue'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
 import type { OutlookRuleDto } from '../models/outlook'
 
@@ -27,6 +27,7 @@ const {
 } = props.dashboard
 
 const ruleEditorVisible = ref(false)
+const initialRuleRequestStarted = ref(false)
 const ruleNameMissing = computed(() => !ruleDraft.value.ruleName.trim())
 const ruleHasCondition = computed(() => Boolean(
   ruleDraft.value.subjectContains.trim()
@@ -87,6 +88,20 @@ async function submitRule() {
     ruleEditorVisible.value = false
   }
 }
+
+function requestRulesWhenReady() {
+  if (initialRuleRequestStarted.value || loadingRules.value || outlookBusy.value) return
+  initialRuleRequestStarted.value = true
+  void requestRules()
+}
+
+onMounted(() => {
+  requestRulesWhenReady()
+})
+
+watch(outlookBusy, (busy) => {
+  if (!busy) requestRulesWhenReady()
+})
 </script>
 
 <template>

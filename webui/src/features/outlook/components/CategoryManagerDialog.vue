@@ -109,7 +109,7 @@ defineEmits<{
 }
 
 .library-heading {
-  color: #667085;
+  color: var(--text-muted);
   font-size: 0.76rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -147,9 +147,10 @@ defineEmits<{
   align-items: center;
   gap: 8px;
   padding: 8px;
-  border: 1px solid #edf1f5;
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface-1);
+  color: var(--text-normal);
 }
 
 .category-name,

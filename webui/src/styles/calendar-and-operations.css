@@ -103,18 +103,33 @@
   width: min(340px, 42vw);
 }
 
+.contacts-layout {
+  min-height: 0;
+  height: calc(100vh - 116px);
+  padding: 14px;
+  overflow: hidden;
+}
+
+.contacts-layout > .panel {
+  height: 100%;
+  min-height: 0;
+}
+
 .contacts-page {
   display: grid;
   grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
+  flex: 1;
   gap: 14px;
   min-height: 0;
   padding: 14px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .contacts-list,
 .contact-detail {
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--surface-1);
