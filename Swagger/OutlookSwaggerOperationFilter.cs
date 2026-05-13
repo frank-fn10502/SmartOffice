@@ -301,7 +301,7 @@ namespace SmartOffice.Hub.Swagger
             ["GET api/outlook/admin/status"] = new(
                 DiagnosticsTag,
                 "取得 Outlook worker 連線狀態",
-                "讀取 SmartOffice API 對目前 Outlook worker channel 與最後 push/poll 的觀測狀態。",
+                "讀取 SmartOffice API 對目前 Outlook worker channel、最後 dispatch 與最後回報的觀測狀態。",
                 typeof(AddinStatusDto)),
             ["GET api/outlook/admin/logs"] = new(
                 DiagnosticsTag,

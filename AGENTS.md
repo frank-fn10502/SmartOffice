@@ -28,7 +28,7 @@
 - `docs/ai/backend.md`：後端多 Office AddIn feature boundary、service registration、Swagger、SignalR 與 request/fetch-result 擴充原則。
 - `docs/ai/frontend.md`：前端框架選擇、限制與導入原則。
 - `docs/ai/protocols.md`：Office AddIn SignalR protocol、route 與 SignalR event。
-- `docs/ai/workstation-solution.md`：Hub 與工作機 SmartOffice solution 的關係，以及 AddIn 任務應在哪裡實作。
+- `docs/ai/solution-integration.md`：Hub 與 SmartOffice solution 的關係，以及 AddIn 任務應在哪裡實作。
 - `docs/ai_plugin/README.md`：MCP 與 Agents SKILL 文件入口。
 - `docs/ai_plugin/mcp.md`：MCP adapter 與 tool 設計入口。
 - `docs/ai_plugin/agents-skill.md`：Agents SKILL 設計入口。

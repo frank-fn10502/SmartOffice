@@ -400,8 +400,6 @@ namespace SmartOffice.Hub.Contracts
         public string EndDate { get; set; } = string.Empty;
     }
 
-    public class OutlookCommandNewCategory : OutlookCategoryDto { }
-
     public class OutlookCommandRuleRequest
     {
         public string Operation { get; set; } = "upsert";

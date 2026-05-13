@@ -1,4 +1,4 @@
-﻿# SmartOffice Solution 關係
+# SmartOffice Solution 整合
 
 ## 核心事實
 
@@ -30,7 +30,7 @@ SmartOffice.Hub
 Hub：
 
 - 提供 `/api/outlook/request-*` endpoint，讓 Web UI、AI 或 MCP client 發出 request。
-- 提供 `/hub/outlook-addin`，讓工作機 AddIn 透過 SignalR 接收 command 並回報結果。
+- 提供 `/hub/outlook-addin`，讓 AddIn 透過 SignalR 接收 command 並回報結果。
 - 提供 `/hub/notifications`，讓 client 接收 status、log、progress 與 data update notification；Web UI 的主要資料路徑仍是 HTTP data endpoint。
 - 提供 Web UI 與 admin diagnostics。
 
@@ -42,14 +42,14 @@ SmartOffice / Outlook AddIn：
 - 執行 Outlook COM/VSTO automation。
 - 讀取 folders、mails、rules、calendar。
 - 修改 mail read state、flag、categories。
-- 建立 folder、移動單封 mail。
+- 建立 folder、移動 mail。
 - 透過 `BeginFolderSync`、`PushFolderBatch`、`CompleteFolderSync`、`PushMails`、`PushMail`、`PushRules`、`PushCategories`、`PushCalendar`、`SendChatMessage`、`ReportAddinLog` 與 `ReportCommandResult` 將結果回報 Hub。
 
 ## 開始前應讀
 
 1. SmartOffice solution 的入口文件。
 2. `..\SmartOffice.Hub\AGENTS.md`
-3. `..\SmartOffice.Hub\docs\ai\workstation-solution.md`
+3. `..\SmartOffice.Hub\docs\ai\solution-integration.md`
 4. `..\SmartOffice.Hub\docs\ai\protocols.md`
 5. `..\SmartOffice\docs\outlook-addin\features-checklist.md`
 6. `..\SmartOffice\docs\outlook-addin\signalr-contract.md`

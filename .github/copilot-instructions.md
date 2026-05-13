@@ -9,8 +9,9 @@
 再依任務需要查看：
 
 - `docs/ai/project.md`
+- `docs/ai/backend.md`
 - `docs/ai/coding.md`
 - `docs/ai/frontend.md`
 - `docs/ai/protocols.md`
+- `docs/ai/solution-integration.md`
 - `docs/ai/validation.md`
-- `docs/ai/plan-splitting.md`
