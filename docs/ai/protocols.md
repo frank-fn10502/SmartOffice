@@ -52,6 +52,7 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `POST /api/outlook/request-categories`：建立 Outlook master category fetch operation。
 - `POST /api/outlook/request-signalr-ping`：透過正式 AddIn channel 建立 `ping` 測試 operation。
 - `POST /api/outlook/request-calendar`：建立 Outlook calendar fetch operation。
+- `POST /api/outlook/request-address-book`：建立 Outlook 通訊錄同步 operation；AddIn 可讀 Contacts folder 與 Outlook AddressLists / GAL，但必須用單一 command 內分批枚舉、限制 `maxContacts` 與 `maxAddressEntriesPerList`，回推 metadata-only 的 `AddressBookContactDto`。
 - `POST /api/outlook/request-update-mail-properties`：建立單封郵件屬性整批更新 operation。
 - `POST /api/outlook/request-upsert-category`：建立 Outlook master category 新增或更新顏色 operation。
 - `POST /api/outlook/request-create-folder`：建立 folder creation operation。
@@ -70,7 +71,7 @@ HTTP API 對外的 folder path 使用 `/主要信箱 - User/收件匣`；Hub 在
 - `GET /api/outlook/categories`：讀取 Outlook master category list。
 - `GET /api/outlook/calendar`：讀取 Outlook calendar events。
 - `GET /api/outlook/address-book?query=...&take=...`：讀取 Hub cache 彙整的通訊錄關聯；資料來自已快取的 mail sender/recipient/group member 與 calendar organizer/attendee，不會讀取完整 mail body。
-- `GET /api/outlook/address-book/lookup?email=...`：讓 Web UI、AI 或 MCP client 檢查收件者 email 是否已出現在 Hub 已知互動裡；回傳 `state=known` 或 `unknown`、`contact` 與最多 5 筆 `suggestions`。
+- `GET /api/outlook/address-book/lookup?email=...`：讓 Web UI、AI 或 MCP client 檢查收件者 email 是否已出現在 Hub 已知互動或已同步通訊錄裡；回傳 `state=known` 或 `unknown`、`contact` 與最多 5 筆 `suggestions`。
 - `POST /api/outlook/chat`：新增並 broadcast chat message。
 - `GET /api/outlook/chat`：讀取 chat messages。
 - `POST /api/outlook/fetch-result-*`：正式 client workflow 使用的狀態與分頁資料入口；每個 request endpoint 都有對應 fetch-result endpoint。
@@ -150,6 +151,7 @@ AddIn 連到 `/hub/outlook-addin` 後可以 invoke：
 - `PushRules(rules)`：取代目前 Outlook rules 並 broadcast update。
 - `PushCategories(categories)`：取代目前 Outlook master category list 並 broadcast update。
 - `PushCalendar(events)`：取代目前 Outlook calendar events 並 broadcast update。
+- `PushAddressBook(contacts)`：取代目前 Hub cached Outlook address book；Hub 仍會和 mail/calendar derived contact view 合併。
 - `SendChatMessage(message)`：AddIn 透過 SignalR 送出 chat message，Hub 會 broadcast `NewChatMessage`。
 - `ReportAddinLog(entry)`：回報 AddIn log。
 - `ReportCommandResult(result)`：回報 command 執行結果。
