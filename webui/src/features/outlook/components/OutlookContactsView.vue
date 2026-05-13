@@ -4,7 +4,7 @@ import { Refresh, Search, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { outlookApi } from '../api/outlook'
 import type { AddressBookContactDto } from '../models/outlook'
-import { waitForOutlookRequest } from '../composables/outlookRequests'
+import { collectOutlookRequestData, waitForOutlookRequest } from '../composables/outlookRequests'
 import { formatDateTime } from '../utils/formatters'
 
 const contacts = ref<AddressBookContactDto[]>([])
@@ -37,8 +37,21 @@ function relationLabel(kind: string) {
 async function loadContacts() {
   loading.value = true
   try {
-    const response = await outlookApi.getAddressBook(query.value, 200)
-    contacts.value = response.contacts
+    const response = await outlookApi.requestAddressBook({
+      includeOutlookContacts: true,
+      includeAddressLists: true,
+      maxContacts: 1000,
+      maxAddressEntriesPerList: 500,
+    })
+    await waitForOutlookRequest(response, { timeoutMs: 120000 })
+    const pages = await collectOutlookRequestData<{ contacts?: AddressBookContactDto[] }>(response)
+    const text = query.value.trim().toLowerCase()
+    contacts.value = pages
+      .flatMap((page) => page.data?.contacts ?? [])
+      .filter((contact) => !text
+        || contact.displayName.toLowerCase().includes(text)
+        || contact.smtpAddress.toLowerCase().includes(text)
+        || contact.domain.toLowerCase().includes(text))
     if (!selectedContact.value || !contacts.value.some((contact) => contact.smtpAddress === selectedContact.value?.smtpAddress)) {
       selectedContact.value = contacts.value[0] ?? null
     }
@@ -64,7 +77,7 @@ async function lookupContact() {
       }
       ElMessage.success('找到已知關聯')
     } else {
-      ElMessage.warning('目前 cache 沒有這個 email 的關聯')
+      ElMessage.warning('目前沒有這個 email 的關聯')
     }
   } finally {
     loading.value = false
@@ -74,13 +87,6 @@ async function lookupContact() {
 async function syncAddressBook() {
   loading.value = true
   try {
-    const response = await outlookApi.requestAddressBook({
-      includeOutlookContacts: true,
-      includeAddressLists: true,
-      maxContacts: 1000,
-      maxAddressEntriesPerList: 500,
-    })
-    await waitForOutlookRequest(response, { timeoutMs: 120000 })
     await loadContacts()
     ElMessage.success('通訊錄同步完成')
   } finally {

@@ -52,7 +52,7 @@ defineEmits<{
           <span>來源：{{ selectedMailFolderName }}</span>
         </div>
         <div v-if="!selectedMailHasIdentity" class="identity-warning">
-          這封郵件缺少 id，Add-in 需在 PushMails 回傳 Outlook EntryID 或穩定識別後才能修改或移動。
+          這封郵件缺少 id，需要 Outlook 回傳穩定識別後才能修改或移動。
         </div>
         <div v-else-if="!canUpdateMailProperties(selectedMail)" class="identity-warning">
           這是 {{ outlookItemTypeLabel(selectedMail) }}，目前可閱讀內容、附件，也可拖曳移動；分類、旗標與已讀狀態仍需使用 Outlook 的會議/行事曆流程。
@@ -175,7 +175,7 @@ defineEmits<{
           </div>
         </div>
 
-        <div class="inspector-note">郵件屬性會一次送到 Outlook；移動郵件請拖曳中央郵件到左側 folder。等待 Add-in 回推前會鎖住操作。</div>
+        <div class="inspector-note">郵件屬性會一次送到 Outlook；移動郵件請拖曳中央郵件到左側 folder。等待結果回傳前會鎖住操作。</div>
       </div>
 
       <div v-else class="empty-inspector">

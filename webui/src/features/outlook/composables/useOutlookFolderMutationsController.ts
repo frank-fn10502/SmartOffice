@@ -18,7 +18,7 @@ type FolderMutationsControllerOptions = {
   closeFolderContextMenu: () => void
   folderNameForPath: (path: string) => string
   isInDeletedFolder: (path: string) => boolean
-  loadCachedFolders: () => Promise<void>
+  loadFoldersFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
   manualOutlookDeleteMessage: string
   waitForRequest: (response: { requestId?: string; request?: string }, timeoutMs?: number) => Promise<void>
 }
@@ -33,7 +33,7 @@ export function useOutlookFolderMutationsController(options: FolderMutationsCont
     folderNameForPath,
     folderOptions,
     isInDeletedFolder,
-    loadCachedFolders,
+    loadFoldersFromRequest,
     manualOutlookDeleteMessage,
     outlookBusy,
     requestLoading,
@@ -53,7 +53,7 @@ export function useOutlookFolderMutationsController(options: FolderMutationsCont
         name: folderName,
       })
       await waitForRequest(response)
-      await loadCachedFolders()
+      await loadFoldersFromRequest(response)
       cancelCreateFolder()
       requestLoading.value = false
     } catch {
@@ -78,7 +78,7 @@ export function useOutlookFolderMutationsController(options: FolderMutationsCont
         folderPath: targetPath,
       })
       await waitForRequest(response)
-      await loadCachedFolders()
+      await loadFoldersFromRequest(response)
       if (selectedFolderPath.value === targetPath) {
         selectedFolderPath.value = folderOptions.value[0]?.folderPath ?? ''
       }

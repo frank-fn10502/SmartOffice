@@ -5,7 +5,7 @@ import {
 } from '../api/outlook'
 import type { MailAttachmentDto, MailAttachmentsDto, MailConversationDto, MailItemDto } from '../models/outlook'
 import { canUpdateMailProperties } from '../utils/outlookItemTypes'
-import { fetchResultEndpoint, requestIdFromResponse } from './outlookRequests'
+import { collectOutlookRequestData, fetchResultEndpoint, requestIdFromResponse } from './outlookRequests'
 
 type MailDetailControllerOptions = {
   exportingAttachmentIds: Ref<Set<string>>
@@ -82,8 +82,8 @@ export function useOutlookMailDetailController(options: MailDetailControllerOpti
     }
   }
 
-  async function requestMailAttachments(mail: MailItemDto) {
-    if (!mail.id?.trim() || isAttachmentListLoading(mail) || mailAttachmentsByMailId.value[mail.id]) return
+  async function requestMailAttachments(mail: MailItemDto, force = false) {
+    if (!mail.id?.trim() || isAttachmentListLoading(mail) || (!force && mailAttachmentsByMailId.value[mail.id])) return
     loadingAttachmentMailIds.value = new Set(loadingAttachmentMailIds.value).add(mail.id)
     try {
       const response = await outlookApi.requestMailAttachments({
@@ -91,7 +91,7 @@ export function useOutlookMailDetailController(options: MailDetailControllerOpti
         folderPath: mail.folderPath,
       })
       await waitForRequest(response)
-      patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
+      patchMailAttachments(await loadRequestMailAttachments(response))
     } catch {
       completeAttachmentLoad(mail.id)
     }
@@ -141,7 +141,13 @@ export function useOutlookMailDetailController(options: MailDetailControllerOpti
         conversation.mails = items
         patchMailConversation(conversation)
       } else {
-        patchMailConversation(await outlookApi.getMailConversation(mail.id))
+        patchMailConversation({
+          mailId: mail.id,
+          folderPath: mail.folderPath,
+          conversationId: mail.conversationId,
+          conversationTopic: mail.conversationTopic || mail.subject,
+          mails: [],
+        })
       }
     } catch {
       completeConversationLoad(mail.id)
@@ -164,7 +170,7 @@ export function useOutlookMailDetailController(options: MailDetailControllerOpti
         displayName: attachment.displayName,
       })
       await waitForRequest(response)
-      patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
+      await requestMailAttachments(mail, true)
       completeAttachmentExport(mail.id, attachment.attachmentId)
     } catch {
       completeAttachmentExport(mail.id, attachment.attachmentId)
@@ -174,6 +180,20 @@ export function useOutlookMailDetailController(options: MailDetailControllerOpti
   async function openExportedAttachment(attachment: MailAttachmentDto) {
     if (!attachment.exportedAttachmentId) return
     await outlookApi.openExportedAttachment({ exportedAttachmentId: attachment.exportedAttachmentId })
+  }
+
+  async function loadRequestMailAttachments(response: { requestId?: string; request?: string }) {
+    const pages = await collectOutlookRequestData<{
+      mailId?: string
+      folderPath?: string
+      attachments?: MailAttachmentDto[]
+    }>(response)
+    const first = pages[0]?.data
+    return {
+      mailId: first?.mailId ?? '',
+      folderPath: first?.folderPath ?? '',
+      attachments: pages.flatMap((page) => page.data?.attachments ?? []),
+    }
   }
 
   return {

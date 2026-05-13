@@ -5,9 +5,12 @@ import {
   outlookApi,
 } from '../api/outlook'
 import type {
+  CalendarEventDto,
   MailAttachmentsDto,
   MailConversationDto,
   MailItemDto,
+  OutlookCategoryDto,
+  OutlookRuleDto,
 } from '../models/outlook'
 import {
   categoryColorOptions,
@@ -22,7 +25,7 @@ import {
 } from '../utils/outlookDashboardHelpers'
 import { canUpdateMailProperties } from '../utils/outlookItemTypes'
 import { patchMailSnapshotList } from './outlookMailSnapshots'
-import { fetchResultEndpoint, isRequestResponse, requestIdFromResponse, waitForOutlookRequest } from './outlookRequests'
+import { collectOutlookRequestData, fetchResultEndpoint, isRequestResponse, requestIdFromResponse, waitForOutlookRequest } from './outlookRequests'
 import { useOutlookCalendarController } from './useOutlookCalendarController'
 import { useOutlookDashboardState } from './useOutlookDashboardState'
 import { useOutlookFolderMutationsController } from './useOutlookFolderMutationsController'
@@ -121,11 +124,11 @@ export function useOutlookDashboard() {
     calendarWeeks,
     changeCalendarMonth,
     goToCurrentCalendarMonth,
-    loadCachedCalendar,
     requestCalendar,
     selectCalendarEvent,
     selectedCalendarEvent,
   } = useOutlookCalendarController({
+    loadCalendarFromRequest,
     loadingCalendar,
     outlookBusy,
     waitForRequest,
@@ -269,32 +272,24 @@ export function useOutlookDashboard() {
     updateOutlookFirstLoadCompleted()
   }
 
-  async function loadCachedMails(fallbackFolderPath = '') {
-    const items = await outlookApi.getMails()
-    setMails(items)
-    fetchedMailFolderPath.value = inferMailFolderPath(items, fallbackFolderPath)
-  }
-
-  async function loadCachedMailSearchResults() {
-    setMailSearchResults(await outlookApi.getMailSearchResults())
-  }
-
   async function loadRequestMailItems(response: { requestId?: string; request?: string }) {
-    const requestId = requestIdFromResponse(response)
-    const endpoint = fetchResultEndpoint(response)
-    const items: MailItemDto[] = []
-    let cursor = ''
-    do {
-      const state = await outlookApi.fetchResult<{ mails?: unknown[] }>(endpoint, {
-        requestId,
-        cursor,
-        take: 100,
-      })
-      items.push(...normalizeMailItems(state.data?.mails))
-      cursor = state.next.cursor
-      if (!state.next.hasMore) break
-    } while (cursor)
-    return items
+    const pages = await collectOutlookRequestData<{ mails?: unknown[] }>(response, { isUnmounted: () => unmounted })
+    return normalizeMailItems(pages.flatMap((page) => page.data?.mails ?? []))
+  }
+
+  async function loadRulesFromRequest(response: { requestId?: string; request?: string }) {
+    const pages = await collectOutlookRequestData<{ rules?: OutlookRuleDto[] }>(response, { isUnmounted: () => unmounted })
+    rules.value = pages.flatMap((page) => page.data?.rules ?? [])
+  }
+
+  async function loadCategoriesFromRequest(response: { requestId?: string; request?: string }) {
+    const pages = await collectOutlookRequestData<{ categories?: OutlookCategoryDto[] }>(response, { isUnmounted: () => unmounted })
+    categories.value = pages.flatMap((page) => page.data?.categories ?? [])
+  }
+
+  async function loadCalendarFromRequest(response: { requestId?: string; request?: string }) {
+    const pages = await collectOutlookRequestData<{ calendarEvents?: CalendarEventDto[] }>(response, { isUnmounted: () => unmounted })
+    calendarEvents.value = pages.flatMap((page) => page.data?.calendarEvents ?? [])
   }
 
   const {
@@ -305,7 +300,7 @@ export function useOutlookDashboard() {
     createFolderFromContext,
     ensureStartupInboxFolderLoaded,
     fetchMailsFromContext,
-    loadCachedFolders,
+    loadFoldersFromRequest,
     openFolderContextMenu,
     requestFolders,
     requestMails,
@@ -358,21 +353,13 @@ export function useOutlookDashboard() {
     folderNameForPath,
     folderOptions,
     isInDeletedFolder,
-    loadCachedFolders,
+    loadFoldersFromRequest,
     manualOutlookDeleteMessage,
     outlookBusy,
     requestLoading,
     selectedFolderPath,
     waitForRequest,
   })
-
-  async function loadCachedRules() {
-    rules.value = await outlookApi.getRules()
-  }
-
-  async function loadCachedCategories() {
-    categories.value = await outlookApi.getCategories()
-  }
 
   const {
     deleteRule,
@@ -383,8 +370,8 @@ export function useOutlookDashboard() {
     toggleRuleEnabled,
     upsertCategory,
   } = useOutlookRulesController({
-    loadCachedCategories,
-    loadCachedRules,
+    loadCategoriesFromRequest,
+    loadRulesFromRequest,
     loadingRules,
     outlookBusy,
     ruleDraft,
@@ -417,10 +404,10 @@ export function useOutlookDashboard() {
   } = useOutlookMailPropertiesController({
     activeMailForProperties,
     categories,
-    loadCachedCategories,
-    loadCachedMailSearchResults,
-    loadCachedMails,
+    loadCategoriesFromRequest,
+    loadRequestMailItems,
     outlookBusy,
+    patchMailSnapshots,
     runMailOperation,
     upsertCategory,
   })
@@ -456,7 +443,7 @@ export function useOutlookDashboard() {
     try {
       const response = await outlookApi.requestCategories()
       await waitForRequest(response)
-      await loadCachedCategories()
+      await loadCategoriesFromRequest(response)
       initialCategoriesFetchCompleted = true
       updateOutlookFirstLoadCompleted()
       loadingCategories.value = false
@@ -503,7 +490,7 @@ export function useOutlookDashboard() {
     await requestMails(true)
   }
 
-  async function runMailOperation(action: () => Promise<unknown>, afterSuccess?: () => Promise<void>) {
+  async function runMailOperation(action: () => Promise<unknown>, afterSuccess?: (response?: unknown) => Promise<void>) {
     if (outlookBusy.value) return false
     window.clearTimeout(requestTimeoutId)
     activeRequestId = ''
@@ -519,7 +506,7 @@ export function useOutlookDashboard() {
         }
         await waitForRequest(response)
       }
-      if (afterSuccess) await afterSuccess()
+      if (afterSuccess) await afterSuccess(response)
       completeRequest(activeRequestId)
       return true
     } catch {
@@ -646,7 +633,6 @@ export function useOutlookDashboard() {
     folders,
     folderOptions,
     isInDeletedFolder,
-    loadCachedFolders,
     mailListMode,
     mailSearchResults,
     mails,
@@ -674,7 +660,7 @@ export function useOutlookDashboard() {
     folderNameForPath,
     folderOptions,
     folderStores,
-    loadCachedFolders,
+    loadFoldersFromRequest,
     loadRequestMailItems,
     loadingMailSearch,
     mailListMode,
@@ -708,12 +694,6 @@ export function useOutlookDashboard() {
     clearMailBodyLoads,
     clearSelectedMailIndex,
     closeFolderContextMenu,
-    loadCachedCalendar,
-    loadCachedCategories,
-    loadCachedFolders,
-    loadCachedMailSearchResults,
-    loadCachedMails,
-    loadCachedRules,
     mailListMode,
     mailListNeedsFetch,
     outlookBusy,

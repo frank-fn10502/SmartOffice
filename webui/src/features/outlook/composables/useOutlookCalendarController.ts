@@ -13,12 +13,13 @@ import {
 
 type CalendarControllerOptions = {
   loadingCalendar: Ref<boolean>
+  loadCalendarFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
   outlookBusy: ComputedRef<boolean>
   waitForRequest: (response: { requestId?: string; request?: string }, timeoutMs?: number) => Promise<void>
 }
 
 export function useOutlookCalendarController(options: CalendarControllerOptions) {
-  const { loadingCalendar, outlookBusy, waitForRequest } = options
+  const { loadCalendarFromRequest, loadingCalendar, outlookBusy, waitForRequest } = options
   const calendarEvents = ref<CalendarEventDto[]>([])
   const calendarMonthDate = ref(monthStart(new Date()))
   const selectedCalendarEvent = ref<CalendarEventDto | null>(null)
@@ -29,10 +30,6 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
   })
 
   const calendarWeeks = computed(() => buildCalendarWeeks(calendarMonthDate.value, calendarEvents.value))
-
-  async function loadCachedCalendar() {
-    calendarEvents.value = await outlookApi.getCalendar()
-  }
 
   async function requestCalendar() {
     if (outlookBusy.value) return
@@ -46,7 +43,7 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
         endDate: toDateKey(end),
       })
       await waitForRequest(response)
-      await loadCachedCalendar()
+      await loadCalendarFromRequest(response)
       loadingCalendar.value = false
     } catch {
       loadingCalendar.value = false
@@ -78,7 +75,6 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
     calendarWeeks,
     changeCalendarMonth,
     goToCurrentCalendarMonth,
-    loadCachedCalendar,
     loadingCalendar,
     requestCalendar,
     selectCalendarEvent,

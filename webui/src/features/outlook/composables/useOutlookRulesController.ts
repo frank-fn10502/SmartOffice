@@ -18,15 +18,15 @@ type RulesControllerOptions = {
   ruleDraft: Ref<RuleDraft>
   loadingRules: Ref<boolean>
   outlookBusy: Ref<boolean>
-  runMailOperation: (action: () => Promise<unknown>, afterSuccess?: () => Promise<void>) => Promise<boolean>
-  loadCachedRules: () => Promise<void>
-  loadCachedCategories: () => Promise<void>
+  runMailOperation: (action: () => Promise<unknown>, afterSuccess?: (response?: unknown) => Promise<void>) => Promise<boolean>
+  loadRulesFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
+  loadCategoriesFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
 }
 
 export function useOutlookRulesController(options: RulesControllerOptions) {
   const {
-    loadCachedCategories,
-    loadCachedRules,
+    loadCategoriesFromRequest,
+    loadRulesFromRequest,
     loadingRules,
     outlookBusy,
     ruleDraft,
@@ -43,7 +43,7 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
       const response = await outlookApi.requestRules()
       await runMailOperation(
         async () => response,
-        async () => loadCachedRules(),
+        async () => loadRulesFromRequest(response),
       )
       loadingRules.value = false
     } catch {
@@ -97,8 +97,9 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
     }
     await runMailOperation(
       () => outlookApi.requestManageRule(buildRulePayload('upsert', ruleDraft.value)),
-      async () => {
-        await Promise.allSettled([loadCachedRules(), loadCachedCategories()])
+      async (response) => {
+        if (isRequestEnvelope(response)) await loadRulesFromRequest(response)
+        await requestCategoriesAfterRuleChange()
         resetRuleDraft()
       },
     )
@@ -112,8 +113,8 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
     const payload = buildRulePayload('delete', buildRuleOperationDraft(rule))
     await runMailOperation(
       () => outlookApi.requestManageRule(payload),
-      async () => {
-        await loadCachedRules()
+      async (response) => {
+        if (isRequestEnvelope(response)) await loadRulesFromRequest(response)
         resetRuleDraft()
       },
     )
@@ -124,7 +125,9 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
     const payload = buildRulePayload('set_enabled', buildRuleOperationDraft(rule, enabled))
     await runMailOperation(
       () => outlookApi.requestManageRule(payload),
-      async () => loadCachedRules(),
+      async (response) => {
+        if (isRequestEnvelope(response)) await loadRulesFromRequest(response)
+      },
     )
   }
 
@@ -137,9 +140,16 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
         colorValue: categoryColorValue(color || 'olCategoryColorNone'),
         shortcutKey,
       }),
-      async () => loadCachedCategories(),
+      async (response) => {
+        if (isRequestEnvelope(response)) await loadCategoriesFromRequest(response)
+      },
     )
     return true
+  }
+
+  async function requestCategoriesAfterRuleChange() {
+    const response = await outlookApi.requestCategories()
+    await loadCategoriesFromRequest(response)
   }
 
   return {
@@ -151,4 +161,9 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
     toggleRuleEnabled,
     upsertCategory,
   }
+}
+
+function isRequestEnvelope(value: unknown): value is { requestId?: string; request?: string } {
+  const candidate = value as { requestId?: unknown; request?: unknown }
+  return typeof candidate?.requestId === 'string' && typeof candidate?.request === 'string'
 }

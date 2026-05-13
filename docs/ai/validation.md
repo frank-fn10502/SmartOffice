@@ -61,7 +61,7 @@ http://localhost:2805/swagger
 1. 實作 Hub 前，先查 Microsoft 官方文件確認 Outlook/Office API 概念可行；若是已知高風險行為，例如 conversation、search、大量 mail/folder 枚舉、rule、attachment export、COM lifetime 或 Office UI thread，需在回報中附上官方依據。官方文件不足時，才補查 Microsoft Q&A、Stack Overflow 或 issue，且清楚標示為社群經驗。
 2. 更新 Hub DTO、HTTP route、SignalR command/result contract、store、mock backend、Web UI 與文件。
 3. 執行 `./scripts/build-in-container.sh`，確認前端 build 與 .NET build 都通過。
-4. 用 `./scripts/start-dev-container.sh` 啟動 Mock 環境，透過 Swagger、`curl` 或 `.http` 檔檢查實際對外 HTTP API：request endpoint、paired `fetch-result-*` endpoint、必要的 `GET` data endpoint、錯誤狀態與分頁資訊都要能被非 Web UI caller 清楚理解。
+4. 用 `./scripts/start-dev-container.sh` 啟動 Mock 環境，透過 Swagger、`curl` 或 `.http` 檔檢查實際對外 HTTP API：request endpoint、paired `fetch-result-*` endpoint、錯誤狀態與分頁資訊都要能被非 Web UI caller 清楚理解；一般 Outlook 資料不可要求 caller 先理解 cache 或改走資料 GET endpoint。
 5. API smoke test 最低標準：response 必須包含可追蹤的 `requestId`、穩定的 `request` 名稱、可判斷的 `state`、可讀的 `message`、明確命名的 `data` 欄位，以及必要時的 `next.cursor` / `next.hasMore`。如果只看 raw JSON 很難知道下一步、資料含義、錯誤原因或是否還有下一頁，請修正 API，而不是只讓 Web UI 補說明。
 6. 從使用者角度操作 Web UI：確認主要入口找得到、按鈕狀態合理、loading/empty/error state 不重疊、文字不擠出容器、dialog 或 list 不出現明顯破版。此階段不是追求完美，只要求沒有最基礎的 UI 錯誤。
 7. 確認 `docs/ai/protocols.md` 與 `../SmartOffice/docs/outlook-addin/signalr-contract.md` 描述的 command type、DTO 欄位、route 與 mock 回傳一致。

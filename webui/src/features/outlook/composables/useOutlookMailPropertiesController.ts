@@ -22,11 +22,11 @@ import { buildMailPropertiesDraft, buildMailPropertiesPayload } from './outlookM
 type MailPropertiesControllerOptions = {
   activeMailForProperties: ComputedRef<MailItemDto | null>
   categories: Ref<OutlookCategoryDto[]>
-  loadCachedCategories: () => Promise<void>
-  loadCachedMailSearchResults: () => Promise<void>
-  loadCachedMails: () => Promise<void>
+  loadCategoriesFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
+  loadRequestMailItems: (response: { requestId?: string; request?: string }) => Promise<MailItemDto[]>
   outlookBusy: ComputedRef<boolean>
-  runMailOperation: (action: () => Promise<unknown>, afterSuccess?: () => Promise<void>) => Promise<boolean>
+  patchMailSnapshots: (items: MailItemDto[]) => void
+  runMailOperation: (action: () => Promise<unknown>, afterSuccess?: (response?: unknown) => Promise<void>) => Promise<boolean>
   upsertCategory: (name: string, color: string, shortcutKey?: string) => Promise<unknown>
 }
 
@@ -34,10 +34,10 @@ export function useOutlookMailPropertiesController(options: MailPropertiesContro
   const {
     activeMailForProperties,
     categories,
-    loadCachedCategories,
-    loadCachedMailSearchResults,
-    loadCachedMails,
+    loadCategoriesFromRequest,
+    loadRequestMailItems,
     outlookBusy,
+    patchMailSnapshots,
     runMailOperation,
     upsertCategory,
   } = options
@@ -105,8 +105,14 @@ export function useOutlookMailPropertiesController(options: MailPropertiesContro
     }
     await runMailOperation(
       () => outlookApi.requestUpdateMailProperties(body),
-      async () => {
-        await Promise.allSettled([loadCachedMails(), loadCachedMailSearchResults(), loadCachedCategories()])
+      async (response) => {
+        if (isRequestEnvelope(response)) {
+          patchMailSnapshots(await loadRequestMailItems(response))
+          if (newCategories.length > 0) {
+            const categoriesResponse = await outlookApi.requestCategories()
+            await loadCategoriesFromRequest(categoriesResponse)
+          }
+        }
       },
     )
   }
@@ -200,4 +206,9 @@ export function useOutlookMailPropertiesController(options: MailPropertiesContro
     updateCategoryColor,
     visibleMasterCategories,
   }
+}
+
+function isRequestEnvelope(value: unknown): value is { requestId?: string; request?: string } {
+  const candidate = value as { requestId?: unknown; request?: unknown }
+  return typeof candidate?.requestId === 'string' && typeof candidate?.request === 'string'
 }

@@ -20,8 +20,7 @@ type MailListControllerOptions = {
   manualOutlookDeleteMessage: string
   deletedFolderForPath: (path: string) => { folderPath: string; folderType: string; label: string } | null
   isInDeletedFolder: (path: string) => boolean
-  loadCachedFolders: () => Promise<void>
-  runMailOperation: (action: () => Promise<unknown>, afterSuccess?: () => Promise<void>) => Promise<boolean>
+  runMailOperation: (action: () => Promise<unknown>, afterSuccess?: (response?: unknown) => Promise<void>) => Promise<boolean>
 }
 
 export function useOutlookMailListController(options: MailListControllerOptions) {
@@ -33,7 +32,6 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     folders,
     folderOptions,
     isInDeletedFolder,
-    loadCachedFolders,
     mailListMode,
     mailSearchResults,
     mails,
@@ -215,7 +213,6 @@ export function useOutlookMailListController(options: MailListControllerOptions)
 
   function applyConfirmedFolderDeltas(deltas: Map<string, number>) {
     applyFolderCountDeltas(deltas)
-    void loadCachedFolders()
   }
 
   async function moveMailToFolder(mail: MailItemDto, destinationFolderPath: string) {

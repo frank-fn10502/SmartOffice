@@ -46,14 +46,14 @@ const logCounts = computed(() => {
         <h1>Hub Admin</h1>
         <div class="admin-health-line">
           <span class="admin-health-dot" :class="healthTone" />
-          <span>Outlook Add-in {{ healthLabel }}</span>
+          <span>Outlook connection {{ healthLabel }}</span>
           <span>Last command: {{ lastCommandLabel }}</span>
         </div>
       </div>
       <div class="admin-hero-actions">
         <el-button :icon="Refresh" @click="refreshAdminData">Refresh</el-button>
         <el-button type="primary" :loading="loadingSignalRPing" :disabled="!addinStatus.connected" @click="requestSignalRPing">
-          SignalR Ping
+          Connection Ping
         </el-button>
       </div>
     </section>
@@ -70,7 +70,7 @@ const logCounts = computed(() => {
 
         <div class="admin-metric-stack">
           <div class="admin-metric primary">
-            <span>Outlook Add-in</span>
+            <span>Outlook connection</span>
             <strong :class="healthTone">{{ healthLabel }}</strong>
           </div>
           <div class="admin-metric">
@@ -131,7 +131,7 @@ const logCounts = computed(() => {
       <div class="admin-card-header">
         <div class="panel-title">
           <el-icon><Operation /></el-icon>
-          <span>Add-in Logs</span>
+          <span>Runtime Logs</span>
         </div>
         <div class="admin-log-stats">
           <el-tag effect="plain">{{ logCounts.info }} info</el-tag>

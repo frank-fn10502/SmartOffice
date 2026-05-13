@@ -1,4 +1,5 @@
 ﻿import { outlookApi } from '../api/outlook'
+import type { FetchResultResponse } from '../models/outlook'
 
 export function isRequestResponse(value: unknown): value is { requestId?: string; request?: string; state: string; data?: unknown } {
   const response = value as { requestId?: unknown; request?: unknown; state?: unknown; data?: unknown }
@@ -44,4 +45,30 @@ export async function waitForOutlookRequest(
     await new Promise((resolve) => window.setTimeout(resolve, 300))
   }
   throw new Error('Outlook operation timed out')
+}
+
+export async function collectOutlookRequestData<TData = Record<string, unknown>>(
+  response: { requestId?: string; request?: string },
+  options: { take?: number; isUnmounted?: () => boolean } = {},
+) {
+  const requestId = requestIdFromResponse(response)
+  if (!requestId) return []
+  const endpoint = fetchResultEndpoint(response)
+  const pages: Array<FetchResultResponse<TData>> = []
+  let cursor = ''
+  do {
+    if (options.isUnmounted?.()) break
+    const state = await outlookApi.fetchResult<TData>(endpoint, {
+      requestId,
+      cursor,
+      take: options.take ?? 100,
+    })
+    if (state.state !== 'completed') {
+      throw new Error(state.message || 'Outlook operation is not completed')
+    }
+    pages.push(state)
+    cursor = state.next.cursor
+    if (!state.next.hasMore) break
+  } while (cursor)
+  return pages
 }

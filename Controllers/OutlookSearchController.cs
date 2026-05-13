@@ -89,24 +89,6 @@ namespace SmartOffice.Hub.Controllers
             return Ok(OperationAccepted(cmd, new { folderMailsId = cmd.Id, resultKind = "folder_mails" }));
         }
 
-        /// <summary>
-        /// Web UI、AI 或 MCP client 取得 mail search results。
-        /// </summary>
-        [HttpGet("mail-search")]
-        public IActionResult GetMailSearchResults()
-        {
-            return Ok(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMailSearchResults()));
-        }
-
-        /// <summary>
-        /// Web UI、AI 或 MCP client 取得上次 folder mail request 的 results。
-        /// </summary>
-        [HttpGet("folder-mails")]
-        public IActionResult GetFolderMails()
-        {
-            return Ok(OutlookFolderPathMapper.ToApiMails(_mailStore.GetFolderMailResults()));
-        }
-
         [HttpPost("fetch-result-mail-search")]
         public IActionResult FetchResultMailSearch([FromBody] FetchResultRequest req)
         {
@@ -162,7 +144,7 @@ namespace SmartOffice.Hub.Controllers
                     CommandId = cmd.Id,
                     Status = "failed",
                     Phase = "load_folders",
-                    Message = "folder_cache_unavailable",
+                    Message = "folder_unavailable",
                     Timestamp = DateTime.Now,
                 });
                 await _hub.Clients.All.SendAsync("MailSearchProgress", failed, ct);
@@ -287,7 +269,7 @@ namespace SmartOffice.Hub.Controllers
             var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct, loadPendingChildren: req.IncludeSubFolders);
             if (!folderReady)
             {
-                RecordFolderMailsFailure(cmd, "Hub could not load Outlook folders for folder mails.", "folder_cache_unavailable");
+                RecordFolderMailsFailure(cmd, "Hub could not load Outlook folders for folder mails.", "folder_unavailable");
                 return Conflict(ResultEnvelope(
                     cmd.Id,
                     cmd.Type,

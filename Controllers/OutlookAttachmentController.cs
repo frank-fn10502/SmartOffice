@@ -166,7 +166,7 @@ namespace SmartOffice.Hub.Controllers
                     {
                         CommandId = cmd.Id,
                         Success = false,
-                        Message = "folder_cache_unavailable",
+                        Message = "folder_unavailable",
                         Timestamp = DateTime.Now,
                     });
                     return false;

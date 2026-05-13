@@ -168,7 +168,7 @@ namespace SmartOffice.Hub.Controllers
             {
                 CommandId = command.Id,
                 Success = success,
-                Message = success ? "completed" : "folder_cache_unavailable",
+                Message = success ? "completed" : "folder_unavailable",
                 Timestamp = DateTime.Now,
             });
             return success;
@@ -428,7 +428,7 @@ namespace SmartOffice.Hub.Controllers
                     {
                         CommandId = cmd.Id,
                         Success = false,
-                        Message = "folder_cache_unavailable",
+                        Message = "folder_unavailable",
                         Timestamp = DateTime.Now,
                     });
                     return false;

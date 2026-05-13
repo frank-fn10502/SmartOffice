@@ -1,8 +1,9 @@
 ﻿import type { ComputedRef, Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { outlookApi } from '../api/outlook'
-import type { FolderTreeNode, MailItemDto, OutlookStoreDto } from '../models/outlook'
+import type { FolderDto, FolderTreeNode, MailItemDto, OutlookStoreDto } from '../models/outlook'
 import { buildFolderTree, findFolderByPath, folderType, isMailSelectableFolder } from '../utils/folders'
+import { collectOutlookRequestData } from './outlookRequests'
 
 type FolderOption = any
 
@@ -93,8 +94,12 @@ export function useOutlookFoldersController(options: FoldersControllerOptions) {
     return counts
   }
 
-  async function loadCachedFolders(options: { preserveExistingCounts?: boolean } = {}) {
-    const snapshot = await outlookApi.getFolders()
+  async function loadFoldersFromRequest(response: { requestId?: string; request?: string }, options: { preserveExistingCounts?: boolean } = {}) {
+    const pages = await collectOutlookRequestData<{ stores?: OutlookStoreDto[]; folders?: FolderDto[] }>(response)
+    const snapshot = {
+      stores: pages[0]?.data?.stores ?? [],
+      folders: pages.flatMap((page) => page.data?.folders ?? []),
+    }
     if (options.preserveExistingCounts) {
       const existingCounts = collectExistingFolderCounts()
       snapshot.folders = snapshot.folders.map((folder) => {
@@ -113,7 +118,7 @@ export function useOutlookFoldersController(options: FoldersControllerOptions) {
     try {
       const response = await outlookApi.requestFolders()
       await waitForRequest(response)
-      await loadCachedFolders()
+      await loadFoldersFromRequest(response)
       await loadVisibleRootChildren()
       markInitialFoldersComplete()
       loadingFolders.value = false
@@ -161,7 +166,7 @@ export function useOutlookFoldersController(options: FoldersControllerOptions) {
         maxChildren: 50,
       })
       await waitForRequest(response)
-      await loadCachedFolders({ preserveExistingCounts: true })
+      await loadFoldersFromRequest(response, { preserveExistingCounts: true })
     } finally {
       loadingFolders.value = false
     }
@@ -182,7 +187,7 @@ export function useOutlookFoldersController(options: FoldersControllerOptions) {
         maxChildren: 50,
       })
       await waitForRequest(response)
-      await loadCachedFolders({ preserveExistingCounts: true })
+      await loadFoldersFromRequest(response, { preserveExistingCounts: true })
     }
   }
 
@@ -228,7 +233,7 @@ export function useOutlookFoldersController(options: FoldersControllerOptions) {
             maxChildren: 50,
           })
           await waitForRequest(response)
-          await loadCachedFolders({ preserveExistingCounts: true })
+          await loadFoldersFromRequest(response, { preserveExistingCounts: true })
         } finally {
           loadingFolders.value = false
         }
@@ -363,7 +368,7 @@ export function useOutlookFoldersController(options: FoldersControllerOptions) {
     createFolderFromContext,
     ensureStartupInboxFolderLoaded,
     fetchMailsFromContext,
-    loadCachedFolders,
+    loadFoldersFromRequest,
     openFolderContextMenu,
     requestFolders,
     requestMails,

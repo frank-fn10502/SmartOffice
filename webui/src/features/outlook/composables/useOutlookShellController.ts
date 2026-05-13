@@ -25,12 +25,6 @@ type ShellControllerOptions = {
   clearMailBodyLoads: () => void
   clearSelectedMailIndex: () => void
   closeFolderContextMenu: () => void
-  loadCachedCalendar: () => Promise<void>
-  loadCachedCategories: () => Promise<void>
-  loadCachedFolders: () => Promise<void>
-  loadCachedMailSearchResults: () => Promise<void>
-  loadCachedMails: () => Promise<void>
-  loadCachedRules: () => Promise<void>
   mailListMode: Ref<'folder' | 'search'>
   mailListNeedsFetch: Ref<boolean>
   outlookBusy: Ref<boolean>
@@ -59,12 +53,6 @@ export function useOutlookShellController(options: ShellControllerOptions) {
     clearMailBodyLoads,
     clearSelectedMailIndex,
     closeFolderContextMenu,
-    loadCachedCalendar,
-    loadCachedCategories,
-    loadCachedFolders,
-    loadCachedMailSearchResults,
-    loadCachedMails,
-    loadCachedRules,
     mailListMode,
     mailListNeedsFetch,
     outlookBusy,
@@ -175,12 +163,6 @@ export function useOutlookShellController(options: ShellControllerOptions) {
     window.addEventListener('click', closeFolderContextMenu)
     void connectSignalR()
     await Promise.allSettled([
-      loadCachedFolders(),
-      loadCachedMails(),
-      loadCachedMailSearchResults(),
-      loadCachedRules(),
-      loadCachedCategories(),
-      loadCachedCalendar(),
       loadChat(),
       refreshAdminData(),
       loadAttachmentExportSettings(),

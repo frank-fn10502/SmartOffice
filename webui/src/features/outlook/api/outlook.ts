@@ -389,23 +389,10 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 }
 
 export const outlookApi = {
-  getFolders: () => getJson<FolderSnapshotDto>('/api/outlook/folders'),
-  getMails: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mails')),
-  getFolderMails: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/folder-mails')),
-  getMailAttachments: async (mailId: string) =>
-    normalizeMailAttachments(await getJson<unknown>(`/api/outlook/mail-attachments?mailId=${encodeURIComponent(mailId)}`)),
-  getMailConversation: async (mailId: string) =>
-    normalizeMailConversation(await getJson<unknown>(`/api/outlook/mail-conversation?mailId=${encodeURIComponent(mailId)}`)),
-  getMailSearchResults: async () => normalizeMailItems(await getJson<unknown>('/api/outlook/mail-search')),
   getMailSearchProgress: async (searchId: string) =>
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/${encodeURIComponent(searchId)}`)),
   getMailSearchProgressByCommandId: async (commandId: string) =>
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/by-command/${encodeURIComponent(commandId)}`)),
-  getRules: async () => normalizeOutlookRules(await getJson<unknown>('/api/outlook/rules')),
-  getCategories: async () => normalizeOutlookCategories(await getJson<unknown>('/api/outlook/categories')),
-  getCalendar: async () => normalizeCalendarEvents(await getJson<unknown>('/api/outlook/calendar')),
-  getAddressBook: async (query = '', take = 200) =>
-    normalizeAddressBookResponse(await getJson<unknown>(`/api/outlook/address-book?query=${encodeURIComponent(query)}&take=${take}`)),
   lookupAddressBookContact: async (email: string) =>
     normalizeAddressBookLookupResponse(await getJson<unknown>(`/api/outlook/address-book/lookup?email=${encodeURIComponent(email)}`)),
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
