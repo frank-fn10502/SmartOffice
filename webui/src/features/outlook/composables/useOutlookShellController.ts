@@ -29,6 +29,7 @@ type ShellControllerOptions = {
   mailListNeedsFetch: Ref<boolean>
   outlookBusy: Ref<boolean>
   outlookDependentViewsLocked: Ref<boolean>
+  requestCalendar: () => Promise<void>
   requestRules: () => Promise<void>
   runStartupOutlookSync: () => Promise<void>
   savingAttachmentExportSettings: Ref<boolean>
@@ -57,6 +58,7 @@ export function useOutlookShellController(options: ShellControllerOptions) {
     mailListNeedsFetch,
     outlookBusy,
     outlookDependentViewsLocked,
+    requestCalendar,
     requestRules,
     runStartupOutlookSync,
     savingAttachmentExportSettings,
@@ -65,6 +67,7 @@ export function useOutlookShellController(options: ShellControllerOptions) {
     setUnmounted,
   } = options
   let connection: signalR.HubConnection | null = null
+  const loadedViews = new Set<AppView>()
 
   async function scrollChatToBottom() {
     await nextTick()
@@ -119,8 +122,15 @@ export function useOutlookShellController(options: ShellControllerOptions) {
   }
 
   async function switchView(view: AppView) {
-    if (outlookDependentViewsLocked.value && ['search', 'rules', 'chat', 'calendar'].includes(view)) return
+    if (outlookDependentViewsLocked.value && ['search', 'rules', 'chat', 'calendar', 'contacts'].includes(view)) return
     activeView.value = view
+    if (view === 'admin') {
+      cancelScheduledMailFetch()
+      clearSelectedMailIndex()
+      void refreshAdminData()
+      void loadAttachmentExportSettings()
+      return
+    }
     if (view === 'outlook') {
       mailListMode.value = 'folder'
       clearSelectedMailIndex()
@@ -132,7 +142,39 @@ export function useOutlookShellController(options: ShellControllerOptions) {
       mailListMode.value = 'search'
       clearSelectedMailIndex()
     }
-    if (view === 'rules') void requestRules()
+    void loadViewOnce(view)
+  }
+
+  async function loadViewOnce(view: AppView) {
+    if (loadedViews.has(view)) return
+    if (view === 'chat') {
+      loadedViews.add(view)
+      try {
+        await loadChat()
+      } catch {
+        loadedViews.delete(view)
+      }
+      return
+    }
+    if (view === 'rules') {
+      if (outlookBusy.value) return
+      loadedViews.add(view)
+      try {
+        await requestRules()
+      } catch {
+        loadedViews.delete(view)
+      }
+      return
+    }
+    if (view === 'calendar') {
+      if (outlookBusy.value) return
+      loadedViews.add(view)
+      try {
+        await requestCalendar()
+      } catch {
+        loadedViews.delete(view)
+      }
+    }
   }
 
   async function connectSignalR() {
@@ -163,7 +205,6 @@ export function useOutlookShellController(options: ShellControllerOptions) {
     window.addEventListener('click', closeFolderContextMenu)
     void connectSignalR()
     await Promise.allSettled([
-      loadChat(),
       refreshAdminData(),
       loadAttachmentExportSettings(),
     ])

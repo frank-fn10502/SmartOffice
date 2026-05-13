@@ -636,7 +636,7 @@
   }
 
   .admin-hero,
-  .admin-grid,
+  .admin-workbench,
   .admin-metric-stack {
     grid-template-columns: 1fr;
   }

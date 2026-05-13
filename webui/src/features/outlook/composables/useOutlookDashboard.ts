@@ -98,6 +98,7 @@ export function useOutlookDashboard() {
     { label: 'Chat', value: 'chat', disabled: outlookDependentViewsLocked.value },
     { label: 'Calendar', value: 'calendar', disabled: outlookDependentViewsLocked.value },
     { label: 'Contacts', value: 'contacts', disabled: outlookDependentViewsLocked.value },
+    { label: 'Admin', value: 'admin' },
   ])
 
   const folderOptions = computed(() => collectFolderOptions(visibleFolders.value))
@@ -700,6 +701,7 @@ export function useOutlookDashboard() {
     mailListNeedsFetch,
     outlookBusy,
     outlookDependentViewsLocked,
+    requestCalendar,
     requestRules,
     runStartupOutlookSync,
     savingAttachmentExportSettings,

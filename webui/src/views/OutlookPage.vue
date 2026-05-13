@@ -11,6 +11,7 @@ import OutlookContactsView from '../features/outlook/components/OutlookContactsV
 import OutlookHomeView from '../features/outlook/components/OutlookHomeView.vue'
 import OutlookRulesView from '../features/outlook/components/OutlookRulesView.vue'
 import OutlookSearchView from '../features/outlook/components/OutlookSearchView.vue'
+import AdminPage from './AdminPage.vue'
 import type { OutlookDashboardState } from '../features/outlook/composables/useOutlookDashboard'
 import type { AppView } from '../features/outlook/models/outlook'
 import { isMeetingMessage } from '../features/outlook/utils/outlookItemTypes'
@@ -64,12 +65,15 @@ const {
       />
     </div>
 
-    <OutlookHomeView v-if="activeView === 'outlook'" :dashboard="dashboard" />
-    <OutlookSearchView v-else-if="activeView === 'search'" :dashboard="dashboard" />
-    <OutlookRulesView v-else-if="activeView === 'rules'" :dashboard="dashboard" />
-    <OutlookChatView v-else-if="activeView === 'chat'" :dashboard="dashboard" />
-    <OutlookCalendarView v-else-if="activeView === 'calendar'" :dashboard="dashboard" />
-    <OutlookContactsView v-else-if="activeView === 'contacts'" />
+    <KeepAlive>
+      <OutlookHomeView v-if="activeView === 'outlook'" :dashboard="dashboard" />
+      <AdminPage v-else-if="activeView === 'admin'" :dashboard="dashboard" />
+      <OutlookSearchView v-else-if="activeView === 'search'" :dashboard="dashboard" />
+      <OutlookRulesView v-else-if="activeView === 'rules'" :dashboard="dashboard" />
+      <OutlookChatView v-else-if="activeView === 'chat'" :dashboard="dashboard" />
+      <OutlookCalendarView v-else-if="activeView === 'calendar'" :dashboard="dashboard" />
+      <OutlookContactsView v-else-if="activeView === 'contacts'" />
+    </KeepAlive>
 
     <MeetingInvitationDialog v-if="dialogMail && isMeetingMessage(dialogMail)" :dashboard="dashboard" />
     <MailDetailDialog v-else :dashboard="dashboard" />
