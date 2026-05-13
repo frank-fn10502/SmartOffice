@@ -282,7 +282,7 @@ namespace SmartOffice.Hub.Controllers
             FolderMailsRequest req,
             CancellationToken ct)
         {
-            var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct, loadPendingChildren: true);
+            var folderReady = await _folderCache.EnsureFolderCacheAsync(cmd, ct, loadPendingChildren: req.IncludeSubFolders);
             if (!folderReady)
             {
                 RecordFolderMailsFailure(cmd, "Hub could not load Outlook folders for folder mails.", "folder_cache_unavailable");
