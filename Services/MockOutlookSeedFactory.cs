@@ -8,7 +8,7 @@ namespace SmartOffice.Hub.Services
         {
             var stores = new List<OutlookStoreDto>();
             var folders = new List<FolderDto>();
-            var now = DateTime.Now;
+            var now = UtcDateTime.Now;
 
             AddStore(stores, "mock-store-primary", "主要信箱 - Mock User", "ost", @"C:\Users\mock\AppData\Local\Microsoft\Outlook\mock.user@example.test.ost", MockOutlookPaths.PrimaryRoot);
             AddFolder(folders, "主要信箱 - Mock User", MockOutlookPaths.PrimaryRoot, "", "mock-store-primary", true);
@@ -353,7 +353,7 @@ namespace SmartOffice.Hub.Services
                         ? Group("to", "Product Team", "product@example.test", "Ada Chen", "Ben Lin", "Chris Wang")
                         : Recipient("to", "Mock User", "mock.user@example.test"),
                 },
-                ReceivedTime = receivedTime,
+                ReceivedTime = UtcDateTime.Normalize(receivedTime),
                 Body = body,
                 BodyHtml = bodyHtml ?? $"<article><h2>{subject}</h2><p>Mock 郵件內容，用於本機測試 Web UI 與 Outlook contract。</p></article>",
                 FolderPath = folderPath,
@@ -365,7 +365,7 @@ namespace SmartOffice.Hub.Services
                 IsMarkedAsTask = isMarkedAsTask,
                 FlagInterval = flagInterval,
                 FlagRequest = flagRequest,
-                TaskDueDate = isMarkedAsTask ? DateTime.Now.Date.AddDays(1) : null,
+                TaskDueDate = isMarkedAsTask ? UtcDateTime.Now.Date.AddDays(1) : null,
                 Importance = isMarkedAsTask ? "high" : "normal",
                 Sensitivity = "normal",
             };

@@ -7,7 +7,7 @@ namespace SmartOffice.Hub.Contracts
     {
         public string SyncId { get; set; } = Guid.NewGuid().ToString();
         public bool Reset { get; set; } = true;
-        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public class FolderSyncBatchDto
@@ -26,7 +26,7 @@ namespace SmartOffice.Hub.Contracts
         public int TotalCount { get; set; }
         public bool Success { get; set; } = true;
         public string Message { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public class FolderDiscoveryRequest
@@ -131,7 +131,7 @@ namespace SmartOffice.Hub.Contracts
         public int TotalCount { get; set; }
         public bool Success { get; set; } = true;
         public string Message { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public class FolderMailsSliceResultDto
@@ -157,7 +157,7 @@ namespace SmartOffice.Hub.Contracts
         public int TotalCount { get; set; }
         public bool Success { get; set; } = true;
         public string Message { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public class FetchCalendarRequest
@@ -333,7 +333,7 @@ namespace SmartOffice.Hub.Contracts
         public bool Success { get; set; }
         public string Message { get; set; } = string.Empty;
         public string Payload { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public class OutlookCommand

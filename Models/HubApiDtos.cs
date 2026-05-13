@@ -15,7 +15,7 @@ namespace SmartOffice.Hub.Models
         public string CurrentStoreId { get; set; } = string.Empty;
         public string CurrentFolderPath { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
         public int Percent
         {
             get
@@ -108,7 +108,7 @@ namespace SmartOffice.Hub.Models
         public bool? Success { get; set; }
         public string Message { get; set; } = string.Empty;
         public string Payload { get; set; } = string.Empty;
-        public DateTime DispatchTimestamp { get; set; } = DateTime.Now;
+        public DateTime DispatchTimestamp { get; set; } = DateTime.UtcNow;
         public DateTime? ResultTimestamp { get; set; }
     }
 

@@ -95,8 +95,9 @@ namespace SmartOffice.Hub.Services
 
         private static bool InReceivedTime(MailItemDto mail, DateTime? receivedFrom, DateTime? receivedTo)
         {
-            if (receivedFrom is not null && mail.ReceivedTime < receivedFrom.Value) return false;
-            if (receivedTo is not null && mail.ReceivedTime > receivedTo.Value) return false;
+            var receivedTime = UtcDateTime.Normalize(mail.ReceivedTime);
+            if (receivedFrom is not null && receivedTime < UtcDateTime.Normalize(receivedFrom.Value)) return false;
+            if (receivedTo is not null && receivedTime > UtcDateTime.Normalize(receivedTo.Value)) return false;
             return true;
         }
 

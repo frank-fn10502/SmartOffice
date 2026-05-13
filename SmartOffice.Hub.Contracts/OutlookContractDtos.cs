@@ -50,7 +50,7 @@ namespace SmartOffice.Hub.Contracts
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Source { get; set; } = string.Empty;
         public string Text { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public enum OutlookFolderType
@@ -174,7 +174,7 @@ namespace SmartOffice.Hub.Contracts
         public string LocalPath { get; set; } = string.Empty;
         public string FullPath { get; set; } = string.Empty;
         public string ExportedPath { get; set; } = string.Empty;
-        public DateTime ExportedAt { get; set; } = DateTime.Now;
+        public DateTime ExportedAt { get; set; } = DateTime.UtcNow;
     }
 
     public class OutlookRuleDto
@@ -216,6 +216,6 @@ namespace SmartOffice.Hub.Contracts
     {
         public string Level { get; set; } = "info";
         public string Message { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 }

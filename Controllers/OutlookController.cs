@@ -492,8 +492,8 @@ namespace SmartOffice.Hub.Controllers
             var request = new FetchMailsRequest
             {
                 FolderPath = req.FolderPath,
-                ReceivedFrom = req.ReceivedFrom,
-                ReceivedTo = req.ReceivedTo,
+                ReceivedFrom = UtcDateTime.Normalize(req.ReceivedFrom),
+                ReceivedTo = UtcDateTime.Normalize(req.ReceivedTo),
                 MaxCount = req.MaxCount,
             };
             if (req.LookbackHours is null) return (request, null);
@@ -516,8 +516,10 @@ namespace SmartOffice.Hub.Controllers
                 }));
             }
 
-            request.ReceivedTo ??= DateTime.Now;
+            request.ReceivedTo ??= UtcDateTime.Now;
             request.ReceivedFrom ??= request.ReceivedTo.Value.Subtract(TimeSpan.FromHours(req.LookbackHours.Value));
+            request.ReceivedFrom = UtcDateTime.Normalize(request.ReceivedFrom);
+            request.ReceivedTo = UtcDateTime.Normalize(request.ReceivedTo);
             return (request, null);
         }
 

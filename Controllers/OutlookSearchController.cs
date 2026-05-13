@@ -73,6 +73,8 @@ namespace SmartOffice.Hub.Controllers
             if (string.IsNullOrWhiteSpace(req.FolderPath))
                 return BadRequest(new { status = "missing_folder_path", message = "folderPath is required." });
             req.MaxCount = Math.Clamp(req.MaxCount <= 0 ? 30 : req.MaxCount, 1, 500);
+            req.ReceivedFrom = UtcDateTime.Normalize(req.ReceivedFrom);
+            req.ReceivedTo = UtcDateTime.Normalize(req.ReceivedTo);
 
             req.FolderPath = OutlookFolderPathMapper.ToAddinPath(req.FolderPath);
 
@@ -564,6 +566,8 @@ namespace SmartOffice.Hub.Controllers
             req.CategoryNames = NormalizeMailSearchCategoryNames(req.CategoryNames);
             req.FlagState = NormalizeMailSearchState(req.FlagState, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "any", "flagged", "unflagged" });
             req.ReadState = NormalizeMailSearchState(req.ReadState, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "any", "unread", "read" });
+            req.ReceivedFrom = UtcDateTime.Normalize(req.ReceivedFrom);
+            req.ReceivedTo = UtcDateTime.Normalize(req.ReceivedTo);
         }
 
         private static bool HasExplicitMailSearchScope(SearchMailsRequest req)
