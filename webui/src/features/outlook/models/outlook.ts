@@ -143,30 +143,6 @@ export interface FolderMailsRequest {
   maxCount?: number
 }
 
-export interface MailSearchSliceResultDto {
-  searchId: string
-  commandId: string
-  parentCommandId: string
-  sequence: number
-  sliceIndex: number
-  sliceCount: number
-  reset: boolean
-  isFinal: boolean
-  isSliceComplete: boolean
-  mails: MailItemDto[]
-  message: string
-}
-
-export interface MailSearchCompleteDto {
-  searchId: string
-  commandId: string
-  parentCommandId: string
-  totalCount: number
-  success: boolean
-  message: string
-  timestamp: string
-}
-
 export interface MailSearchProgressDto {
   searchId: string
   commandId: string
@@ -182,14 +158,6 @@ export interface MailSearchProgressDto {
   message: string
   timestamp: string
   percent: number
-}
-
-export interface OutlookCommandResult {
-  commandId: string
-  success: boolean
-  message: string
-  payload: string
-  timestamp: string
 }
 
 export interface OutlookRecipientDto {

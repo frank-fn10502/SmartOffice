@@ -15,12 +15,10 @@
   MailAttachmentsDto,
   MailBodyDto,
   MailConversationDto,
-  MailSearchSliceResultDto,
   MailSearchProgressDto,
   MailPropertiesCommandRequest,
   MailItemDto,
   OutlookRecipientDto,
-  OutlookCommandResult,
   OutlookCategoryDto,
   OutlookRuleDto,
   OutlookRuleCommandRequest,
@@ -123,23 +121,6 @@ export function normalizeMailItem(item: unknown): MailItemDto {
 
 export function normalizeMailItems(items: unknown): MailItemDto[] {
   return Array.isArray(items) ? items.map(normalizeMailItem) : []
-}
-
-export function normalizeMailSearchSliceResult(item: unknown): MailSearchSliceResultDto {
-  const source = (item ?? {}) as LooseRecord
-  return {
-    searchId: readString(source, 'searchId', 'SearchId'),
-    commandId: readString(source, 'commandId', 'CommandId'),
-    parentCommandId: readString(source, 'parentCommandId', 'ParentCommandId'),
-    sequence: readNumber(source, 'sequence', 'Sequence'),
-    sliceIndex: readNumber(source, 'sliceIndex', 'SliceIndex'),
-    sliceCount: readNumber(source, 'sliceCount', 'SliceCount'),
-    reset: readBoolean(source, 'reset', 'Reset'),
-    isFinal: readBoolean(source, 'isFinal', 'IsFinal'),
-    isSliceComplete: readBoolean(source, 'isSliceComplete', 'IsSliceComplete'),
-    mails: normalizeMailItems(source.mails ?? source.Mails),
-    message: readString(source, 'message', 'Message'),
-  }
 }
 
 export function normalizeMailSearchProgress(item: unknown): MailSearchProgressDto {
@@ -391,16 +372,12 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 export const outlookApi = {
   getMailSearchProgress: async (searchId: string) =>
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/${encodeURIComponent(searchId)}`)),
-  getMailSearchProgressByCommandId: async (commandId: string) =>
-    normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/by-command/${encodeURIComponent(commandId)}`)),
   lookupAddressBookContact: async (email: string) =>
     normalizeAddressBookLookupResponse(await getJson<unknown>(`/api/outlook/address-book/lookup?email=${encodeURIComponent(email)}`)),
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
   getAdminLogs: () => getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),
   getAttachmentExportSettings: () => getJson<AttachmentExportSettingsDto>('/api/outlook/attachment-export-settings'),
-  getCommandResult: (commandId: string) =>
-    getJson<OutlookCommandResult>(`/api/outlook/command-results/${encodeURIComponent(commandId)}`),
   fetchResult: <TData = Record<string, unknown>>(endpoint: string, body: FetchResultRequest) =>
     postJson<FetchResultResponse<TData>>(`/api/outlook/${endpoint}`, body),
 

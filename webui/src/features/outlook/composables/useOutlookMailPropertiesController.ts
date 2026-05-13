@@ -22,12 +22,13 @@ import { buildMailPropertiesDraft, buildMailPropertiesPayload } from './outlookM
 type MailPropertiesControllerOptions = {
   activeMailForProperties: ComputedRef<MailItemDto | null>
   categories: Ref<OutlookCategoryDto[]>
-  loadCategoriesFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
-  loadRequestMailItems: (response: { requestId?: string; request?: string }) => Promise<MailItemDto[]>
+  loadCategoriesFromRequest: (response: { requestId?: string; request?: string; data?: unknown }) => Promise<void>
+  loadRequestMailItems: (response: { requestId?: string; request?: string; data?: unknown }) => Promise<MailItemDto[]>
   outlookBusy: ComputedRef<boolean>
   patchMailSnapshots: (items: MailItemDto[]) => void
   runMailOperation: (action: () => Promise<unknown>, afterSuccess?: (response?: unknown) => Promise<void>) => Promise<boolean>
   upsertCategory: (name: string, color: string, shortcutKey?: string) => Promise<unknown>
+  waitForRequest: (response: { requestId?: string; request?: string; data?: unknown }, timeoutMs?: number) => Promise<void>
 }
 
 export function useOutlookMailPropertiesController(options: MailPropertiesControllerOptions) {
@@ -40,6 +41,7 @@ export function useOutlookMailPropertiesController(options: MailPropertiesContro
     patchMailSnapshots,
     runMailOperation,
     upsertCategory,
+    waitForRequest,
   } = options
 
   const activeMailPropertySections = ref(['set-mail-properties'])
@@ -110,6 +112,7 @@ export function useOutlookMailPropertiesController(options: MailPropertiesContro
           patchMailSnapshots(await loadRequestMailItems(response))
           if (newCategories.length > 0) {
             const categoriesResponse = await outlookApi.requestCategories()
+            await waitForRequest(categoriesResponse)
             await loadCategoriesFromRequest(categoriesResponse)
           }
         }

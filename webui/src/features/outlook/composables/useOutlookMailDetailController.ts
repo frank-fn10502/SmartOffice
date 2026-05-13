@@ -19,7 +19,7 @@ type MailDetailControllerOptions = {
   completeAttachmentLoad: (mailId: string) => void
   completeConversationLoad: (mailId: string) => void
   completeMailBodyLoad: (mailId: string) => void
-  loadRequestMailItems: (response: { requestId?: string; request?: string }) => Promise<MailItemDto[]>
+  loadRequestMailItems: (response: { requestId?: string; request?: string; data?: unknown }) => Promise<MailItemDto[]>
   patchMailAttachments: (payload: MailAttachmentsDto) => void
   patchMailConversation: (payload: MailConversationDto) => void
   patchMailSnapshots: (items: MailItemDto[]) => void
@@ -182,7 +182,7 @@ export function useOutlookMailDetailController(options: MailDetailControllerOpti
     await outlookApi.openExportedAttachment({ exportedAttachmentId: attachment.exportedAttachmentId })
   }
 
-  async function loadRequestMailAttachments(response: { requestId?: string; request?: string }) {
+  async function loadRequestMailAttachments(response: { requestId?: string; request?: string; data?: unknown }) {
     const pages = await collectOutlookRequestData<{
       mailId?: string
       folderPath?: string

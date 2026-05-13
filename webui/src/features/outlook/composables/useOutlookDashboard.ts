@@ -272,22 +272,22 @@ export function useOutlookDashboard() {
     updateOutlookFirstLoadCompleted()
   }
 
-  async function loadRequestMailItems(response: { requestId?: string; request?: string }) {
+  async function loadRequestMailItems(response: { requestId?: string; request?: string; data?: unknown }) {
     const pages = await collectOutlookRequestData<{ mails?: unknown[] }>(response, { isUnmounted: () => unmounted })
     return normalizeMailItems(pages.flatMap((page) => page.data?.mails ?? []))
   }
 
-  async function loadRulesFromRequest(response: { requestId?: string; request?: string }) {
+  async function loadRulesFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
     const pages = await collectOutlookRequestData<{ rules?: OutlookRuleDto[] }>(response, { isUnmounted: () => unmounted })
     rules.value = pages.flatMap((page) => page.data?.rules ?? [])
   }
 
-  async function loadCategoriesFromRequest(response: { requestId?: string; request?: string }) {
+  async function loadCategoriesFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
     const pages = await collectOutlookRequestData<{ categories?: OutlookCategoryDto[] }>(response, { isUnmounted: () => unmounted })
     categories.value = pages.flatMap((page) => page.data?.categories ?? [])
   }
 
-  async function loadCalendarFromRequest(response: { requestId?: string; request?: string }) {
+  async function loadCalendarFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
     const pages = await collectOutlookRequestData<{ calendarEvents?: CalendarEventDto[] }>(response, { isUnmounted: () => unmounted })
     calendarEvents.value = pages.flatMap((page) => page.data?.calendarEvents ?? [])
   }
@@ -378,6 +378,7 @@ export function useOutlookDashboard() {
     rules,
     runMailOperation,
     selectedRuleIndex,
+    waitForRequest,
   })
 
   const {
@@ -410,6 +411,7 @@ export function useOutlookDashboard() {
     patchMailSnapshots,
     runMailOperation,
     upsertCategory,
+    waitForRequest,
   })
 
   function showFolderMails() {
@@ -660,7 +662,6 @@ export function useOutlookDashboard() {
     folderNameForPath,
     folderOptions,
     folderStores,
-    loadFoldersFromRequest,
     loadRequestMailItems,
     loadingMailSearch,
     mailListMode,

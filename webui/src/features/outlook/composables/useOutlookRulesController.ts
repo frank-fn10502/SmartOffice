@@ -19,8 +19,9 @@ type RulesControllerOptions = {
   loadingRules: Ref<boolean>
   outlookBusy: Ref<boolean>
   runMailOperation: (action: () => Promise<unknown>, afterSuccess?: (response?: unknown) => Promise<void>) => Promise<boolean>
-  loadRulesFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
-  loadCategoriesFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
+  loadRulesFromRequest: (response: { requestId?: string; request?: string; data?: unknown }) => Promise<void>
+  loadCategoriesFromRequest: (response: { requestId?: string; request?: string; data?: unknown }) => Promise<void>
+  waitForRequest: (response: { requestId?: string; request?: string; data?: unknown }, timeoutMs?: number) => Promise<void>
 }
 
 export function useOutlookRulesController(options: RulesControllerOptions) {
@@ -33,6 +34,7 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
     rules,
     runMailOperation,
     selectedRuleIndex,
+    waitForRequest,
   } = options
 
   async function requestRules() {
@@ -149,6 +151,7 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
 
   async function requestCategoriesAfterRuleChange() {
     const response = await outlookApi.requestCategories()
+    await waitForRequest(response)
     await loadCategoriesFromRequest(response)
   }
 

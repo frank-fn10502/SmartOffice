@@ -13,7 +13,18 @@ export function requestIdFromResponse(response: { requestId?: string }) {
   return response.requestId || ''
 }
 
-export function fetchResultEndpoint(response: { request?: string }) {
+function endpointNameFromPath(path: string) {
+  const normalized = path.trim()
+  const marker = '/api/outlook/'
+  return normalized.startsWith(marker) ? normalized.slice(marker.length) : normalized.replace(/^\/+/, '')
+}
+
+export function fetchResultEndpoint(response: { request?: string; data?: unknown }) {
+  const fetchResultEndpoint = (response.data as { fetchResultEndpoint?: unknown } | undefined)?.fetchResultEndpoint
+  if (typeof fetchResultEndpoint === 'string' && fetchResultEndpoint.trim()) {
+    return endpointNameFromPath(fetchResultEndpoint)
+  }
+
   const request = response.request || ''
   return request.startsWith('request-')
     ? request.replace('request-', 'fetch-result-')

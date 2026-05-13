@@ -23,8 +23,7 @@ type SearchControllerOptions = {
   collapsedSearchResultStores: Ref<Set<string>>
   folderOptions: Ref<Array<{ folderPath: string; storeId: string; label: string; name: string }>>
   folderStores: Ref<OutlookStoreDto[]>
-  loadFoldersFromRequest: (response: { requestId?: string; request?: string }, options?: { preserveExistingCounts?: boolean }) => Promise<void>
-  loadRequestMailItems: (response: { requestId?: string; request?: string }) => Promise<MailItemDto[]>
+  loadRequestMailItems: (response: { requestId?: string; request?: string; data?: unknown }) => Promise<MailItemDto[]>
   loadingMailSearch: Ref<boolean>
   mailListMode: Ref<'folder' | 'search'>
   mailSearchDraft: Ref<MailSearchDraft>
@@ -45,7 +44,6 @@ export function useOutlookSearchController(options: SearchControllerOptions) {
     folderNameForPath,
     folderOptions,
     folderStores,
-    loadFoldersFromRequest,
     loadRequestMailItems,
     loadingMailSearch,
     mailListMode,
@@ -247,7 +245,6 @@ export function useOutlookSearchController(options: SearchControllerOptions) {
         receivedTo: localDateTimeToIso(mailSearchDraft.value.receivedTo),
       })
       await waitForRequest(response)
-      await loadFoldersFromRequest(response, { preserveExistingCounts: true })
       try {
         const result = await outlookApi.fetchResult<{ searchId?: string }>(fetchResultEndpoint(response), {
           requestId: requestIdFromResponse(response),
