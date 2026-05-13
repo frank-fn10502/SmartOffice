@@ -11,6 +11,25 @@
 如果 `webui/package.json` 存在，Quick Mode 會先執行前端 build，再執行 .NET build。
 不要在 host 直接執行 npm 指令；前端 npm install/build 必須在 Docker/devcontainer 內執行。
 
+## Web UI 行數 Gate
+
+`webui/src/` 內 `.ts` 與 `.vue` 檔案不得超過 800 行。這是硬性驗收規則，任何 Web UI 變更都必須經過檢查。
+
+Preferred validation：
+
+```bash
+./scripts/build-in-container.sh
+```
+
+此流程會執行 `npm run check:file-lines`。若只需要在 devcontainer 內快速檢查行數，可執行：
+
+```bash
+cd webui
+npm run check:file-lines
+```
+
+若 gate 失敗，必須先依自然職責切分檔案，再繼續 build 或回覆使用者。不要把「超過 800 行」列為已知問題留到之後處理。
+
 ## Host Mode
 
 如果本機已安裝 .NET 8 SDK，也可以執行：

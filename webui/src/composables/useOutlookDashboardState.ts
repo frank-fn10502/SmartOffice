@@ -1,0 +1,112 @@
+﻿import { ref } from 'vue'
+import type {
+  AddinLogEntry,
+  AddinStatusDto,
+  AttachmentExportSettingsDto,
+  AppView,
+  ChatMessageDto,
+  FolderTreeNode,
+  MailAttachmentDto,
+  MailConversationDto,
+  MailItemDto,
+  MailSearchProgressDto,
+  OutlookCategoryDto,
+  OutlookRuleDto,
+  OutlookStoreDto,
+  SignalRState,
+} from '../models/outlook'
+import { createEmptyRuleDraft, type RuleDraft } from './outlookRules'
+
+function estimatedAttachmentExportRoot() {
+  const platform = window.navigator.platform.toLowerCase()
+  if (platform.includes('win')) return 'E:\\SmartOffice\\Attachments、D:\\SmartOffice\\Attachments 或 C:\\SmartOffice\\Attachments'
+  return '$HOME/SmartOffice/Attachments'
+}
+
+export function useOutlookDashboardState() {
+  const estimatedExportRoot = estimatedAttachmentExportRoot()
+
+  return {
+    activeView: ref<AppView>('outlook'),
+    signalRState: ref<SignalRState>('disconnected'),
+    folders: ref<FolderTreeNode[]>([]),
+    folderStores: ref<OutlookStoreDto[]>([]),
+    folderMails: ref<MailItemDto[]>([]),
+    mailSearchResults: ref<MailItemDto[]>([]),
+    mailListMode: ref<'folder' | 'search'>('folder'),
+    rules: ref<OutlookRuleDto[]>([]),
+    selectedRuleIndex: ref<number | null>(null),
+    ruleDraft: ref<RuleDraft>(createEmptyRuleDraft()),
+    categories: ref<OutlookCategoryDto[]>([]),
+    chatMessages: ref<ChatMessageDto[]>([]),
+    addinStatus: ref<AddinStatusDto>({
+      connected: false,
+      lastCommand: '',
+    }),
+    addinLogs: ref<AddinLogEntry[]>([]),
+    attachmentExportSettings: ref<AttachmentExportSettingsDto>({
+      rootPath: estimatedExportRoot,
+      defaultRootPath: estimatedExportRoot,
+    }),
+    attachmentExportRootDraft: ref(estimatedExportRoot),
+    savingAttachmentExportSettings: ref(false),
+    selectedFolderPath: ref(''),
+    fetchedMailFolderPath: ref(''),
+    pendingMailFolderPath: ref(''),
+    selectedMailIndex: ref<number | null>(null),
+    selectedMailIds: ref<Set<string>>(new Set()),
+    mailDialogVisible: ref(false),
+    mailDialogIndex: ref<number | null>(null),
+    mailDialogMailId: ref(''),
+    mailDialogHtml: ref(false),
+    expandedFolders: ref<Set<string>>(new Set()),
+    loadingMailBodyIds: ref<Set<string>>(new Set()),
+    mailAttachmentsByMailId: ref<Record<string, MailAttachmentDto[]>>({}),
+    mailConversationsByMailId: ref<Record<string, MailConversationDto>>({}),
+    loadingAttachmentMailIds: ref<Set<string>>(new Set()),
+    loadingConversationMailIds: ref<Set<string>>(new Set()),
+    exportingAttachmentIds: ref<Set<string>>(new Set()),
+    mailLookbackHours: ref(168),
+    mailCount: ref(30),
+    lastMailFetchAt: ref<Date | null>(null),
+    scheduledMailFetchAt: ref(0),
+    mailFetchCountdownTick: ref(Date.now()),
+    loadingMailSearch: ref(false),
+    searchResultViewMode: ref<'flat' | 'tree'>('tree'),
+    collapsedSearchResultStores: ref<Set<string>>(new Set()),
+    collapsedSearchResultFolders: ref<Set<string>>(new Set()),
+    mailSearchProgress: ref<MailSearchProgressDto | null>(null),
+    mailSearchDraft: ref({
+      keyword: '',
+      textFields: ['subject'] as Array<'subject' | 'sender' | 'body'>,
+      categoryNames: [] as string[],
+      hasAttachments: undefined as boolean | undefined,
+      flagState: 'any' as 'any' | 'flagged' | 'unflagged',
+      readState: 'any' as 'any' | 'unread' | 'read',
+      receivedFrom: '',
+      receivedTo: '',
+      scopeMode: 'selected_folder' as 'selected_folder' | 'selected_store' | 'global',
+    }),
+    activeMailSearchSummary: ref<Array<{ label: string; value: string; tone: 'active' | 'muted' | 'info' }>>([]),
+    chatText: ref(''),
+    loadingFolders: ref(false),
+    loadingMails: ref(true),
+    loadingRules: ref(false),
+    loadingCategories: ref(true),
+    loadingCalendar: ref(false),
+    loadingSignalRPing: ref(false),
+    requestLoading: ref(false),
+    outlookFirstLoadCompleted: ref(false),
+    creatingFolderParentPath: ref(''),
+    creatingFolderName: ref(''),
+    draggedMailId: ref(''),
+    dragOverFolderPath: ref(''),
+    folderContextMenu: ref({
+      visible: false,
+      x: 0,
+      y: 0,
+      folderPath: '',
+    }),
+    chatPanelRef: ref<HTMLElement | null>(null),
+  }
+}
