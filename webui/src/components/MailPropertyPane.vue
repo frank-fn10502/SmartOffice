@@ -3,7 +3,7 @@ import { PriceTag } from '@element-plus/icons-vue'
 import type { MailItemDto, MailPropertiesDraft, OutlookCategoryDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'
 import { formatMailSender, shouldShowRecipientSmtpAddress } from '../utils/mailAddresses'
-import { canUseMailMutation, outlookItemTypeLabel } from '../utils/outlookItemTypes'
+import { canUpdateMailProperties, outlookItemTypeLabel } from '../utils/outlookItemTypes'
 import { flagDisplayLabel, flagTagType } from '../utils/outlookDashboardHelpers'
 
 const draft = defineModel<MailPropertiesDraft>('draft', { required: true })
@@ -54,8 +54,8 @@ defineEmits<{
         <div v-if="!selectedMailHasIdentity" class="identity-warning">
           這封郵件缺少 id，Add-in 需在 PushMails 回傳 Outlook EntryID 或穩定識別後才能修改或移動。
         </div>
-        <div v-else-if="!canUseMailMutation(selectedMail)" class="identity-warning">
-          這是 {{ outlookItemTypeLabel(selectedMail) }}，目前可閱讀內容與附件；分類、旗標、移動與刪除仍需使用 Outlook 的會議/行事曆流程。
+        <div v-else-if="!canUpdateMailProperties(selectedMail)" class="identity-warning">
+          這是 {{ outlookItemTypeLabel(selectedMail) }}，目前可閱讀內容、附件，也可拖曳移動；分類、旗標與已讀狀態仍需使用 Outlook 的會議/行事曆流程。
         </div>
 
         <div class="mail-property-form">
@@ -64,15 +64,15 @@ defineEmits<{
             <div class="property-tag-picker">
               <el-tag
                 class="clickable-marker-tag"
-                :class="{ disabled: outlookBusy || !canUseMailMutation(selectedMail) }"
+                :class="{ disabled: outlookBusy || !canUpdateMailProperties(selectedMail) }"
                 :type="draft.isRead ? 'info' : 'warning'"
                 effect="plain"
                 role="button"
                 tabindex="0"
-                :aria-disabled="outlookBusy || !canUseMailMutation(selectedMail)"
-                @click="!outlookBusy && canUseMailMutation(selectedMail) && (draft.isRead = !draft.isRead)"
-                @keydown.enter.prevent="!outlookBusy && canUseMailMutation(selectedMail) && (draft.isRead = !draft.isRead)"
-                @keydown.space.prevent="!outlookBusy && canUseMailMutation(selectedMail) && (draft.isRead = !draft.isRead)"
+                :aria-disabled="outlookBusy || !canUpdateMailProperties(selectedMail)"
+                @click="!outlookBusy && canUpdateMailProperties(selectedMail) && (draft.isRead = !draft.isRead)"
+                @keydown.enter.prevent="!outlookBusy && canUpdateMailProperties(selectedMail) && (draft.isRead = !draft.isRead)"
+                @keydown.space.prevent="!outlookBusy && canUpdateMailProperties(selectedMail) && (draft.isRead = !draft.isRead)"
               >
                 {{ draft.isRead ? '已讀' : '未讀' }}
               </el-tag>
@@ -91,11 +91,11 @@ defineEmits<{
                 v-for="category in draft.categories"
                 :key="category"
                 class="property-removable-tag"
-                :closable="canUseMailMutation(selectedMail)"
+                :closable="canUpdateMailProperties(selectedMail)"
                 effect="dark"
                 :disable-transitions="true"
                 :style="categoryTagStyle(category)"
-                @close="canUseMailMutation(selectedMail) && $emit('removeCategory', category)"
+                @close="canUpdateMailProperties(selectedMail) && $emit('removeCategory', category)"
               >
                 {{ category }}
               </el-tag>
@@ -106,15 +106,15 @@ defineEmits<{
                 v-for="category in categories.filter((item) => !draft.categories.some((selected) => selected.toLowerCase() === item.name.toLowerCase()))"
                 :key="category.name"
                 class="clickable-marker-tag"
-                :class="{ disabled: outlookBusy || !canUseMailMutation(selectedMail) }"
+                :class="{ disabled: outlookBusy || !canUpdateMailProperties(selectedMail) }"
                 type="info"
                 effect="plain"
                 role="button"
                 tabindex="0"
-                :aria-disabled="outlookBusy || !canUseMailMutation(selectedMail)"
-                @click="canUseMailMutation(selectedMail) && $emit('addCategory', category.name)"
-                @keydown.enter.prevent="canUseMailMutation(selectedMail) && $emit('addCategory', category.name)"
-                @keydown.space.prevent="canUseMailMutation(selectedMail) && $emit('addCategory', category.name)"
+                :aria-disabled="outlookBusy || !canUpdateMailProperties(selectedMail)"
+                @click="canUpdateMailProperties(selectedMail) && $emit('addCategory', category.name)"
+                @keydown.enter.prevent="canUpdateMailProperties(selectedMail) && $emit('addCategory', category.name)"
+                @keydown.space.prevent="canUpdateMailProperties(selectedMail) && $emit('addCategory', category.name)"
               >
                 {{ category.name }}
               </el-tag>
@@ -129,16 +129,16 @@ defineEmits<{
                 v-for="option in flagIntervalOptions"
                 :key="option.value"
                 class="clickable-marker-tag"
-                :class="{ disabled: outlookBusy || !canUseMailMutation(selectedMail) }"
+                :class="{ disabled: outlookBusy || !canUpdateMailProperties(selectedMail) }"
                 :type="flagTagType(option.value, draft.flagInterval === option.value)"
                 :effect="draft.flagInterval === option.value ? 'dark' : 'plain'"
                 role="button"
                 tabindex="0"
                 :aria-pressed="draft.flagInterval === option.value"
-                :aria-disabled="outlookBusy || !canUseMailMutation(selectedMail)"
-                @click="canUseMailMutation(selectedMail) && $emit('setFlag', option.value)"
-                @keydown.enter.prevent="canUseMailMutation(selectedMail) && $emit('setFlag', option.value)"
-                @keydown.space.prevent="canUseMailMutation(selectedMail) && $emit('setFlag', option.value)"
+                :aria-disabled="outlookBusy || !canUpdateMailProperties(selectedMail)"
+                @click="canUpdateMailProperties(selectedMail) && $emit('setFlag', option.value)"
+                @keydown.enter.prevent="canUpdateMailProperties(selectedMail) && $emit('setFlag', option.value)"
+                @keydown.space.prevent="canUpdateMailProperties(selectedMail) && $emit('setFlag', option.value)"
               >
                 {{ option.label }}
               </el-tag>
@@ -167,7 +167,7 @@ defineEmits<{
               size="large"
               class="commit-button"
               :loading="operationLoading"
-              :disabled="!selectedMailHasIdentity || !canUseMailMutation(selectedMail) || !mailPropertiesChanged || (outlookBusy && !operationLoading)"
+              :disabled="!selectedMailHasIdentity || !canUpdateMailProperties(selectedMail) || !mailPropertiesChanged || (outlookBusy && !operationLoading)"
               @click="$emit('apply', selectedMail)"
             >
               送出並更新 Outlook

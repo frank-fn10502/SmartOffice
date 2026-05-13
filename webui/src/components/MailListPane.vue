@@ -4,7 +4,7 @@ import { Delete, Document, Rank, View } from '@element-plus/icons-vue'
 import type { MailItemDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'
 import { formatMailSender } from '../utils/mailAddresses'
-import { canUseMailMutation, outlookItemTypeLabel } from '../utils/outlookItemTypes'
+import { canMoveOutlookItem, outlookItemTypeLabel } from '../utils/outlookItemTypes'
 
 const mailLookbackHours = defineModel<number>('mailLookbackHours', { required: true })
 const mailCount = defineModel<number>('mailCount', { required: true })
@@ -87,7 +87,7 @@ defineEmits<{
         :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }"
       >
         <div class="mail-row-shell">
-          <el-tooltip :content="canUseMailMutation(mail) ? '刪除郵件' : '此 Outlook item 只能閱讀，不能當一般郵件刪除'" placement="top">
+          <el-tooltip :content="canMoveOutlookItem(mail) ? '移到刪除的郵件' : '此 Outlook item 不能移動'" placement="top">
             <el-button
               class="mail-delete-button"
               :icon="Delete"
@@ -95,16 +95,16 @@ defineEmits<{
               size="small"
               type="danger"
               plain
-              :disabled="!mail.id?.trim() || outlookBusy || !canUseMailMutation(mail)"
+              :disabled="!mail.id?.trim() || outlookBusy || !canMoveOutlookItem(mail)"
               @click.stop="deleteMail(mail)"
             />
           </el-tooltip>
-          <el-tooltip :content="canUseMailMutation(mail) ? '拖曳移動郵件' : '此 Outlook item 只能閱讀，不能當一般郵件移動'" placement="top">
+          <el-tooltip :content="canMoveOutlookItem(mail) ? '拖曳移動' : '此 Outlook item 不能移動'" placement="top">
             <button
               class="mail-drag-handle"
               type="button"
               draggable="true"
-              :disabled="!mail.id?.trim() || outlookBusy || !canUseMailMutation(mail)"
+              :disabled="!mail.id?.trim() || outlookBusy || !canMoveOutlookItem(mail)"
               @click.stop
               @dragstart="$emit('startMailDrag', mail, index, $event)"
               @dragend="$emit('clearMailDrag')"

@@ -13,12 +13,16 @@ export function isStandardMailMessage(mail: Pick<MailItemDto, 'messageClass'>) {
   return messageClass === '' || messageClass === 'ipm.note'
 }
 
-export function canUseMailMutation(mail: Pick<MailItemDto, 'messageClass'>) {
+export function canUpdateMailProperties(mail: Pick<MailItemDto, 'messageClass'>) {
   return isStandardMailMessage(mail)
 }
 
+export function canMoveOutlookItem(_mail: Pick<MailItemDto, 'messageClass'>) {
+  return true
+}
+
 export function outlookItemTypeLabel(mail: Pick<MailItemDto, 'messageClass'>) {
-  if (isMeetingMessage(mail)) return 'æè­°éè«'
+  if (isMeetingMessage(mail)) return '會議邀請'
   if (isStandardMailMessage(mail)) return ''
   return normalizedMessageClass(mail) || 'Outlook item'
 }

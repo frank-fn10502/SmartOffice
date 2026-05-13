@@ -5,7 +5,6 @@ import {
   normalizeMailAttachments,
   normalizeMailItems,
   normalizeMailSearchProgress,
-  normalizeOutlookCategories,
   outlookApi,
 } from '../api/outlook'
 import type {
@@ -26,13 +25,11 @@ import type {
   OutlookStoreDto,
   OutlookCategoryDto,
   OutlookRuleDto,
-  OutlookRuleCommandRequest,
   SignalRState,
 } from '../models/outlook'
 import {
   categoryColorOptions,
   categoryColorStyle,
-  categoryColorValue,
   categoryOptionColor,
   categoryTextColor,
 } from '../utils/categoryColors'
@@ -40,7 +37,6 @@ import { buildFolderTree, collectFolderOptions, findFolderByPath, folderType, is
 import {
   addMonths,
   buildCalendarWeeks,
-  dateInputToIso,
   defaultFlagRequest,
   flagDisplayLabel,
   flagIntervalOptions,
@@ -49,11 +45,16 @@ import {
   monthEndExclusive,
   monthStart,
   splitCategories,
-  toDateInput,
   toDateKey,
   todayInputValue,
 } from '../utils/outlookDashboardHelpers'
-import { canUseMailMutation } from '../utils/outlookItemTypes'
+import { canUpdateMailProperties } from '../utils/outlookItemTypes'
+import { buildMailPropertiesDraft, buildMailPropertiesPayload } from './outlookMailProperties'
+import { patchMailSnapshotList } from './outlookMailSnapshots'
+import { fetchResultEndpoint, isRequestResponse, requestIdFromResponse, waitForOutlookRequest } from './outlookRequests'
+import { createEmptyRuleDraft, type RuleDraft } from './outlookRules'
+import { useOutlookMailDetailController } from './useOutlookMailDetailController'
+import { useOutlookRulesController } from './useOutlookRulesController'
 
 function estimatedAttachmentExportRoot() {
   const platform = window.navigator.platform.toLowerCase()
@@ -65,24 +66,6 @@ const manualOutlookDeleteMessage = 'SmartOffice API 不會永久刪除 Outlook �
 const mailFetchDelayMs = 300
 const mailFetchCountdownTickMs = 100
 
-type RuleDraft = {
-  storeId: string
-  ruleName: string
-  originalRuleName: string
-  originalExecutionOrder?: number
-  ruleType: 'receive' | 'send'
-  enabled: boolean
-  subjectContains: string
-  bodyContains: string
-  senderAddressContains: string
-  categories: string[]
-  hasAttachment: 'any' | 'yes'
-  moveToFolderPath: string
-  assignCategories: string[]
-  markAsTask: boolean
-  stopProcessingMoreRules: boolean
-}
-
 export function useOutlookDashboard() {
   const activeView = ref<AppView>('outlook')
   const signalRState = ref<SignalRState>('disconnected')
@@ -93,23 +76,7 @@ export function useOutlookDashboard() {
   const mailListMode = ref<'folder' | 'search'>('folder')
   const rules = ref<OutlookRuleDto[]>([])
   const selectedRuleIndex = ref<number | null>(null)
-  const ruleDraft = ref<RuleDraft>({
-    storeId: '',
-    ruleName: '',
-    originalRuleName: '',
-    originalExecutionOrder: undefined as number | undefined,
-    ruleType: 'receive' as 'receive' | 'send',
-    enabled: true,
-    subjectContains: '',
-    bodyContains: '',
-    senderAddressContains: '',
-    categories: [] as string[],
-    hasAttachment: 'any' as 'any' | 'yes',
-    moveToFolderPath: '',
-    assignCategories: [] as string[],
-    markAsTask: false,
-    stopProcessingMoreRules: true,
-  })
+  const ruleDraft = ref<RuleDraft>(createEmptyRuleDraft())
   const categories = ref<OutlookCategoryDto[]>([])
   const calendarEvents = ref<CalendarEventDto[]>([])
   const calendarMonthDate = ref(monthStart(new Date()))
@@ -530,48 +497,6 @@ function categoryTagStyle(name: string) {
   }
 }
 
-  function buildMailPropertiesDraft(mail: MailItemDto) {
-    const flagInterval = mail.flagInterval || (mail.isMarkedAsTask ? 'today' : 'none')
-    return {
-      isRead: mail.isRead,
-      flagInterval,
-      flagRequest: isDefaultFlagRequest(mail.flagRequest) ? defaultFlagRequest(flagInterval) : mail.flagRequest,
-      taskStartDate: toDateInput(mail.taskStartDate),
-      taskDueDate: toDateInput(mail.taskDueDate),
-      taskCompletedDate: toDateInput(mail.taskCompletedDate),
-      categories: splitCategories(mail.categories),
-    }
-  }
-
-  function normalizeMailPropertiesDraft(draft: typeof mailPropertiesDraft.value) {
-    return {
-      isRead: draft.isRead,
-      flagInterval: draft.flagInterval || 'none',
-      flagRequest: draft.flagInterval === 'none' ? '' : (draft.flagRequest || defaultFlagRequest(draft.flagInterval)).trim(),
-      taskStartDate: draft.taskStartDate || '',
-      taskDueDate: draft.taskDueDate || '',
-      taskCompletedDate: draft.taskCompletedDate || '',
-      categories: [...new Set(draft.categories.map((category) => category.trim()).filter(Boolean))]
-        .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' })),
-    }
-  }
-
-  function buildMailPropertiesPayload(mail: MailItemDto, draft: typeof mailPropertiesDraft.value) {
-    const normalized = normalizeMailPropertiesDraft(draft)
-    const isCustomFlag = normalized.flagInterval === 'custom'
-    return {
-      mailId: mail.id,
-      folderPath: mail.folderPath,
-      isRead: normalized.isRead,
-      flagInterval: normalized.flagInterval,
-      flagRequest: normalized.flagRequest,
-      taskStartDate: isCustomFlag ? dateInputToIso(normalized.taskStartDate) : undefined,
-      taskDueDate: isCustomFlag ? dateInputToIso(normalized.taskDueDate) : undefined,
-      taskCompletedDate: normalized.flagInterval === 'complete' ? dateInputToIso(normalized.taskCompletedDate) : undefined,
-      categories: normalized.categories,
-    }
-  }
-
   function resetMailPropertiesDraft(mail: MailItemDto | null) {
     if (!mail) return
     mailPropertiesDraft.value = buildMailPropertiesDraft(mail)
@@ -608,7 +533,7 @@ function categoryTagStyle(name: string) {
   }
 
   function selectedBulkMoveMails() {
-    return mails.value.filter((mail) => mail.id && selectedMailIds.value.has(mail.id) && canUseMailMutation(mail))
+    return mails.value.filter((mail) => mail.id && selectedMailIds.value.has(mail.id))
   }
 
   function selectedBulkMoveSourcePaths() {
@@ -683,6 +608,12 @@ function categoryTagStyle(name: string) {
       [payload.mailId]: payload,
     }
     completeConversationLoad(payload.mailId)
+  }
+
+  function patchMailSnapshots(items: MailItemDto[]) {
+    if (items.length === 0) return
+    folderMails.value = patchMailSnapshotList(folderMails.value, items)
+    mailSearchResults.value = patchMailSnapshotList(mailSearchResults.value, items)
   }
 
   function collectExistingFolderCounts() {
@@ -941,6 +872,25 @@ function categoryTagStyle(name: string) {
     categories.value = await outlookApi.getCategories()
   }
 
+  const {
+    deleteRule,
+    editRule,
+    requestRules,
+    resetRuleDraft,
+    saveRule,
+    toggleRuleEnabled,
+    upsertCategory,
+  } = useOutlookRulesController({
+    loadCachedCategories,
+    loadCachedRules,
+    loadingRules,
+    outlookBusy,
+    ruleDraft,
+    rules,
+    runMailOperation,
+    selectedRuleIndex,
+  })
+
   async function loadCachedCalendar() {
     calendarEvents.value = await outlookApi.getCalendar()
   }
@@ -1108,207 +1058,13 @@ function categoryTagStyle(name: string) {
     mailDialogVisible.value = true
     void requestMailBody(mail)
     void requestMailAttachments(mail)
-    if (canUseMailMutation(mail)) void requestMailConversation(mail)
+    if (canUpdateMailProperties(mail)) void requestMailConversation(mail)
   }
 
   function closeMailDialog() {
     mailDialogVisible.value = false
     mailDialogMailId.value = ''
     mailDialogHtml.value = false
-  }
-
-  async function requestRules() {
-    if (loadingRules.value) return
-    if (outlookBusy.value) return
-    loadingRules.value = true
-    try {
-      const response = await outlookApi.requestRules()
-      await waitForRequest(response)
-      await loadCachedRules()
-      loadingRules.value = false
-    } catch {
-      loadingRules.value = false
-    }
-  }
-
-  function splitRuleInput(value: string) {
-    return value
-      .split(/[\n,;]+/)
-      .map((item) => item.trim())
-      .filter(Boolean)
-  }
-
-  function parseRuleSummaryValue(summary: string, key: string) {
-    const marker = `${key}=`
-    const index = summary.indexOf(marker)
-    if (index < 0) return ''
-    const rest = summary.slice(index + marker.length)
-    const nextPart = rest.indexOf('; ')
-    return (nextPart >= 0 ? rest.slice(0, nextPart) : rest).trim()
-  }
-
-  function parseRuleSummaryList(summary: string, key: string) {
-    return parseRuleSummaryValue(summary, key)
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean)
-  }
-
-  function firstRuleSummaryValue(summaries: string[], prefix: string, key: string) {
-    const summary = summaries.find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()))
-    return summary ? parseRuleSummaryValue(summary, key) : ''
-  }
-
-  function firstRuleSummaryList(summaries: string[], prefix: string, key: string) {
-    const summary = summaries.find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()))
-    return summary ? parseRuleSummaryList(summary, key) : []
-  }
-
-  function resetRuleDraft(rule: OutlookRuleDto | null = null) {
-    if (!rule) {
-      ruleDraft.value = {
-        ruleName: '',
-        storeId: '',
-        originalRuleName: '',
-        originalExecutionOrder: undefined,
-        ruleType: 'receive',
-        enabled: true,
-        subjectContains: '',
-        bodyContains: '',
-        senderAddressContains: '',
-        categories: [],
-        hasAttachment: 'any',
-        moveToFolderPath: '',
-        assignCategories: [],
-        markAsTask: false,
-        stopProcessingMoreRules: true,
-      }
-      selectedRuleIndex.value = null
-      return
-    }
-
-    ruleDraft.value = {
-      ruleName: rule.name,
-      storeId: rule.storeId,
-      originalRuleName: rule.name,
-      originalExecutionOrder: rule.executionOrder,
-      ruleType: rule.ruleType?.toLowerCase() === 'send' ? 'send' : 'receive',
-      enabled: rule.enabled,
-      subjectContains: firstRuleSummaryList(rule.conditions, 'Subject:', 'Text').join(', '),
-      bodyContains: firstRuleSummaryList(rule.conditions, 'Body:', 'Text').join(', '),
-      senderAddressContains: firstRuleSummaryList(rule.conditions, 'SenderAddress:', 'Address').join(', '),
-      categories: firstRuleSummaryList(rule.conditions, 'Category:', 'Categories'),
-      hasAttachment: rule.conditions.some((condition) => condition.toLowerCase().startsWith('hasattachment:')) ? 'yes' : 'any',
-      moveToFolderPath: firstRuleSummaryValue(rule.actions, 'MoveToFolder:', 'FolderPath'),
-      assignCategories: firstRuleSummaryList(rule.actions, 'AssignToCategory:', 'Categories'),
-      markAsTask: rule.actions.some((action) => action.toLowerCase().includes('task')),
-      stopProcessingMoreRules: rule.actions.some((action) => action.toLowerCase().includes('stop')),
-    }
-  }
-
-  function editRule(index: number) {
-    const rule = rules.value[index]
-    if (!rule) return
-    selectedRuleIndex.value = index
-    resetRuleDraft(rule)
-  }
-
-  function buildRulePayload(operation: 'upsert' | 'delete' | 'set_enabled', source: RuleDraft = ruleDraft.value): OutlookRuleCommandRequest {
-    const draft = source
-    const hasAttachment = draft.hasAttachment === 'any' ? undefined : draft.hasAttachment === 'yes'
-    return {
-      operation,
-      storeId: draft.storeId,
-      ruleName: draft.ruleName.trim() || draft.originalRuleName.trim(),
-      originalRuleName: draft.originalRuleName.trim(),
-      originalExecutionOrder: draft.originalExecutionOrder,
-      ruleType: draft.ruleType,
-      enabled: draft.enabled,
-      executionOrder: draft.originalExecutionOrder,
-      conditions: {
-        subjectContains: splitRuleInput(draft.subjectContains),
-        bodyContains: splitRuleInput(draft.bodyContains),
-        senderAddressContains: splitRuleInput(draft.senderAddressContains),
-        categories: draft.categories,
-        hasAttachment,
-      },
-      actions: {
-        moveToFolderPath: draft.moveToFolderPath,
-        assignCategories: draft.assignCategories,
-        markAsTask: draft.markAsTask,
-        stopProcessingMoreRules: draft.stopProcessingMoreRules,
-      },
-    }
-  }
-
-  function buildRuleOperationDraft(rule: OutlookRuleDto, enabled = rule.enabled): RuleDraft {
-    return {
-      ruleName: rule.name,
-      storeId: rule.storeId,
-      originalRuleName: rule.name,
-      originalExecutionOrder: rule.executionOrder,
-      ruleType: rule.ruleType?.toLowerCase() === 'send' ? 'send' : 'receive',
-      enabled,
-      subjectContains: '',
-      bodyContains: '',
-      senderAddressContains: '',
-      categories: [],
-      hasAttachment: 'any',
-      moveToFolderPath: '',
-      assignCategories: [],
-      markAsTask: false,
-      stopProcessingMoreRules: false,
-    }
-  }
-
-  async function saveRule() {
-    if (outlookBusy.value || !ruleDraft.value.ruleName.trim()) return false
-    const hasCondition = splitRuleInput(ruleDraft.value.subjectContains).length > 0
-      || splitRuleInput(ruleDraft.value.bodyContains).length > 0
-      || splitRuleInput(ruleDraft.value.senderAddressContains).length > 0
-      || ruleDraft.value.categories.length > 0
-      || ruleDraft.value.hasAttachment !== 'any'
-    const hasAction = Boolean(ruleDraft.value.moveToFolderPath)
-      || ruleDraft.value.assignCategories.length > 0
-      || ruleDraft.value.markAsTask
-      || ruleDraft.value.stopProcessingMoreRules
-    if (!hasCondition || !hasAction) {
-      ElMessage.warning('Rule 需要至少一個條件與一個動作。')
-      return false
-    }
-
-    return await runMailOperation(
-      () => outlookApi.requestManageRule(buildRulePayload('upsert')),
-      async () => {
-        await loadCachedRules()
-        resetRuleDraft()
-      },
-    )
-  }
-
-  async function deleteRule(rule = selectedRule.value) {
-    if (!rule || outlookBusy.value) return
-    const confirmed = window.confirm(`刪除 Outlook rule「${rule.name}」？`)
-    if (!confirmed) return
-    const payload = buildRulePayload('delete', buildRuleOperationDraft(rule))
-    await runMailOperation(
-      () => outlookApi.requestManageRule(payload),
-      async () => {
-        await loadCachedRules()
-        resetRuleDraft()
-      },
-    )
-  }
-
-  async function toggleRuleEnabled(rule: OutlookRuleDto, enabled: boolean) {
-    if (outlookBusy.value) return
-    const payload = buildRulePayload('set_enabled', buildRuleOperationDraft(rule, enabled))
-    await runMailOperation(
-      () => outlookApi.requestManageRule(payload),
-      async () => {
-        await loadCachedRules()
-      },
-    )
   }
 
   async function requestCategories(force = false) {
@@ -1428,46 +1184,8 @@ function categoryTagStyle(name: string) {
     }
   }
 
-  function isRequestResponse(value: unknown): value is { requestId?: string; request?: string; state: string; data?: unknown } {
-    const response = value as { requestId?: unknown; request?: unknown; state?: unknown; data?: unknown }
-    return typeof response?.requestId === 'string'
-      && typeof response?.request === 'string'
-      && typeof response?.state === 'string'
-      && response.data !== undefined
-  }
-
-  function requestIdFromResponse(response: { requestId?: string }) {
-    return response.requestId || ''
-  }
-
   async function waitForRequest(response: { requestId?: string; request?: string }, timeoutMs = 120000) {
-    const requestId = requestIdFromResponse(response)
-    if (!requestId) return
-    const endpoint = fetchResultEndpoint(response)
-    const started = Date.now()
-    while (!unmounted && Date.now() - started < timeoutMs) {
-      try {
-        const state = await outlookApi.fetchResult(endpoint, {
-          requestId,
-          take: 1,
-        })
-        if (state.state === 'completed') return
-        if (state.state && !['accepted', 'running'].includes(state.state)) {
-          throw new Error(state.message || 'Outlook operation failed')
-        }
-      } catch (error) {
-        if (error instanceof Error && error.message !== 'Request failed: 404') throw error
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 300))
-    }
-    throw new Error('Outlook operation timed out')
-  }
-
-  function fetchResultEndpoint(response: { request?: string }) {
-    const request = response.request || ''
-    return request.startsWith('request-')
-      ? request.replace('request-', 'fetch-result-')
-      : 'fetch-result-mails'
+    await waitForOutlookRequest(response, { timeoutMs, isUnmounted: () => unmounted })
   }
 
   function completeRequest(requestId = '') {
@@ -1532,147 +1250,38 @@ function categoryTagStyle(name: string) {
     loadingConversationMailIds.value = new Set()
   }
 
-  function isMailBodyLoading(mail: MailItemDto) {
-    return Boolean(mail.id && loadingMailBodyIds.value.has(mail.id))
-  }
-
-  function mailHasBody(mail: MailItemDto) {
-    return Boolean(mail.body || mail.bodyHtml)
-  }
-
-  function isAttachmentListLoading(mail: MailItemDto) {
-    return Boolean(mail.id && loadingAttachmentMailIds.value.has(mail.id))
-  }
-
-  function isAttachmentExporting(mail: MailItemDto, attachment: MailAttachmentDto) {
-    return Boolean(mail.id && exportingAttachmentIds.value.has(attachmentKey(mail.id, attachment.attachmentId)))
-  }
-
-  function isConversationLoading(mail: MailItemDto) {
-    return Boolean(mail.id && loadingConversationMailIds.value.has(mail.id))
-  }
-
-  async function requestMailBody(mail: MailItemDto) {
-    if (!mail.id?.trim() || mailHasBody(mail) || isMailBodyLoading(mail)) return
-    loadingMailBodyIds.value = new Set(loadingMailBodyIds.value).add(mail.id)
-    try {
-      const response = await outlookApi.requestMailBody({
-        mailId: mail.id,
-        folderPath: mail.folderPath,
-      })
-      await waitForRequest(response)
-      await refreshMailSnapshotsForDetail(mail.id)
-      completeMailBodyLoad(mail.id)
-    } catch {
-      completeMailBodyLoad(mail.id)
-    }
-  }
-
-  async function refreshMailSnapshotsForDetail(mailId: string) {
-    const mode = mailListMode.value
-    await Promise.allSettled([loadCachedMails(), loadCachedMailSearchResults()])
-    mailListMode.value = mode
-    const list = mode === 'search' ? mailSearchResults.value : folderMails.value
-    const nextIndex = list.findIndex((item) => item.id === mailId)
-    if (nextIndex >= 0) selectedMailIndex.value = nextIndex
-  }
-
-  async function requestMailAttachments(mail: MailItemDto) {
-    if (!mail.id?.trim() || isAttachmentListLoading(mail) || mailAttachmentsByMailId.value[mail.id]) return
-    loadingAttachmentMailIds.value = new Set(loadingAttachmentMailIds.value).add(mail.id)
-    try {
-      const response = await outlookApi.requestMailAttachments({
-        mailId: mail.id,
-        folderPath: mail.folderPath,
-      })
-      await waitForRequest(response)
-      patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
-    } catch {
-      completeAttachmentLoad(mail.id)
-    }
-  }
-
-  async function requestMailConversation(mail: MailItemDto) {
-    if (!mail.id?.trim() || !canUseMailMutation(mail) || isConversationLoading(mail) || mailConversationsByMailId.value[mail.id]) return
-    loadingConversationMailIds.value = new Set(loadingConversationMailIds.value).add(mail.id)
-    try {
-      const response = await outlookApi.requestMailConversation({
-        mailId: mail.id,
-        folderPath: mail.folderPath,
-        maxCount: 100,
-        includeBody: true,
-      })
-      await waitForRequest(response)
-      const requestId = requestIdFromResponse(response)
-      const items: MailItemDto[] = []
-      let cursor = ''
-      let conversation: MailConversationDto | null = null
-      do {
-        const state = await outlookApi.fetchResult<{
-          mailId?: string
-          folderPath?: string
-          conversationId?: string
-          conversationTopic?: string
-          mails?: unknown[]
-        }>(fetchResultEndpoint(response), {
-          requestId,
-          cursor,
-          take: 100,
-        })
-        const data = state.data ?? {}
-        conversation = {
-          mailId: data.mailId || mail.id,
-          folderPath: data.folderPath || mail.folderPath,
-          conversationId: data.conversationId || mail.conversationId,
-          conversationTopic: data.conversationTopic || mail.conversationTopic || mail.subject,
-          mails: items,
-        }
-        items.push(...normalizeMailItems(data.mails))
-        cursor = state.next.cursor
-        if (!state.next.hasMore) break
-      } while (cursor)
-
-      if (conversation) {
-        conversation.mails = items
-        patchMailConversation(conversation)
-      } else {
-        patchMailConversation(await outlookApi.getMailConversation(mail.id))
-      }
-    } catch {
-      completeConversationLoad(mail.id)
-    }
-  }
-
-  async function exportMailAttachment(mail: MailItemDto, attachment: MailAttachmentDto) {
-    if (!mail.id?.trim() || !attachment.attachmentId || isAttachmentExporting(mail, attachment)) return
-    const key = attachmentKey(mail.id, attachment.attachmentId)
-    const exportAttachmentId = attachment.index > 0 ? String(attachment.index) : attachment.attachmentId
-    exportingAttachmentIds.value = new Set(exportingAttachmentIds.value).add(key)
-    try {
-      const response = await outlookApi.requestExportMailAttachment({
-        mailId: mail.id,
-        folderPath: mail.folderPath,
-        attachmentId: exportAttachmentId,
-        index: attachment.index,
-        name: attachment.name,
-        fileName: attachment.fileName,
-        displayName: attachment.displayName,
-      })
-      await waitForRequest(response)
-      patchMailAttachments(await outlookApi.getMailAttachments(mail.id))
-      completeAttachmentExport(mail.id, attachment.attachmentId)
-    } catch {
-      completeAttachmentExport(mail.id, attachment.attachmentId)
-    }
-  }
-
-  async function openExportedAttachment(attachment: MailAttachmentDto) {
-    if (!attachment.exportedAttachmentId) return
-    await outlookApi.openExportedAttachment({ exportedAttachmentId: attachment.exportedAttachmentId })
-  }
+  const {
+    exportMailAttachment,
+    isAttachmentExporting,
+    isAttachmentListLoading,
+    isConversationLoading,
+    isMailBodyLoading,
+    mailHasBody,
+    openExportedAttachment,
+    requestMailAttachments,
+    requestMailBody,
+    requestMailConversation,
+  } = useOutlookMailDetailController({
+    attachmentKey,
+    completeAttachmentExport,
+    completeAttachmentLoad,
+    completeConversationLoad,
+    completeMailBodyLoad,
+    exportingAttachmentIds,
+    loadRequestMailItems,
+    loadingAttachmentMailIds,
+    loadingConversationMailIds,
+    loadingMailBodyIds,
+    mailAttachmentsByMailId,
+    mailConversationsByMailId,
+    patchMailAttachments,
+    patchMailConversation,
+    patchMailSnapshots,
+    waitForRequest,
+  })
 
   async function applyMailProperties(mail: MailItemDto) {
-    if (!mail.id?.trim() || !canUseMailMutation(mail)) return
+    if (!mail.id?.trim() || !canUpdateMailProperties(mail)) return
     const payload = buildMailPropertiesPayload(mail, mailPropertiesDraft.value)
     const existingCategoryNames = new Set(categories.value.map((category) => category.name.toLowerCase()))
     const newCategories = payload.categories
@@ -1722,25 +1331,6 @@ function categoryTagStyle(name: string) {
   function openFlagEditor() {
     if (outlookBusy.value || mailPropertiesDraft.value.flagInterval !== 'custom') return
     flagEditorVisible.value = true
-  }
-
-  async function upsertCategory(name: string, color: string, shortcutKey = '') {
-    const categoryName = name.trim()
-    if (!categoryName || outlookBusy.value) return
-    requestLoading.value = true
-    try {
-      const response = await outlookApi.requestUpsertCategory({
-        name: categoryName,
-        color: color || 'olCategoryColorNone',
-        colorValue: categoryColorValue(color || 'olCategoryColorNone'),
-        shortcutKey,
-      })
-      await waitForRequest(response)
-      await loadCachedCategories()
-      requestLoading.value = false
-    } catch {
-      requestLoading.value = false
-    }
   }
 
   async function addCategoryToMasterList() {
@@ -1875,7 +1465,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function moveMailToFolder(mail: MailItemDto, destinationFolderPath: string) {
-    if (!mail.id?.trim() || !canUseMailMutation(mail) || !destinationFolderPath || destinationFolderPath === mail.folderPath) return
+    if (!mail.id?.trim() || !destinationFolderPath || destinationFolderPath === mail.folderPath) return
     const snapshot = captureMailListSnapshot()
     hideMovedMails([mail.id])
     const succeeded = await runMailOperation(
@@ -1932,7 +1522,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function deleteMail(mail: MailItemDto) {
-    if (!mail?.id?.trim() || !canUseMailMutation(mail) || outlookBusy.value) return
+    if (!mail?.id?.trim() || outlookBusy.value) return
     if (isInDeletedFolder(mail.folderPath)) {
       ElMessage.warning(manualOutlookDeleteMessage)
       return
@@ -1954,7 +1544,7 @@ function categoryTagStyle(name: string) {
   }
 
   function startMailDrag(mail: MailItemDto, index: number, event: DragEvent) {
-    if (!mail.id?.trim() || !canUseMailMutation(mail)) {
+    if (!mail.id?.trim()) {
       event.preventDefault()
       return
     }
@@ -2123,7 +1713,7 @@ function categoryTagStyle(name: string) {
   onMounted(async () => {
     unmounted = false
     window.addEventListener('click', closeFolderContextMenu)
-    await connectSignalR()
+    void connectSignalR()
     await Promise.allSettled([
       loadCachedFolders(),
       loadCachedMails(),

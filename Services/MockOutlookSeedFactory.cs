@@ -43,7 +43,7 @@ namespace SmartOffice.Hub.Services
                 Mail("mock-013", "合約附件確認", "Mock User", "mock.user@example.test", now.AddHours(-8), MockOutlookPaths.Sent, true, "客戶", false, "none", ""),
                 Mail("mock-014", "Re: 合約附件確認", "Legal Desk", "legal@example.test", now.AddHours(-5), MockOutlookPaths.Inbox, false, "追蹤", true, "today", "今天"),
                 Mail("mock-003", "Office 2016 add-in hover 測試", "QA Lab", "qa@example.test", now.AddHours(-4), MockOutlookPaths.Inbox, false, "測試", false, "none", "", bodyHtml: ""),
-                Mail("mock-004", "下週 demo 時程", "Chris Wang", "chris.wang@example.test", now.AddDays(-1), MockOutlookPaths.Inbox, true, "追蹤", true, "next_week", "下週"),
+                Mail("mock-004", "會議邀請：下週 demo 時程", "Chris Wang", "chris.wang@example.test", now.AddMinutes(-42), MockOutlookPaths.Inbox, true, "追蹤", false, "none", "", messageClass: "IPM.Schedule.Meeting.Request"),
                 Mail("mock-005", "專案資料夾歸檔樣本", "Dana Hsu", "dana.hsu@example.test", now.AddDays(-2), MockOutlookPaths.ClientProjects, true, "客戶", false, "none", ""),
                 Mail("mock-006", "已寄出的測試郵件", "Mock User", "mock.user@example.test", now.AddDays(-3), MockOutlookPaths.Sent, true, "", false, "none", ""),
                 Mail("mock-007", "營運交接清單更新", "Ops Robot", "ops@example.test", now.AddHours(-6), MockOutlookPaths.OpsQueue, false, "測試", false, "none", ""),
@@ -339,6 +339,7 @@ namespace SmartOffice.Hub.Services
             bool isMarkedAsTask,
             string flagInterval,
             string flagRequest,
+            string messageClass = "IPM.Note",
             string? bodyHtml = null)
         {
             var body = $"Mock 郵件內容：{subject}\n\n這封郵件用於本機測試 Web UI、drag/drop 與 contract 行為。";
@@ -357,7 +358,7 @@ namespace SmartOffice.Hub.Services
                 Body = body,
                 BodyHtml = bodyHtml ?? $"<article><h2>{subject}</h2><p>Mock 郵件內容，用於本機測試 Web UI 與 Outlook contract。</p></article>",
                 FolderPath = folderPath,
-                MessageClass = id == "mock-004" ? "IPM.Schedule.Meeting.Request" : "IPM.Note",
+                MessageClass = messageClass,
                 ConversationId = MockConversationId(subject),
                 ConversationTopic = NormalizeConversationTopic(subject),
                 ConversationIndex = receivedTime.Ticks.ToString("X16"),

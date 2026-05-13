@@ -4,6 +4,7 @@ import CategoryManagerDialog from '../components/CategoryManagerDialog.vue'
 import FlagEditorDialog from '../components/FlagEditorDialog.vue'
 import FolderContextMenu from '../components/outlook/FolderContextMenu.vue'
 import MailDetailDialog from '../components/outlook/MailDetailDialog.vue'
+import MeetingInvitationDialog from '../components/outlook/MeetingInvitationDialog.vue'
 import OutlookCalendarView from '../components/outlook/OutlookCalendarView.vue'
 import OutlookChatView from '../components/outlook/OutlookChatView.vue'
 import OutlookHomeView from '../components/outlook/OutlookHomeView.vue'
@@ -11,6 +12,7 @@ import OutlookRulesView from '../components/outlook/OutlookRulesView.vue'
 import OutlookSearchView from '../components/outlook/OutlookSearchView.vue'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
 import type { AppView } from '../models/outlook'
+import { isMeetingMessage } from '../utils/outlookItemTypes'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState
@@ -25,6 +27,7 @@ const {
   categoryCreateColor,
   categoryCreateDraft,
   categoryManagerVisible,
+  dialogMail,
   flagEditorVisible,
   hiddenMasterCategoryCount,
   loadingCategories,
@@ -66,7 +69,8 @@ const {
     <OutlookChatView v-else-if="activeView === 'chat'" :dashboard="dashboard" />
     <OutlookCalendarView v-else-if="activeView === 'calendar'" :dashboard="dashboard" />
 
-    <MailDetailDialog :dashboard="dashboard" />
+    <MeetingInvitationDialog v-if="dialogMail && isMeetingMessage(dialogMail)" :dashboard="dashboard" />
+    <MailDetailDialog v-else :dashboard="dashboard" />
     <FolderContextMenu :dashboard="dashboard" />
 
     <CategoryManagerDialog
