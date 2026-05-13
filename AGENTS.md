@@ -34,6 +34,7 @@
 - `docs/ai_plugin/mcp.md`：MCP adapter 與 tool 設計入口。
 - `docs/ai_plugin/agents-skill.md`：Agents SKILL 設計入口。
 - `docs/ai_plugin/skills/smartoffice-outlook/SKILL.md`：外部 AI 實際讀取的可安裝 SKILL；修改 HTTP API、request/fetch-result workflow、DTO、route、錯誤語意或安全限制時必須同步更新。
+- `docs/ai_plugin/skills/smartoffice-outlook/` 是外部 AI 的使用手冊，不是 changelog 或遷移紀錄。內容只能描述當下正式系統如何操作；不要寫「舊的 endpoint」、「legacy」、「保留相容」、「已移除」、「改成」、「目前只/目前需」這類文件更新或歷史脈絡用語。若需要記錄設計演進，放在內部開發文件或 commit/PR 說明，不要放進可安裝 SKILL。
 - `../SmartOffice/docs/outlook-addin/README.md`：工作機 Outlook AddIn 實作者文件入口。
 - `../SmartOffice/docs/outlook-addin/features-checklist.md`：工作機 AI 對照 AddIn command、完成定義與驗收項目的 checklist。
 - `../SmartOffice/docs/outlook-addin/outlook-references.md`：Office 2016 Add-in 線上文件入口。

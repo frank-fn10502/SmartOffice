@@ -18,6 +18,7 @@
 - 修改 Hub HTTP API、request/fetch-result workflow、DTO 欄位、route、錯誤語意、安全限制、folder/path 規則或建議操作順序時，必須同步更新 `docs/ai_plugin/skills/smartoffice-outlook/SKILL.md` 與其 `references/`。
 - 若新增 API workflow 或修正 API 可理解性問題，也要更新 `references/http-api.md`、`references/workflows.md`，必要時補 `acceptance-scenarios.md`，讓外部 AI 可以照新 contract 驗證。
 - 不要只更新內部文件後假設外部 AI 會知道；SKILL folder 是外部 AI 的唯一操作手冊。
+- SKILL folder 是當下系統的使用手冊，不是版本差異、遷移紀錄或開發備忘錄。`SKILL.md`、`references/http-api.md`、`references/workflows.md` 與 installer help 只能描述目前正式操作方式；禁止使用「舊的 endpoint」、「legacy」、「保留相容」、「已移除」、「不再」、「改成」、「目前只/目前需」等歷史脈絡或文件更新語氣。需要保留演進背景時，寫在內部開發文件、issue、commit 或 PR 說明。
 
 ## 共用流程
 
@@ -43,7 +44,7 @@
 | Codex / OpenAI Agents skills | 支援 | user: `${CODEX_HOME:-$HOME/.codex}/skills/smartoffice-outlook`；project: `<project>/.codex/skills/smartoffice-outlook` | 會讀取 `SKILL.md`、`agents/openai.yaml` 與 `references/`。 |
 | GitHub Copilot Agent Skills | 支援 | user: `$HOME/.copilot/skills/smartoffice-outlook`；project: `<project>/.github/skills/smartoffice-outlook` | 只複製 SKILL folder；不寫入 Copilot custom instructions。 |
 | opencode Agent Skills | 支援 | user: `${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/smartoffice-outlook`；project: `<project>/.opencode/skills/smartoffice-outlook` | 只複製 SKILL folder；不寫入 `AGENTS.md` 或 `opencode.json`。 |
-| 其他 AI 工具 | 未自動支援 | 依各工具規範 | 目前只提供可攜的 Markdown reference 與 helper script。 |
+| 其他 AI 工具 | 未自動支援 | 依各工具規範 | 提供可攜的 Markdown reference 與 helper script。 |
 
 因此，`--project` / `-Project` 會把同一份 skill folder 複製到指定 project 內各工具自己的 skill 位置。
 

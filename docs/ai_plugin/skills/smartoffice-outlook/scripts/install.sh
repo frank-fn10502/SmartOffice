@@ -49,7 +49,7 @@ Options:
       否則會安裝到 <path>/smartoffice-outlook。
 
   --force
-      保留相容參數；目前安裝預設就是全新重裝。
+      重新安裝 skill。
 
   --dry-run
       只顯示將會安裝的位置，不寫入檔案。

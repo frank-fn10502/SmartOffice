@@ -148,7 +148,7 @@
 - [ ] HTTP 409：解析 body，不猜測重試。
 - [ ] HTTP 502 / failed：回報 AddIn 或 Outlook automation 失敗訊息。
 - [ ] HTTP 504 / timeout：停止並回報 timeout。
-- [ ] Service restart：舊 request id 查不到時，回報需要重新送出 request。
+- [ ] Service restart：request id 查不到時，回報需要重新送出 request。
 - [ ] Sensitive output：不輸出完整 mail body、raw Exchange address、大量 folder path 或 attachment path。
 - [ ] User asks for global action：先確認 scope 與 destructive nature，尤其 delete / move 大量郵件。
 - [ ] Ambiguous destructive request：要求使用者確認唯一 mail / folder / scope 後再 mutation。
@@ -161,12 +161,13 @@
 - [ ] 直接以 `curl` 或 Swagger 檢查錯誤格式；不能只確認 Web UI 有顯示錯誤訊息。
 - [ ] Folder discovery 讀 `data.stores` / `data.folders`，不是 `data.mails`。
 - [ ] `request-folder-children` body 使用 `parentEntryId` / `parentFolderPath`，不是 `entryId` / `folderPath`。
-- [ ] `request-folder-mails` 使用 `fetch-result-folder-mails`，不是 legacy `GET /api/outlook/folder-mails`。
-- [ ] `request-mail-search` 使用 `fetch-result-mail-search`，不是 legacy `GET /api/outlook/mail-search`。
+- [ ] `request-folder-mails` 使用 `fetch-result-folder-mails` 讀取資料。
+- [ ] `request-mail-search` 使用 `fetch-result-mail-search` 讀取資料。
 - [ ] `request-mail-search` body 使用 `keyword`；若 caller 傳 `query`，API 應回未知欄位錯誤，而不是默默忽略。
 - [ ] `request-export-mail-attachment` 的 fetch result 不直接回 `exportedAttachmentId`。
 - [ ] Swagger 中所有 `fetch-result-*` endpoint 分類清楚，不落到預設 `Outlook` tag。
 - [ ] Skill 名稱、folder、installer 與 external docs 不包含內部實作術語。
+- [ ] 可安裝 SKILL 是當下系統操作手冊，不包含「舊的 endpoint」、「legacy」、「保留相容」、「已移除」、「不再」、「改成」、「目前只/目前需」等歷史脈絡或文件更新語氣。
 - [ ] 若 API / DTO / route / workflow / error semantics 有變更，`skills/smartoffice-outlook/SKILL.md` 與 `references/http-api.md`、`references/workflows.md` 已同步；外部 AI 不需要讀 repo `AGENTS.md` 也能理解操作方式。
 - [ ] Hand-written source file 不得超過 800 行；若出現 800+ 行檔案，必須先切分並讓 `./scripts/check-source-lines.sh` 或 `./scripts/build-in-container.sh` 通過。
 - [ ] 600 行以上為預警區；審查時要確認是否已有自然切分點，不讓 controller、service、store、component 或 CSS 繼續長成 1000+ 行。
