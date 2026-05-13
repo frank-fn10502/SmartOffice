@@ -3,6 +3,7 @@ using SmartOffice.Hub.Services;
 using SmartOffice.Hub.Swagger;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
+using System.Text.Json.Serialization;
 
 namespace SmartOffice.Hub
 {
@@ -14,7 +15,11 @@ namespace SmartOffice.Hub
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                });
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {
@@ -37,6 +42,10 @@ namespace SmartOffice.Hub
             builder.Services.AddSignalR(options =>
             {
                 options.MaximumReceiveMessageSize = 256 * 1024;
+            })
+            .AddJsonProtocol(options =>
+            {
+                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
 
             // Hub 目前是 process-local：AddIn 將 Office data 透過 SignalR push 到這裡，

@@ -1,6 +1,8 @@
-namespace SmartOffice.Hub.Models
+using System;
+using System.Collections.Generic;
+
+namespace SmartOffice.Hub.Contracts
 {
-    // AddIn contract DTO：Hub 透過 SignalR dispatch command 給 AddIn，AddIn 也用這些 DTO 回推結果。
     public class FolderSyncBeginDto
     {
         public string SyncId { get; set; } = Guid.NewGuid().ToString();
@@ -14,8 +16,8 @@ namespace SmartOffice.Hub.Models
         public int Sequence { get; set; }
         public bool Reset { get; set; }
         public bool IsFinal { get; set; }
-        public List<OutlookStoreDto> Stores { get; set; } = new();
-        public List<FolderDto> Folders { get; set; } = new();
+        public List<OutlookStoreDto> Stores { get; set; } = new List<OutlookStoreDto>();
+        public List<FolderDto> Folders { get; set; } = new List<FolderDto>();
     }
 
     public class FolderSyncCompleteDto
@@ -41,43 +43,26 @@ namespace SmartOffice.Hub.Models
     public class FetchMailsRequest
     {
         public string FolderPath { get; set; } = string.Empty;
+        public string Range { get; set; } = string.Empty;
         public DateTime? ReceivedFrom { get; set; }
         public DateTime? ReceivedTo { get; set; }
         public int MaxCount { get; set; } = 30;
     }
 
-    /// <summary>
-    /// Web UI / AI 要求 Hub 以 Outlook 內建搜尋查詢郵件的 request。
-    /// Hub 會將此 request 展開成 AddIn 實際處理的 MailSearchSliceRequest。
-    /// 直接列出 folder mails 請使用 FolderMailsRequest，不走 search。
-    /// </summary>
     public class SearchMailsRequest
     {
-        /// <summary>搜尋 correlation id；呼叫端可自訂，未提供時 Hub 會產生。</summary>
         public string SearchId { get; set; } = Guid.NewGuid().ToString();
-        /// <summary>限制在指定 Outlook store 搜尋；空字串代表全部 store。</summary>
         public string StoreId { get; set; } = string.Empty;
-        /// <summary>限制搜尋範圍的 folder path；空陣列只允許搭配 storeId 或 allowGlobalScope 使用。</summary>
-        public List<string> ScopeFolderPaths { get; set; } = new();
-        /// <summary>允許空 storeId 與空 scopeFolderPaths 時搜尋全部已載入的可搜尋 mail folder。</summary>
+        public List<string> ScopeFolderPaths { get; set; } = new List<string>();
         public bool AllowGlobalScope { get; set; }
-        /// <summary>ScopeFolderPaths 有值時是否包含子資料夾。</summary>
         public bool IncludeSubFolders { get; set; } = true;
-        /// <summary>文字搜尋關鍵字；空白時只套用其他篩選條件。</summary>
         public string Keyword { get; set; } = string.Empty;
-        /// <summary>keyword 套用欄位；正式值為 subject、sender、body，預設 subject。</summary>
-        public List<string> TextFields { get; set; } = new() { "subject" };
-        /// <summary>Outlook category 篩選；任一分類符合即可。</summary>
-        public List<string> CategoryNames { get; set; } = new();
-        /// <summary>附件篩選；true 表示包含附件，false 表示不含附件，null 表示不限。</summary>
+        public List<string> TextFields { get; set; } = new List<string> { "subject" };
+        public List<string> CategoryNames { get; set; } = new List<string>();
         public bool? HasAttachments { get; set; }
-        /// <summary>旗標篩選；正式值為 any、flagged、unflagged。</summary>
         public string FlagState { get; set; } = "any";
-        /// <summary>已讀篩選；正式值為 any、unread、read。</summary>
         public string ReadState { get; set; } = "any";
-        /// <summary>收到時間起點，可獨立使用。</summary>
         public DateTime? ReceivedFrom { get; set; }
-        /// <summary>收到時間終點，可獨立使用。</summary>
         public DateTime? ReceivedTo { get; set; }
     }
 
@@ -91,8 +76,8 @@ namespace SmartOffice.Hub.Models
         public string FolderPath { get; set; } = string.Empty;
         public string ExecutionMode { get; set; } = "items_filter";
         public string Keyword { get; set; } = string.Empty;
-        public List<string> TextFields { get; set; } = new() { "subject" };
-        public List<string> CategoryNames { get; set; } = new();
+        public List<string> TextFields { get; set; } = new List<string> { "subject" };
+        public List<string> CategoryNames { get; set; } = new List<string>();
         public bool? HasAttachments { get; set; }
         public string FlagState { get; set; } = "any";
         public string ReadState { get; set; } = "any";
@@ -134,7 +119,7 @@ namespace SmartOffice.Hub.Models
         public bool Reset { get; set; }
         public bool IsFinal { get; set; }
         public bool IsSliceComplete { get; set; } = true;
-        public List<MailItemDto> Mails { get; set; } = new();
+        public List<MailItemDto> Mails { get; set; } = new List<MailItemDto>();
         public string Message { get; set; } = string.Empty;
     }
 
@@ -160,7 +145,7 @@ namespace SmartOffice.Hub.Models
         public bool Reset { get; set; }
         public bool IsFinal { get; set; }
         public bool IsSliceComplete { get; set; } = true;
-        public List<MailItemDto> Mails { get; set; } = new();
+        public List<MailItemDto> Mails { get; set; } = new List<MailItemDto>();
         public string Message { get; set; } = string.Empty;
     }
 
@@ -219,13 +204,13 @@ namespace SmartOffice.Hub.Models
         public string MailId { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
         public bool? IsRead { get; set; }
-        public string FlagInterval { get; set; } = "none"; // none、today、tomorrow、this_week、next_week、no_date、custom、complete。
+        public string FlagInterval { get; set; } = "none";
         public string FlagRequest { get; set; } = string.Empty;
         public DateTime? TaskStartDate { get; set; }
         public DateTime? TaskDueDate { get; set; }
         public DateTime? TaskCompletedDate { get; set; }
-        public List<string> Categories { get; set; } = new();
-        public List<OutlookCategoryDto> NewCategories { get; set; } = new();
+        public List<string> Categories { get; set; } = new List<string>();
+        public List<OutlookCategoryDto> NewCategories { get; set; } = new List<OutlookCategoryDto>();
     }
 
     public class CategoryCommandRequest
@@ -238,24 +223,24 @@ namespace SmartOffice.Hub.Models
 
     public class OutlookRuleConditionsRequest
     {
-        public List<string> SubjectContains { get; set; } = new();
-        public List<string> BodyContains { get; set; } = new();
-        public List<string> SenderAddressContains { get; set; } = new();
-        public List<string> Categories { get; set; } = new();
+        public List<string> SubjectContains { get; set; } = new List<string>();
+        public List<string> BodyContains { get; set; } = new List<string>();
+        public List<string> SenderAddressContains { get; set; } = new List<string>();
+        public List<string> Categories { get; set; } = new List<string>();
         public bool? HasAttachment { get; set; }
     }
 
     public class OutlookRuleActionsRequest
     {
         public string MoveToFolderPath { get; set; } = string.Empty;
-        public List<string> AssignCategories { get; set; } = new();
+        public List<string> AssignCategories { get; set; } = new List<string>();
         public bool MarkAsTask { get; set; }
         public bool StopProcessingMoreRules { get; set; } = true;
     }
 
     public class OutlookRuleCommandRequest
     {
-        public string Operation { get; set; } = "upsert"; // upsert、delete、set_enabled。
+        public string Operation { get; set; } = "upsert";
         public string StoreId { get; set; } = string.Empty;
         public string RuleName { get; set; } = string.Empty;
         public string OriginalRuleName { get; set; } = string.Empty;
@@ -263,8 +248,8 @@ namespace SmartOffice.Hub.Models
         public string RuleType { get; set; } = "receive";
         public bool Enabled { get; set; } = true;
         public int? ExecutionOrder { get; set; }
-        public OutlookRuleConditionsRequest Conditions { get; set; } = new();
-        public OutlookRuleActionsRequest Actions { get; set; } = new();
+        public OutlookRuleConditionsRequest Conditions { get; set; } = new OutlookRuleConditionsRequest();
+        public OutlookRuleActionsRequest Actions { get; set; } = new OutlookRuleActionsRequest();
     }
 
     public class CreateFolderRequest
@@ -287,9 +272,9 @@ namespace SmartOffice.Hub.Models
 
     public class MoveMailsRequest
     {
-        public List<string> MailIds { get; set; } = new();
+        public List<string> MailIds { get; set; } = new List<string>();
         public string SourceFolderPath { get; set; } = string.Empty;
-        public List<string> SourceFolderPaths { get; set; } = new();
+        public List<string> SourceFolderPaths { get; set; } = new List<string>();
         public string DestinationFolderPath { get; set; } = string.Empty;
         public bool ContinueOnError { get; set; } = true;
     }
@@ -300,32 +285,39 @@ namespace SmartOffice.Hub.Models
         public string FolderPath { get; set; } = string.Empty;
     }
 
-    /// <summary>
-    /// Hub 替 Outlook AddIn queue 的 pending command。
-    /// </summary>
+    public class FindFolderRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public string FolderPath { get; set; } = string.Empty;
+        public string FolderType { get; set; } = string.Empty;
+        public string StoreId { get; set; } = string.Empty;
+        public bool IncludeHidden { get; set; }
+        public int MaxResults { get; set; } = 20;
+    }
+
     public class PendingCommand
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Type { get; set; } = string.Empty; // 目前預期值："fetch_folder_roots"、"fetch_folder_children"、"fetch_mails"、"fetch_mail_body"、"fetch_mail_attachments"、"fetch_mail_conversation"、"export_mail_attachment"、"fetch_rules"、"fetch_calendar"、category 與單封 mail/folder 操作。
-        public FolderDiscoveryRequest? FolderDiscoveryRequest { get; set; }
-        public FindFolderRequest? FindFolderRequest { get; set; }
-        public FetchMailsRequest? MailsRequest { get; set; }
-        public SearchMailsRequest? SearchMailsRequest { get; set; }
-        public MailSearchSliceRequest? MailSearchSliceRequest { get; set; }
-        public FolderMailsSliceRequest? FolderMailsSliceRequest { get; set; }
-        public FetchMailBodyRequest? MailBodyRequest { get; set; }
-        public FetchMailAttachmentsRequest? MailAttachmentsRequest { get; set; }
-        public FetchMailConversationRequest? MailConversationRequest { get; set; }
-        public ExportMailAttachmentRequest? ExportMailAttachmentRequest { get; set; }
-        public FetchCalendarRequest? CalendarRequest { get; set; }
-        public MailPropertiesCommandRequest? MailPropertiesRequest { get; set; }
-        public CategoryCommandRequest? CategoryRequest { get; set; }
-        public OutlookRuleCommandRequest? RuleRequest { get; set; }
-        public CreateFolderRequest? CreateFolderRequest { get; set; }
-        public DeleteFolderRequest? DeleteFolderRequest { get; set; }
-        public MoveMailRequest? MoveMailRequest { get; set; }
-        public MoveMailsRequest? MoveMailsRequest { get; set; }
-        public DeleteMailRequest? DeleteMailRequest { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public FolderDiscoveryRequest FolderDiscoveryRequest { get; set; }
+        public FindFolderRequest FindFolderRequest { get; set; }
+        public FetchMailsRequest MailsRequest { get; set; }
+        public SearchMailsRequest SearchMailsRequest { get; set; }
+        public MailSearchSliceRequest MailSearchSliceRequest { get; set; }
+        public FolderMailsSliceRequest FolderMailsSliceRequest { get; set; }
+        public FetchMailBodyRequest MailBodyRequest { get; set; }
+        public FetchMailAttachmentsRequest MailAttachmentsRequest { get; set; }
+        public FetchMailConversationRequest MailConversationRequest { get; set; }
+        public ExportMailAttachmentRequest ExportMailAttachmentRequest { get; set; }
+        public FetchCalendarRequest CalendarRequest { get; set; }
+        public MailPropertiesCommandRequest MailPropertiesRequest { get; set; }
+        public CategoryCommandRequest CategoryRequest { get; set; }
+        public OutlookRuleCommandRequest RuleRequest { get; set; }
+        public CreateFolderRequest CreateFolderRequest { get; set; }
+        public DeleteFolderRequest DeleteFolderRequest { get; set; }
+        public MoveMailRequest MoveMailRequest { get; set; }
+        public MoveMailsRequest MoveMailsRequest { get; set; }
+        public DeleteMailRequest DeleteMailRequest { get; set; }
     }
 
     public class OutlookAddinClientInfo
@@ -342,5 +334,69 @@ namespace SmartOffice.Hub.Models
         public string Message { get; set; } = string.Empty;
         public string Payload { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    public class OutlookCommand
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public OutlookCommandFolderDiscoveryRequest FolderDiscoveryRequest { get; set; }
+        public OutlookCommandMailsRequest MailsRequest { get; set; }
+        public OutlookCommandMailSearchSliceRequest MailSearchSliceRequest { get; set; }
+        public OutlookCommandMailBodyRequest MailBodyRequest { get; set; }
+        public OutlookCommandMailAttachmentsRequest MailAttachmentsRequest { get; set; }
+        public OutlookCommandMailConversationRequest MailConversationRequest { get; set; }
+        public OutlookCommandExportMailAttachmentRequest ExportMailAttachmentRequest { get; set; }
+        public OutlookCommandCalendarRequest CalendarRequest { get; set; }
+        public OutlookCommandMailPropertiesRequest MailPropertiesRequest { get; set; }
+        public OutlookCommandCategoryRequest CategoryRequest { get; set; }
+        public OutlookCommandCreateFolderRequest CreateFolderRequest { get; set; }
+        public OutlookCommandDeleteFolderRequest DeleteFolderRequest { get; set; }
+        public OutlookCommandMoveMailRequest MoveMailRequest { get; set; }
+        public OutlookCommandMoveMailsRequest MoveMailsRequest { get; set; }
+        public OutlookCommandDeleteMailRequest DeleteMailRequest { get; set; }
+        public OutlookCommandFolderMailsSliceRequest FolderMailsSliceRequest { get; set; }
+        public OutlookCommandRuleRequest RuleRequest { get; set; }
+    }
+
+    public class OutlookCommandMailsRequest : FetchMailsRequest { }
+    public class OutlookCommandMailSearchSliceRequest : MailSearchSliceRequest { }
+    public class OutlookCommandFolderDiscoveryRequest : FolderDiscoveryRequest { }
+    public class OutlookCommandMoveMailsRequest : MoveMailsRequest { }
+    public class OutlookCommandFolderMailsSliceRequest : FolderMailsSliceRequest { }
+    public class OutlookCommandMailBodyRequest : FetchMailBodyRequest { }
+    public class OutlookCommandMailAttachmentsRequest : FetchMailAttachmentsRequest { }
+    public class OutlookCommandMailConversationRequest : FetchMailConversationRequest { }
+    public class OutlookCommandExportMailAttachmentRequest : ExportMailAttachmentRequest { }
+    public class OutlookCommandMailPropertiesRequest : MailPropertiesCommandRequest { }
+    public class OutlookCommandCategoryRequest : CategoryCommandRequest { }
+    public class OutlookCommandCreateFolderRequest : CreateFolderRequest { }
+    public class OutlookCommandDeleteFolderRequest : DeleteFolderRequest { }
+    public class OutlookCommandMoveMailRequest : MoveMailRequest { }
+    public class OutlookCommandDeleteMailRequest : DeleteMailRequest { }
+    public class OutlookCommandRuleConditions : OutlookRuleConditionsRequest { }
+    public class OutlookCommandRuleActions : OutlookRuleActionsRequest { }
+
+    public class OutlookCommandCalendarRequest
+    {
+        public int DaysForward { get; set; } = 31;
+        public string StartDate { get; set; } = string.Empty;
+        public string EndDate { get; set; } = string.Empty;
+    }
+
+    public class OutlookCommandNewCategory : OutlookCategoryDto { }
+
+    public class OutlookCommandRuleRequest
+    {
+        public string Operation { get; set; } = "upsert";
+        public string StoreId { get; set; } = string.Empty;
+        public string RuleName { get; set; } = string.Empty;
+        public string OriginalRuleName { get; set; } = string.Empty;
+        public int? OriginalExecutionOrder { get; set; }
+        public string RuleType { get; set; } = "receive";
+        public bool Enabled { get; set; } = true;
+        public int? ExecutionOrder { get; set; }
+        public OutlookCommandRuleConditions Conditions { get; set; } = new OutlookCommandRuleConditions();
+        public OutlookCommandRuleActions Actions { get; set; } = new OutlookCommandRuleActions();
     }
 }

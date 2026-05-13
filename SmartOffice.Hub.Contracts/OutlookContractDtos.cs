@@ -1,16 +1,16 @@
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
 
-namespace SmartOffice.Hub.Models
+namespace SmartOffice.Hub.Contracts
 {
-    // 共用 Outlook data DTO：AddIn 會推送這些資料，Hub / HTTP API / Web UI 也會讀取。
     public class MailItemDto
     {
         public string Id { get; set; } = string.Empty;
         public string Subject { get; set; } = string.Empty;
-        public OutlookRecipientDto Sender { get; set; } = new();
-        public List<OutlookRecipientDto> ToRecipients { get; set; } = new();
-        public List<OutlookRecipientDto> CcRecipients { get; set; } = new();
-        public List<OutlookRecipientDto> BccRecipients { get; set; } = new();
+        public OutlookRecipientDto Sender { get; set; } = new OutlookRecipientDto();
+        public List<OutlookRecipientDto> ToRecipients { get; set; } = new List<OutlookRecipientDto>();
+        public List<OutlookRecipientDto> CcRecipients { get; set; } = new List<OutlookRecipientDto>();
+        public List<OutlookRecipientDto> BccRecipients { get; set; } = new List<OutlookRecipientDto>();
         public DateTime ReceivedTime { get; set; }
         public string Body { get; set; } = string.Empty;
         public string BodyHtml { get; set; } = string.Empty;
@@ -34,26 +34,25 @@ namespace SmartOffice.Hub.Models
 
     public class OutlookRecipientDto
     {
-        public string RecipientKind { get; set; } = string.Empty; // sender、to、cc、bcc、organizer、required。
+        public string RecipientKind { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
         public string SmtpAddress { get; set; } = string.Empty;
         public string RawAddress { get; set; } = string.Empty;
-        public string AddressType { get; set; } = string.Empty; // Outlook 常見值：SMTP、EX。
+        public string AddressType { get; set; } = string.Empty;
         public string EntryUserType { get; set; } = string.Empty;
         public bool IsGroup { get; set; }
         public bool IsResolved { get; set; }
-        public List<OutlookRecipientDto> Members { get; set; } = new();
+        public List<OutlookRecipientDto> Members { get; set; } = new List<OutlookRecipientDto>();
     }
 
     public class ChatMessageDto
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Source { get; set; } = string.Empty; // 目前預期值："outlook" 或 "web"。
+        public string Source { get; set; } = string.Empty;
         public string Text { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 
-    [JsonConverter(typeof(JsonStringEnumConverter<OutlookFolderType>))]
     public enum OutlookFolderType
     {
         Unknown = 0,
@@ -92,27 +91,27 @@ namespace SmartOffice.Hub.Models
         public string StoreId { get; set; } = string.Empty;
         public bool IsStoreRoot { get; set; }
         public OutlookFolderType FolderType { get; set; } = OutlookFolderType.Unknown;
-        public int DefaultItemType { get; set; } = -1; // Outlook OlItemType；mail folder 為 0。
+        public int DefaultItemType { get; set; } = -1;
         public bool IsHidden { get; set; }
         public bool IsSystem { get; set; }
         public bool HasChildren { get; set; }
         public bool ChildrenLoaded { get; set; }
-        public string DiscoveryState { get; set; } = "partial"; // partial、loaded、failed。
+        public string DiscoveryState { get; set; } = "partial";
     }
 
     public class OutlookStoreDto
     {
         public string StoreId { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
-        public string StoreKind { get; set; } = string.Empty; // ost、pst、exchange、other。
+        public string StoreKind { get; set; } = string.Empty;
         public string StoreFilePath { get; set; } = string.Empty;
         public string RootFolderPath { get; set; } = string.Empty;
     }
 
     public class FolderSnapshotDto
     {
-        public List<OutlookStoreDto> Stores { get; set; } = new();
-        public List<FolderDto> Folders { get; set; } = new();
+        public List<OutlookStoreDto> Stores { get; set; } = new List<OutlookStoreDto>();
+        public List<FolderDto> Folders { get; set; } = new List<FolderDto>();
     }
 
     public class MailBodyDto
@@ -129,7 +128,7 @@ namespace SmartOffice.Hub.Models
         public string FolderPath { get; set; } = string.Empty;
         public string ConversationId { get; set; } = string.Empty;
         public string ConversationTopic { get; set; } = string.Empty;
-        public List<MailItemDto> Mails { get; set; } = new();
+        public List<MailItemDto> Mails { get; set; } = new List<MailItemDto>();
     }
 
     public class MailAttachmentDto
@@ -155,7 +154,7 @@ namespace SmartOffice.Hub.Models
     {
         public string MailId { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
-        public List<MailAttachmentDto> Attachments { get; set; } = new();
+        public List<MailAttachmentDto> Attachments { get; set; } = new List<MailAttachmentDto>();
     }
 
     public class ExportedMailAttachmentDto
@@ -187,9 +186,9 @@ namespace SmartOffice.Hub.Models
         public string RuleType { get; set; } = "receive";
         public bool IsLocalRule { get; set; }
         public bool CanModifyDefinition { get; set; } = true;
-        public List<string> Conditions { get; set; } = new();
-        public List<string> Actions { get; set; } = new();
-        public List<string> Exceptions { get; set; } = new();
+        public List<string> Conditions { get; set; } = new List<string>();
+        public List<string> Actions { get; set; } = new List<string>();
+        public List<string> Exceptions { get; set; } = new List<string>();
     }
 
     public class OutlookCategoryDto
@@ -207,15 +206,15 @@ namespace SmartOffice.Hub.Models
         public DateTime Start { get; set; }
         public DateTime End { get; set; }
         public string Location { get; set; } = string.Empty;
-        public OutlookRecipientDto Organizer { get; set; } = new();
-        public List<OutlookRecipientDto> RequiredAttendees { get; set; } = new();
+        public OutlookRecipientDto Organizer { get; set; } = new OutlookRecipientDto();
+        public List<OutlookRecipientDto> RequiredAttendees { get; set; } = new List<OutlookRecipientDto>();
         public bool IsRecurring { get; set; }
         public string BusyStatus { get; set; } = string.Empty;
     }
 
     public class AddinLogEntry
     {
-        public string Level { get; set; } = "info"; // "info", "warn", "error"
+        public string Level { get; set; } = "info";
         public string Message { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }

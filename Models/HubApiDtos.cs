@@ -94,16 +94,6 @@ namespace SmartOffice.Hub.Models
         public int MaxCount { get; set; } = 30;
     }
 
-    public class FindFolderRequest
-    {
-        public string Name { get; set; } = string.Empty;
-        public string FolderPath { get; set; } = string.Empty;
-        public string FolderType { get; set; } = string.Empty;
-        public string StoreId { get; set; } = string.Empty;
-        public bool IncludeHidden { get; set; }
-        public int MaxResults { get; set; } = 20;
-    }
-
     public class OpenExportedAttachmentResponse
     {
         public string Status { get; set; } = string.Empty;

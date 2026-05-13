@@ -13,6 +13,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="SmartOffice.Hub.Contracts\SmartOffice.Hub.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="SmartOffice.Hub.Contracts\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="wwwroot\css\" />
     <Folder Include="wwwroot\js\components\" />
   </ItemGroup>
