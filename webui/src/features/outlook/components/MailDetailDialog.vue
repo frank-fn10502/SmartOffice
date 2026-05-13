@@ -99,6 +99,13 @@ const {
               {{ formatRecipient(recipient) }} group<span v-if="recipient.members.length > 0">：{{ formatRecipients(recipient.members) }}</span>
             </small>
           </div>
+          <div v-if="dialogMail.ccRecipients.length > 0" class="dialog-mail-meta">
+            <span>副本</span>
+            <strong>{{ formatRecipients(dialogMail.ccRecipients) }}</strong>
+            <small v-for="recipient in dialogMail.ccRecipients.filter((item) => item.isGroup)" :key="recipient.displayName || recipient.smtpAddress">
+              {{ formatRecipient(recipient) }} group<span v-if="recipient.members.length > 0">：{{ formatRecipients(recipient.members) }}</span>
+            </small>
+          </div>
           <div class="dialog-mail-meta">
             <span>Folder</span>
             <strong>{{ dialogMail.folderPath }}</strong>

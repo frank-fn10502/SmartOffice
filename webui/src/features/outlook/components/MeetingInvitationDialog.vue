@@ -78,7 +78,12 @@ const {
             </div>
             <div v-if="dialogMail.ccRecipients.length > 0">
               <dt>副本</dt>
-              <dd><strong>{{ formatRecipients(dialogMail.ccRecipients) }}</strong></dd>
+              <dd>
+                <strong>{{ formatRecipients(dialogMail.ccRecipients) }}</strong>
+                <small v-for="recipient in dialogMail.ccRecipients.filter((item) => item.isGroup)" :key="recipient.displayName || recipient.smtpAddress">
+                  {{ formatRecipient(recipient) }} group<span v-if="recipient.members.length > 0">：{{ formatRecipients(recipient.members) }}</span>
+                </small>
+              </dd>
             </div>
             <div>
               <dt>Folder</dt>

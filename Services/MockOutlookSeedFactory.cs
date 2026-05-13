@@ -348,12 +348,8 @@ namespace SmartOffice.Hub.Services
                 Id = id,
                 Subject = subject,
                 Sender = Recipient("sender", senderDisplayName, senderSmtpAddress),
-                ToRecipients = new List<OutlookRecipientDto>
-                {
-                    id == "mock-001"
-                        ? Group("to", "Product Team", "product@example.test", "Ada Chen", "Ben Lin", "Chris Wang")
-                        : Recipient("to", "Mock User", "mock.user@example.test"),
-                },
+                ToRecipients = MockToRecipients(id, subject),
+                CcRecipients = MockCcRecipients(id, subject),
                 ReceivedTime = UtcDateTime.Normalize(receivedTime),
                 Body = body,
                 BodyHtml = bodyHtml ?? $"<article><h2>{subject}</h2><p>Mock 郵件內容，用於本機測試 Web UI 與 Outlook contract。</p></article>",
@@ -373,6 +369,62 @@ namespace SmartOffice.Hub.Services
             };
             ApplyMockAttachmentSummary(mail);
             return mail;
+        }
+
+        private static List<OutlookRecipientDto> MockToRecipients(string id, string subject)
+        {
+            if (id == "mock-001")
+            {
+                return new List<OutlookRecipientDto>
+                {
+                    Group("to", "Product Team", "product@example.test", "Ada Chen", "Ben Lin", "Chris Wang"),
+                    Recipient("to", "Mock User", "mock.user@example.test"),
+                };
+            }
+
+            if (subject.Contains("多收件人與群組顯示測試", StringComparison.OrdinalIgnoreCase))
+            {
+                return new List<OutlookRecipientDto>
+                {
+                    Recipient("to", "Mock User", "mock.user@example.test"),
+                    Group("to", "All Taipei Office", "all-taipei@example.test", "Ada Chen", "Ben Lin", "Dana Hsu", "Evan Wu"),
+                };
+            }
+
+            return new List<OutlookRecipientDto>
+            {
+                Recipient("to", "Mock User", "mock.user@example.test"),
+            };
+        }
+
+        private static List<OutlookRecipientDto> MockCcRecipients(string id, string subject)
+        {
+            if (id == "mock-001")
+            {
+                return new List<OutlookRecipientDto>
+                {
+                    Group("cc", "Finance Approvers", "finance-approvers@example.test", "Fiona Tsai", "Finance Bot", "Ben Lin"),
+                };
+            }
+
+            if (id == "mock-004")
+            {
+                return new List<OutlookRecipientDto>
+                {
+                    Group("cc", "Delivery Team", "delivery@example.test", "Dana Hsu", "Mock User", "Chris Wang"),
+                };
+            }
+
+            if (subject.Contains("多收件人與群組顯示測試", StringComparison.OrdinalIgnoreCase))
+            {
+                return new List<OutlookRecipientDto>
+                {
+                    Recipient("cc", "Ivy Lin", "ivy.lin@example.test"),
+                    Group("cc", "Vendor Escalation List", "vendor-escalation@example.test", "Vendor Team", "Mina Park", "Noah Sato"),
+                };
+            }
+
+            return new List<OutlookRecipientDto>();
         }
 
         private static OutlookRecipientDto Recipient(string kind, string displayName, string smtpAddress)
