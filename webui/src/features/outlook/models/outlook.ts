@@ -439,5 +439,4 @@ export interface AddinLogEntry {
 }
 
 export type AppView = 'outlook' | 'admin' | 'search' | 'rules' | 'chat' | 'calendar' | 'contacts'
-export type HubPage = 'outlook' | 'swagger'
 export type SignalRState = 'connected' | 'reconnecting' | 'disconnected'

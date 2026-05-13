@@ -2,8 +2,8 @@
 import { computed, ref } from 'vue'
 import { Monitor, Moon, Platform, Sunny } from '@element-plus/icons-vue'
 import { useTheme } from './composables/useTheme'
+import type { HubPage } from './features/office/models/workspace'
 import { useOutlookDashboard } from './features/outlook/composables/useOutlookDashboard'
-import type { HubPage } from './features/outlook/models/outlook'
 import OutlookPage from './views/OutlookPage.vue'
 
 const dashboard = useOutlookDashboard()

@@ -60,7 +60,29 @@ webui/src/features/outlook/
   utils/
 ```
 
-`webui/src` 根層只保留 app shell、views 與 global style。Outlook-specific 檔案不要再新增到根層 `api/`、`components/`、`composables/`、`models/` 或 `utils/`；若未來新增其他 domain，請建立新的 `features/<domain>/`，不要把不同 domain 混在同一個泛用資料夾。
+多 Office Add-in 共用的 Web UI 基礎層放在：
+
+```text
+webui/src/features/office/
+  components/
+  models/
+```
+
+`features/office/` 只放跨 Add-in 共用的 workspace shell、navigation 型別、Add-in 狀態摘要與未來各 Office feature 都能重用的 UI contract；不得放 Outlook-specific DTO、route、mail/folder/rule/calendar 邏輯。
+
+`webui/src` 根層只保留 app shell、views 與 global style。Outlook-specific 檔案不要再新增到根層 `api/`、`components/`、`composables/`、`models/` 或 `utils/`；若未來新增其他 Office Add-in domain，請建立新的 `features/<domain>/`，例如 `features/excel/`、`features/word/` 或 `features/powerpoint/`，不要把不同 domain 混在同一個泛用資料夾。
+
+每個 Office Add-in feature 應維持同一個擴充形狀：
+
+- `features/<domain>/api/`：該 Add-in 的 HTTP request/fetch-result wrapper 與 normalizer。
+- `features/<domain>/models/`：該 Add-in 的 DTO 與 view state 型別。
+- `features/<domain>/composables/`：該 Add-in 的 dashboard/controller，負責 lazy load、busy state、request/fetch-result workflow。
+- `features/<domain>/components/`：該 Add-in 的操作、測試與診斷畫面。
+- `views/<Domain>Page.vue`：只負責把該 Add-in 的 dashboard、workspace shell、view component 與 dialog 組起來。
+
+新增 Word、Excel、PowerPoint 或其他 VSTO AddIn Web UI 時，不要複製 OutlookPage 的 toolbar 實作。請使用 `features/office/components/OfficeWorkspaceShell.vue` 提供一致的 workspace header、狀態 tag 與 view navigation；各 Add-in 只提供自己的 `navOptions`、`activeView`、`switchView` 與內容 views。
+
+每個 Add-in 的 view 都必須 lazy load：只有使用者第一次進入該 view，或明確按下同步/搜尋/測試按鈕時，才發送對應 Office request。不要在 app startup 一次載入所有 Office 操作、測試或診斷資料；真實 VSTO/COM 環境可能因此卡死。
 
 ## 檔案切分原則
 

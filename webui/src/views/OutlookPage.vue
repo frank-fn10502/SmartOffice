@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import { Document } from '@element-plus/icons-vue'
+import OfficeWorkspaceShell from '../features/office/components/OfficeWorkspaceShell.vue'
 import CategoryManagerDialog from '../features/outlook/components/CategoryManagerDialog.vue'
 import FlagEditorDialog from '../features/outlook/components/FlagEditorDialog.vue'
 import FolderContextMenu from '../features/outlook/components/FolderContextMenu.vue'
@@ -48,23 +49,16 @@ const {
 </script>
 
 <template>
-  <div class="outlook-page">
-    <div class="feature-toolbar">
-      <div class="feature-title">
-        <el-icon><Document /></el-icon>
-        <span>Outlook</span>
-        <el-tag :type="signalRState === 'connected' ? 'success' : 'danger'" effect="plain">
-          {{ signalRState }}
-        </el-tag>
-      </div>
-
-      <el-segmented
-        :model-value="activeView"
-        :options="navOptions"
-        @update:model-value="(value: string | number | boolean) => switchView(value as AppView)"
-      />
-    </div>
-
+  <OfficeWorkspaceShell
+    class="outlook-page"
+    title="Outlook"
+    :icon="Document"
+    :status-label="signalRState"
+    :status-type="signalRState === 'connected' ? 'success' : 'danger'"
+    :active-view="activeView"
+    :nav-options="navOptions"
+    @update-active-view="(value) => switchView(value as AppView)"
+  >
     <KeepAlive>
       <OutlookHomeView v-if="activeView === 'outlook'" :dashboard="dashboard" />
       <AdminPage v-else-if="activeView === 'admin'" :dashboard="dashboard" />
@@ -103,5 +97,5 @@ const {
       v-model:draft="mailPropertiesDraft"
       :outlook-busy="outlookBusy"
     />
-  </div>
+  </OfficeWorkspaceShell>
 </template>
