@@ -3,6 +3,7 @@ import MailPropertyPane from '../MailPropertyPane.vue'
 import type { OutlookDashboardState } from '../../composables/useOutlookDashboard'
 import { formatDateTime } from '../../utils/formatters'
 import { formatMailSender, formatRecipient, formatRecipients, shouldShowRecipientSmtpAddress } from '../../utils/mailAddresses'
+import { outlookItemTypeLabel } from '../../utils/outlookItemTypes'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState
@@ -75,6 +76,9 @@ const {
         <strong>{{ dialogMail.subject || '(No subject)' }}</strong>
         <span>
           {{ formatMailSender(dialogMail) }} · {{ formatDateTime(dialogMail.receivedTime) }}
+          <el-tag v-if="outlookItemTypeLabel(dialogMail)" size="small" type="success" effect="plain">
+            {{ outlookItemTypeLabel(dialogMail) }}
+          </el-tag>
           <el-tag v-if="dialogLoading" size="small" type="info" effect="plain">載入中</el-tag>
         </span>
       </div>
@@ -101,6 +105,7 @@ const {
           </div>
         </div>
         <div class="mail-row-tags dialog-mail-tags">
+          <el-tag v-if="outlookItemTypeLabel(dialogMail)" type="success" effect="plain">{{ outlookItemTypeLabel(dialogMail) }}</el-tag>
           <el-tag v-if="!dialogMail.isRead" type="warning" effect="plain">未讀</el-tag>
           <el-tag v-if="dialogMail.isMarkedAsTask" :type="flagTagType(dialogMail.flagInterval)" effect="plain">
             {{ flagDisplayLabel(dialogMail.flagInterval, dialogMail.flagRequest) }}

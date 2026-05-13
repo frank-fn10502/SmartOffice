@@ -336,6 +336,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-update-mail-properties")]
         public async Task<IActionResult> RequestUpdateMailProperties([FromBody] MailPropertiesCommandRequest req, CancellationToken ct)
         {
+            if (!CanUseMailMutation(req?.MailId, out var unsupported))
+                return UnsupportedMailMutation(unsupported, "update_mail_properties");
+
             var cmd = new PendingCommand
             {
                 Type = "update_mail_properties",
@@ -380,6 +383,9 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-move-mail")]
         public async Task<IActionResult> RequestMoveMail([FromBody] MoveMailRequest req, CancellationToken ct)
         {
+            if (!CanUseMailMutation(req?.MailId, out var unsupported))
+                return UnsupportedMailMutation(unsupported, "move_mail");
+
             var cmd = new PendingCommand
             {
                 Type = "move_mail",
@@ -405,6 +411,20 @@ namespace SmartOffice.Hub.Controllers
                 });
             }
 
+            var unsupportedMailIds = req.MailIds
+                .Where(mailId => !CanUseMailMutation(mailId, out _))
+                .ToList();
+            if (unsupportedMailIds.Count > 0)
+            {
+                return BadRequest(new
+                {
+                    status = "unsupported_outlook_item_type",
+                    operation = "move_mails",
+                    message = "部分項目不是一般郵件，不能使用 mail mutation；會議邀請請使用 Outlook 會議/行事曆流程。",
+                    mailIds = unsupportedMailIds
+                });
+            }
+
             var cmd = new PendingCommand
             {
                 Type = "move_mails",
@@ -416,12 +436,43 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-delete-mail")]
         public async Task<IActionResult> RequestDeleteMail([FromBody] DeleteMailRequest req, CancellationToken ct)
         {
+            if (!CanUseMailMutation(req?.MailId, out var unsupported))
+                return UnsupportedMailMutation(unsupported, "delete_mail");
+
             var cmd = new PendingCommand
             {
                 Type = "delete_mail",
                 DeleteMailRequest = req
             };
             return await DispatchCommandAsync(cmd, ct);
+        }
+
+        private bool CanUseMailMutation(string? mailId, out MailItemDto? unsupported)
+        {
+            unsupported = null;
+            if (string.IsNullOrWhiteSpace(mailId)) return true;
+
+            var cached = _mailStore.FindCachedMail(mailId);
+            if (cached is null) return true;
+
+            var messageClass = cached.MessageClass?.Trim() ?? "";
+            if (messageClass.Length == 0 || string.Equals(messageClass, "IPM.Note", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            unsupported = cached;
+            return false;
+        }
+
+        private IActionResult UnsupportedMailMutation(MailItemDto? mail, string operation)
+        {
+            return BadRequest(new
+            {
+                status = "unsupported_outlook_item_type",
+                operation,
+                mailId = mail?.Id ?? "",
+                messageClass = mail?.MessageClass ?? "",
+                message = "此 Outlook item 不是一般郵件，不能使用 mail mutation；會議邀請請使用 Outlook 會議/行事曆流程。"
+            });
         }
 
         private Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)

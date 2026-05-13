@@ -53,6 +53,7 @@ import {
   toDateKey,
   todayInputValue,
 } from '../utils/outlookDashboardHelpers'
+import { canUseMailMutation } from '../utils/outlookItemTypes'
 
 function estimatedAttachmentExportRoot() {
   const platform = window.navigator.platform.toLowerCase()
@@ -607,7 +608,7 @@ function categoryTagStyle(name: string) {
   }
 
   function selectedBulkMoveMails() {
-    return mails.value.filter((mail) => mail.id && selectedMailIds.value.has(mail.id))
+    return mails.value.filter((mail) => mail.id && selectedMailIds.value.has(mail.id) && canUseMailMutation(mail))
   }
 
   function selectedBulkMoveSourcePaths() {
@@ -1107,7 +1108,7 @@ function categoryTagStyle(name: string) {
     mailDialogVisible.value = true
     void requestMailBody(mail)
     void requestMailAttachments(mail)
-    void requestMailConversation(mail)
+    if (canUseMailMutation(mail)) void requestMailConversation(mail)
   }
 
   function closeMailDialog() {
@@ -1592,7 +1593,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function requestMailConversation(mail: MailItemDto) {
-    if (!mail.id?.trim() || isConversationLoading(mail) || mailConversationsByMailId.value[mail.id]) return
+    if (!mail.id?.trim() || !canUseMailMutation(mail) || isConversationLoading(mail) || mailConversationsByMailId.value[mail.id]) return
     loadingConversationMailIds.value = new Set(loadingConversationMailIds.value).add(mail.id)
     try {
       const response = await outlookApi.requestMailConversation({
@@ -1671,7 +1672,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function applyMailProperties(mail: MailItemDto) {
-    if (!mail.id?.trim()) return
+    if (!mail.id?.trim() || !canUseMailMutation(mail)) return
     const payload = buildMailPropertiesPayload(mail, mailPropertiesDraft.value)
     const existingCategoryNames = new Set(categories.value.map((category) => category.name.toLowerCase()))
     const newCategories = payload.categories
@@ -1874,7 +1875,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function moveMailToFolder(mail: MailItemDto, destinationFolderPath: string) {
-    if (!mail.id?.trim() || !destinationFolderPath || destinationFolderPath === mail.folderPath) return
+    if (!mail.id?.trim() || !canUseMailMutation(mail) || !destinationFolderPath || destinationFolderPath === mail.folderPath) return
     const snapshot = captureMailListSnapshot()
     hideMovedMails([mail.id])
     const succeeded = await runMailOperation(
@@ -1931,7 +1932,7 @@ function categoryTagStyle(name: string) {
   }
 
   async function deleteMail(mail: MailItemDto) {
-    if (!mail?.id?.trim() || outlookBusy.value) return
+    if (!mail?.id?.trim() || !canUseMailMutation(mail) || outlookBusy.value) return
     if (isInDeletedFolder(mail.folderPath)) {
       ElMessage.warning(manualOutlookDeleteMessage)
       return
@@ -1953,7 +1954,7 @@ function categoryTagStyle(name: string) {
   }
 
   function startMailDrag(mail: MailItemDto, index: number, event: DragEvent) {
-    if (!mail.id?.trim()) {
+    if (!mail.id?.trim() || !canUseMailMutation(mail)) {
       event.preventDefault()
       return
     }

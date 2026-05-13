@@ -4,6 +4,7 @@ import { Rank, View } from '@element-plus/icons-vue'
 import type { MailItemDto } from '../../models/outlook'
 import { formatDateTime } from '../../utils/formatters'
 import { formatMailSender } from '../../utils/mailAddresses'
+import { canUseMailMutation, outlookItemTypeLabel } from '../../utils/outlookItemTypes'
 
 defineProps<{
   mail: MailItemDto
@@ -28,12 +29,12 @@ defineEmits<{
 <template>
   <article class="mail-card-row" :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }">
     <div class="mail-row-shell">
-      <el-tooltip content="拖曳移動郵件" placement="top">
+      <el-tooltip :content="canUseMailMutation(mail) ? '拖曳移動郵件' : '此 Outlook item 只能閱讀，不能當一般郵件移動'" placement="top">
         <button
           class="mail-drag-handle"
           type="button"
           draggable="true"
-          :disabled="!mail.id?.trim() || outlookBusy"
+          :disabled="!mail.id?.trim() || outlookBusy || !canUseMailMutation(mail)"
           @click.stop
           @dragstart="$emit('startMailDrag', mail, index, $event)"
           @dragend="$emit('clearMailDrag')"
@@ -69,6 +70,7 @@ defineEmits<{
           </el-tag>
         </span>
         <span class="mail-row-tags">
+          <el-tag v-if="outlookItemTypeLabel(mail)" type="success" effect="plain">{{ outlookItemTypeLabel(mail) }}</el-tag>
           <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
           <el-tag v-if="mail.isMarkedAsTask" :type="flagTagType(mail.flagInterval)" effect="plain">
             {{ flagDisplayLabel(mail.flagInterval, mail.flagRequest) }}<span v-if="mail.taskDueDate"> · {{ formatDateTime(mail.taskDueDate) }}</span>

@@ -1080,6 +1080,7 @@ namespace SmartOffice.Hub.Services
                 Body = mail.Body,
                 BodyHtml = mail.BodyHtml,
                 FolderPath = mail.FolderPath,
+                MessageClass = mail.MessageClass,
                 ConversationId = mail.ConversationId,
                 ConversationTopic = mail.ConversationTopic,
                 ConversationIndex = mail.ConversationIndex,

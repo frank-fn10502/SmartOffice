@@ -215,6 +215,7 @@ export interface MailItemDto {
   body: string
   bodyHtml: string
   folderPath: string
+  messageClass: string
   conversationId: string
   conversationTopic: string
   conversationIndex: string

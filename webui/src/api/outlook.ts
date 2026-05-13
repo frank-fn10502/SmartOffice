@@ -99,6 +99,7 @@ export function normalizeMailItem(item: unknown): MailItemDto {
     body: readString(source, 'body', 'Body'),
     bodyHtml: readString(source, 'bodyHtml', 'BodyHtml'),
     folderPath: readString(source, 'folderPath', 'FolderPath'),
+    messageClass: readString(source, 'messageClass', 'MessageClass'),
     conversationId: readString(source, 'conversationId', 'ConversationId'),
     conversationTopic: readString(source, 'conversationTopic', 'ConversationTopic'),
     conversationIndex: readString(source, 'conversationIndex', 'ConversationIndex'),

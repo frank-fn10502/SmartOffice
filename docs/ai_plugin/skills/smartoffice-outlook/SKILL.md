@@ -19,6 +19,7 @@ metadata:
 - 若 `request-*` 回 HTTP 409 / 400 / 502 / 504，仍先解析 body 的 `state`、`message` 與可能存在的 `requestId`；不要靠猜測重試，也不要改用更大的搜尋範圍。
 - `request-mail-search` 是多數 mail workflow 的前置定位與篩選入口，不只是「文字搜尋」。凡是使用者用 subject、sender、日期、category、附件、已讀、旗標或 folder scope 描述目標 mails，優先用 `request-mail-search` 找出候選 metadata，再決定是否讀 body 或 mutation。
 - 修改郵件前必須先從 `fetch-result-*` 的 `data.mails` 取得 `MailItemDto.id` 與 `folderPath`，不可只用 subject、sender 或 folder name 猜目標。
+- 修改、移動或刪除前必須確認 `MailItemDto.messageClass`。空字串或 `IPM.Note` 可視為一般郵件；`IPM.Schedule.Meeting.*` 是會議邀請/更新，只能讀 metadata/body/attachments，不可呼叫一般 mail mutation。API 若回 `unsupported_outlook_item_type`，停止並告知使用者需用 Outlook 會議/行事曆流程處理。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
 - 使用者只要求最近郵件、郵件清單、統計或 Markdown metadata 報告時，不要呼叫 `request-mail-body`；只有使用者明確要求內容摘要、內文關鍵字判讀，或 metadata 不足以完成任務時才讀 body。
 - `request-delete-mail` 的語意是移到 Outlook default Deleted Items folder，不是永久刪除；目的 folder 由 AddIn 用 Outlook default folder identity 定位，不靠顯示名稱猜測。完成後告知使用者 mail 已移到刪除資料夾；若使用者要永久刪除，請使用者自行到 Outlook 操作。

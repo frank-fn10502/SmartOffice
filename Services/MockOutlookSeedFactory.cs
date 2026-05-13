@@ -357,6 +357,7 @@ namespace SmartOffice.Hub.Services
                 Body = body,
                 BodyHtml = bodyHtml ?? $"<article><h2>{subject}</h2><p>Mock 郵件內容，用於本機測試 Web UI 與 Outlook contract。</p></article>",
                 FolderPath = folderPath,
+                MessageClass = id == "mock-004" ? "IPM.Schedule.Meeting.Request" : "IPM.Note",
                 ConversationId = MockConversationId(subject),
                 ConversationTopic = NormalizeConversationTopic(subject),
                 ConversationIndex = receivedTime.Ticks.ToString("X16"),

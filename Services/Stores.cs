@@ -223,6 +223,21 @@ namespace SmartOffice.Hub.Services
             lock (_lock) { return _mails.Select(CloneMail).ToList(); }
         }
 
+        public MailItemDto? FindCachedMail(string mailId)
+        {
+            if (string.IsNullOrWhiteSpace(mailId)) return null;
+            lock (_lock)
+            {
+                return _mails.Concat(_mailSearchResults)
+                    .Concat(_folderMailResults)
+                    .Concat(_mailSearchResultsBySearchId.Values.SelectMany(items => items))
+                    .Concat(_folderMailResultsByRequestId.Values.SelectMany(items => items))
+                    .FirstOrDefault(mail => string.Equals(mail.Id, mailId, StringComparison.OrdinalIgnoreCase)) is { } found
+                        ? CloneMail(found)
+                        : null;
+            }
+        }
+
         public void BeginMailSearch(bool reset = true, string searchId = "")
         {
             if (!reset) return;
@@ -722,6 +737,7 @@ namespace SmartOffice.Hub.Services
                 Body = mail.Body,
                 BodyHtml = mail.BodyHtml,
                 FolderPath = mail.FolderPath,
+                MessageClass = mail.MessageClass,
                 ConversationId = mail.ConversationId,
                 ConversationTopic = mail.ConversationTopic,
                 ConversationIndex = mail.ConversationIndex,

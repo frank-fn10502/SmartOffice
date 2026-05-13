@@ -15,6 +15,7 @@ namespace SmartOffice.Hub.Contracts
         public string Body { get; set; } = string.Empty;
         public string BodyHtml { get; set; } = string.Empty;
         public string FolderPath { get; set; } = string.Empty;
+        public string MessageClass { get; set; } = string.Empty;
         public string ConversationId { get; set; } = string.Empty;
         public string ConversationTopic { get; set; } = string.Empty;
         public string ConversationIndex { get; set; } = string.Empty;
