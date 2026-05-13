@@ -98,63 +98,12 @@
 
 .mail-row-shell {
   display: grid;
-  grid-template-columns: auto auto auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
   padding: 8px 10px;
 }
 
 .search-result-table .mail-row-shell {
-  grid-template-columns: auto auto minmax(0, 1fr);
-}
-
-.mail-delete-button,
-.mail-open-button {
-  justify-self: start;
-}
-
-.mail-drag-handle {
-  display: inline-grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: grab;
-}
-
-.mail-drag-handle:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-3);
-  color: var(--accent);
-}
-
-.mail-drag-handle:active {
-  cursor: grabbing;
-}
-
-.mail-drag-handle:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.mail-drag-preview {
-  position: fixed;
-  top: -1000px;
-  left: -1000px;
-  z-index: 9999;
-  padding: 6px 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--surface-4);
-  color: var(--accent);
-  font-size: 0.82rem;
-  font-weight: 700;
-  box-shadow: 0 10px 24px rgb(31 95 153 / 18%);
-  pointer-events: none;
-  white-space: nowrap;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .mail-row {
@@ -167,7 +116,12 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  cursor: pointer;
+  cursor: default;
+}
+
+body.mail-dragging,
+body.mail-dragging * {
+  cursor: grabbing !important;
 }
 
 .mail-row-shell:hover,
@@ -242,4 +196,43 @@
 
 .mail-attachment-tag {
   flex-shrink: 0;
+}
+
+.mail-context-menu {
+  position: fixed;
+  z-index: 2600;
+  display: grid;
+  min-width: 190px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-popover);
+}
+
+.mail-context-menu button {
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mail-context-menu button:hover {
+  background: var(--surface-3);
+}
+
+.mail-context-menu button.danger {
+  color: var(--danger);
+}
+
+.mail-context-menu button:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.mail-context-menu button:disabled:hover {
+  background: transparent;
 }

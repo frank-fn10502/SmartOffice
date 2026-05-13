@@ -627,7 +627,7 @@ export function useOutlookDashboard() {
     selectMail,
     selectOnlyMail,
     setDragOverFolder,
-    startMailDrag,
+    startMailPointerDrag,
   } = useOutlookMailListController({
     deletedFolderForPath,
     draggedMailId,
@@ -738,7 +738,7 @@ export function useOutlookDashboard() {
     selectedMail, selectedMailCategories, selectedMailIndex, selectedMailIds, selectedRule,
     selectedRuleIndex, selectFolder, selectCalendarEvent, selectMail, sendChat, saveRule,
     deleteRule, editRule, showFolderMails, goToCurrentCalendarMonth, setDragOverFolder,
-    setMailFlagDraft, signalRState, splitCategories, startMailDrag, switchView, toggleFolder,
+    setMailFlagDraft, signalRState, splitCategories, startMailPointerDrag, switchView, toggleFolder,
     toggleSearchResultFolder, toggleSearchResultStore, updateCategoryColor, toggleRuleEnabled,
     visibleFolders, folderOptions, ruleDraft, ruleDraftIsEditing, rules, loadingRules,
     visibleMasterCategories, hiddenMasterCategoryCount, toggleMasterCategoryList, flagEditorVisible,

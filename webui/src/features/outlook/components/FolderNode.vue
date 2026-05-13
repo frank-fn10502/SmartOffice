@@ -70,6 +70,16 @@ function handleFolderClick() {
   if (isMailSelectableFolder(props.folder)) emit('select', props.folder.folderPath)
   else if (props.folder.hasChildren || visibleChildren(props.folder).length > 0) emit('toggle', props.folder.folderPath)
 }
+
+function markMailDragMove(event: DragEvent) {
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  if (!props.folderBusy && isMailSelectableFolder(props.folder)) emit('dragMailOver', props.folder.folderPath)
+}
+
+function dropMailOnFolder(event: DragEvent) {
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  if (!props.folderBusy && isMailSelectableFolder(props.folder)) emit('dropMail', props.folder.folderPath)
+}
 </script>
 
 <template>
@@ -87,12 +97,13 @@ function handleFolderClick() {
         },
       ]"
       :style="{ paddingLeft: `${level * 16 + 6}px` }"
+      :data-mail-drop-folder-path="isMailSelectableFolder(folder) ? folder.folderPath : undefined"
       :title="folderTitle(folder)"
       @click="handleFolderClick"
       @contextmenu.prevent="isMailSelectableFolder(folder) && emit('context', { path: folder.folderPath, x: $event.clientX, y: $event.clientY })"
-      @dragenter.prevent.stop="!folderBusy && isMailSelectableFolder(folder) && emit('dragMailOver', folder.folderPath)"
-      @dragover.prevent.stop="!folderBusy && isMailSelectableFolder(folder) && emit('dragMailOver', folder.folderPath)"
-      @drop.prevent.stop="!folderBusy && isMailSelectableFolder(folder) && emit('dropMail', folder.folderPath)"
+      @dragenter.prevent.stop="markMailDragMove"
+      @dragover.prevent.stop="markMailDragMove"
+      @drop.prevent.stop="dropMailOnFolder"
     >
       <button
         class="folder-toggle"

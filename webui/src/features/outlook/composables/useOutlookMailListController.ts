@@ -42,6 +42,16 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     selectedMailIndex,
   } = options
   let lastSelectedMailIndex = -1
+  let pointerDrag:
+    | {
+      mail: MailItemDto
+      index: number
+      pointerId: number
+      startX: number
+      startY: number
+      active: boolean
+    }
+    | null = null
 
   function pruneSelectedMailIds(items = mails.value) {
     const visibleIds = new Set(items.map((mail) => mail.id).filter(Boolean))
@@ -252,20 +262,6 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     else restoreFailedMailMove(snapshot)
   }
 
-  function currentDragMailCount(mailId: string) {
-    return selectedMailIds.value.has(mailId) && selectedMailIds.value.size > 1 ? selectedMailIds.value.size : 1
-  }
-
-  function setMailDragPreview(event: DragEvent, count: number) {
-    if (!event.dataTransfer) return
-    const preview = document.createElement('div')
-    preview.className = 'mail-drag-preview'
-    preview.textContent = `移動 ${count} 封郵件`
-    document.body.appendChild(preview)
-    event.dataTransfer.setDragImage(preview, 18, 18)
-    window.setTimeout(() => preview.remove(), 0)
-  }
-
   async function deleteMail(mail: MailItemDto) {
     if (!mail?.id?.trim() || outlookBusy.value) return
     if (shouldBulkDeleteFromRow(mail)) {
@@ -322,26 +318,70 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     clearSelectedMails()
   }
 
-  function startMailDrag(mail: MailItemDto, index: number, event: DragEvent) {
-    if (!mail.id?.trim()) {
-      event.preventDefault()
-      return
-    }
-    if (outlookBusy.value) return
-    if (!selectedMailIds.value.has(mail.id)) selectOnlyMail(index)
-    draggedMailId.value = mail.id
-    event.dataTransfer?.setData('text/plain', mail.id)
-    if (event.dataTransfer) {
-      const count = currentDragMailCount(mail.id)
-      event.dataTransfer.effectAllowed = 'move'
-      event.dataTransfer.setData('text/x-smartoffice-mail-count', String(count))
-      setMailDragPreview(event, count)
-    }
-  }
-
   function clearMailDrag() {
     draggedMailId.value = ''
     dragOverFolderPath.value = ''
+    document.body.classList.remove('mail-dragging')
+  }
+
+  function folderPathAtPoint(x: number, y: number) {
+    const target = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-mail-drop-folder-path]')
+    return target?.dataset.mailDropFolderPath || ''
+  }
+
+  function beginPointerMailDrag() {
+    if (!pointerDrag || pointerDrag.active) return
+    pointerDrag.active = true
+    if (!selectedMailIds.value.has(pointerDrag.mail.id)) selectOnlyMail(pointerDrag.index)
+    draggedMailId.value = pointerDrag.mail.id
+    document.body.classList.add('mail-dragging')
+  }
+
+  function handleMailPointerMove(event: PointerEvent) {
+    if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return
+    const moved = Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY)
+    if (!pointerDrag.active && moved < 6) return
+    beginPointerMailDrag()
+    event.preventDefault()
+    setDragOverFolder(folderPathAtPoint(event.clientX, event.clientY))
+  }
+
+  async function handleMailPointerUp(event: PointerEvent) {
+    if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return
+    const wasActive = pointerDrag.active
+    const dropFolderPath = wasActive ? folderPathAtPoint(event.clientX, event.clientY) : ''
+    window.removeEventListener('pointermove', handleMailPointerMove)
+    window.removeEventListener('pointerup', handleMailPointerUp)
+    window.removeEventListener('pointercancel', handleMailPointerCancel)
+    pointerDrag = null
+    if (!wasActive) return
+    event.preventDefault()
+    if (dropFolderPath) await moveDraggedMail(dropFolderPath)
+    else clearMailDrag()
+  }
+
+  function handleMailPointerCancel(event: PointerEvent) {
+    if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return
+    window.removeEventListener('pointermove', handleMailPointerMove)
+    window.removeEventListener('pointerup', handleMailPointerUp)
+    window.removeEventListener('pointercancel', handleMailPointerCancel)
+    pointerDrag = null
+    clearMailDrag()
+  }
+
+  function startMailPointerDrag(mail: MailItemDto, index: number, event: PointerEvent) {
+    if (event.button !== 0 || !mail.id?.trim() || outlookBusy.value || !canMoveOutlookItem(mail)) return
+    pointerDrag = {
+      mail,
+      index,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+    }
+    window.addEventListener('pointermove', handleMailPointerMove, { passive: false })
+    window.addEventListener('pointerup', handleMailPointerUp)
+    window.addEventListener('pointercancel', handleMailPointerCancel)
   }
 
   function setDragOverFolder(path: string) {
@@ -377,6 +417,6 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     selectMail,
     selectOnlyMail,
     setDragOverFolder,
-    startMailDrag,
+    startMailPointerDrag,
   }
 }

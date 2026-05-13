@@ -1,6 +1,5 @@
 ﻿<script setup lang="ts">
 import type { CSSProperties } from 'vue'
-import { Rank, View } from '@element-plus/icons-vue'
 import type { MailItemDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'
 import { formatMailSender } from '../utils/mailAddresses'
@@ -22,40 +21,18 @@ defineEmits<{
   clearMailDrag: []
   openMailDialog: [index: number]
   selectMail: [index: number, event: MouseEvent]
-  startMailDrag: [mail: MailItemDto, index: number, event: DragEvent]
+  startMailPointerDrag: [mail: MailItemDto, index: number, event: PointerEvent]
 }>()
 </script>
 
 <template>
   <article class="mail-card-row" :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }">
     <div class="mail-row-shell">
-      <el-tooltip :content="canMoveOutlookItem(mail) ? '拖曳移動' : '此 Outlook item 不能移動'" placement="top">
-        <button
-          class="mail-drag-handle"
-          type="button"
-          draggable="true"
-          :disabled="!mail.id?.trim() || outlookBusy || !canMoveOutlookItem(mail)"
-          @click.stop
-          @dragstart="$emit('startMailDrag', mail, index, $event)"
-          @dragend="$emit('clearMailDrag')"
-        >
-          <el-icon><Rank /></el-icon>
-        </button>
-      </el-tooltip>
-      <el-tooltip content="開啟郵件" placement="top">
-        <el-button
-          class="mail-open-button"
-          :icon="View"
-          circle
-          size="small"
-          plain
-          :disabled="!mail.id?.trim() || outlookBusy"
-          @click.stop="$emit('openMailDialog', index)"
-        />
-      </el-tooltip>
       <button
         class="mail-row"
         type="button"
+        :title="canMoveOutlookItem(mail) ? '按住拖曳到左側 folder 可移動；雙擊開啟郵件。' : '此 Outlook item 不能移動；雙擊可開啟郵件。'"
+        @pointerdown="$emit('startMailPointerDrag', mail, index, $event)"
         @click="$emit('selectMail', index, $event)"
         @dblclick="$emit('openMailDialog', index)"
       >

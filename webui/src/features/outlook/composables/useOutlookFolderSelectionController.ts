@@ -53,12 +53,15 @@ export function useOutlookFolderSelectionController(options: FolderSelectionCont
     return folderOptions.value.find((folder) =>
       folder.folderType === 'Deleted'
       && (!storeId || folder.storeId === storeId)
-      && (path === folder.folderPath || path.startsWith(`${folder.folderPath}/`))
     ) ?? null
   }
 
   function isInDeletedFolder(path: string) {
-    return deletedFolderForPath(path) !== null
+    if (!path) return false
+    const exactFolder = folderOptions.value.find((folder) => folder.folderPath === path)
+    if (exactFolder?.folderType === 'Deleted') return true
+    const deletedFolder = deletedFolderForPath(path)
+    return !!deletedFolder && (path === deletedFolder.folderPath || path.startsWith(`${deletedFolder.folderPath}/`))
   }
 
   return {

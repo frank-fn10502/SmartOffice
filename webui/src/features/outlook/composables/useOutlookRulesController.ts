@@ -43,10 +43,8 @@ export function useOutlookRulesController(options: RulesControllerOptions) {
     loadingRules.value = true
     try {
       const response = await outlookApi.requestRules()
-      await runMailOperation(
-        async () => response,
-        async () => loadRulesFromRequest(response),
-      )
+      await waitForRequest(response)
+      await loadRulesFromRequest(response)
       loadingRules.value = false
     } catch {
       loadingRules.value = false

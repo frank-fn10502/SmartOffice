@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CSSProperties } from 'vue'
-import { Delete, Document, Rank, View } from '@element-plus/icons-vue'
+import { Document } from '@element-plus/icons-vue'
 import type { MailItemDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'
 import { formatMailSender } from '../utils/mailAddresses'
@@ -9,7 +10,7 @@ import { canMoveOutlookItem, outlookItemTypeLabel } from '../utils/outlookItemTy
 const mailLookbackHours = defineModel<number>('mailLookbackHours', { required: true })
 const mailCount = defineModel<number>('mailCount', { required: true })
 
-defineProps<{
+const props = defineProps<{
   fetchedMailFolderName: string
   mails: MailItemDto[]
   showMailFetchWarning: boolean
@@ -29,21 +30,68 @@ defineProps<{
   splitCategories: (categories: string) => string[]
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   clearMailDrag: []
   openMailDialog: [index: number]
   requestMails: []
   selectMail: [index: number, event: MouseEvent]
   showFolderMails: []
-  startMailDrag: [mail: MailItemDto, index: number, event: DragEvent]
+  startMailPointerDrag: [mail: MailItemDto, index: number, event: PointerEvent]
 }>()
 
-function deleteTooltip(mail: MailItemDto, selectedMailIds: Set<string>) {
-  if (!canMoveOutlookItem(mail)) return '此 Outlook item 不能移動'
-  return selectedMailIds.size > 1 && selectedMailIds.has(mail.id)
-    ? `移動選取的 ${selectedMailIds.size} 封郵件到刪除的郵件`
-    : '移到刪除的郵件'
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  mail: null as MailItemDto | null,
+  index: -1,
+})
+
+function closeMailContextMenu() {
+  contextMenu.value.visible = false
 }
+
+function openMailContextMenu(mail: MailItemDto, index: number, event: MouseEvent) {
+  event.preventDefault()
+  if (!mail.id || !props.selectedMailIds.has(mail.id)) emit('selectMail', index, event)
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    mail,
+    index,
+  }
+}
+
+function contextDeleteLabel() {
+  return '刪除郵件'
+}
+
+function contextDeleteDisabled() {
+  const mail = contextMenu.value.mail
+  return !mail?.id?.trim() || props.outlookBusy || !canMoveOutlookItem(mail)
+}
+
+function deleteFromContextMenu() {
+  const mail = contextMenu.value.mail
+  if (!mail) return
+  closeMailContextMenu()
+  if (mail.id && props.selectedMailIds.size > 1 && props.selectedMailIds.has(mail.id)) {
+    props.deleteSelectedMails()
+    return
+  }
+  props.deleteMail(mail)
+}
+
+onMounted(() => {
+  window.addEventListener('click', closeMailContextMenu)
+  window.addEventListener('blur', closeMailContextMenu)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('click', closeMailContextMenu)
+  window.removeEventListener('blur', closeMailContextMenu)
+})
 </script>
 
 <template>
@@ -68,17 +116,6 @@ function deleteTooltip(mail: MailItemDto, selectedMailIds: Set<string>) {
       </div>
       <div class="mail-toolbar-actions">
         <el-button v-if="mailListMode === 'search'" size="small" @click="$emit('showFolderMails')">回到 folder list</el-button>
-        <el-button
-          v-if="selectedMailIds.size > 1"
-          :icon="Delete"
-          type="danger"
-          size="small"
-          plain
-          :disabled="outlookBusy"
-          @click="deleteSelectedMails"
-        >
-          刪除 {{ selectedMailIds.size }} 封
-        </el-button>
         <el-select v-model="mailLookbackHours" class="lookback-select" size="small">
           <el-option label="最近 12 小時" :value="12" />
           <el-option label="最近 24 小時" :value="24" />
@@ -106,43 +143,15 @@ function deleteTooltip(mail: MailItemDto, selectedMailIds: Set<string>) {
         :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }"
       >
         <div class="mail-row-shell">
-          <el-tooltip :content="deleteTooltip(mail, selectedMailIds)" placement="top">
-            <el-button
-              class="mail-delete-button"
-              :icon="Delete"
-              circle
-              size="small"
-              type="danger"
-              plain
-              :disabled="!mail.id?.trim() || outlookBusy || !canMoveOutlookItem(mail)"
-              @click.stop="deleteMail(mail)"
-            />
-          </el-tooltip>
-          <el-tooltip :content="canMoveOutlookItem(mail) ? '拖曳移動' : '此 Outlook item 不能移動'" placement="top">
-            <button
-              class="mail-drag-handle"
-              type="button"
-              draggable="true"
-              :disabled="!mail.id?.trim() || outlookBusy || !canMoveOutlookItem(mail)"
-              @click.stop
-              @dragstart="$emit('startMailDrag', mail, index, $event)"
-              @dragend="$emit('clearMailDrag')"
-            >
-              <el-icon><Rank /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="開啟郵件" placement="top">
-            <el-button
-              class="mail-open-button"
-              :icon="View"
-              circle
-              size="small"
-              plain
-              :disabled="!mail.id?.trim() || outlookBusy"
-              @click.stop="$emit('openMailDialog', index)"
-            />
-          </el-tooltip>
-          <button class="mail-row" type="button" @click="$emit('selectMail', index, $event)">
+          <button
+            class="mail-row"
+            type="button"
+            :title="canMoveOutlookItem(mail) ? '按住拖曳到左側 folder 可移動；雙擊開啟郵件。' : '此 Outlook item 不能移動；雙擊可開啟郵件。'"
+            @pointerdown="$emit('startMailPointerDrag', mail, index, $event)"
+            @click="$emit('selectMail', index, $event)"
+            @dblclick="$emit('openMailDialog', index)"
+            @contextmenu="openMailContextMenu(mail, index, $event)"
+          >
             <span class="mail-row-head">
               <span class="mail-row-main">
                 <strong>{{ mail.subject }}</strong>
@@ -175,5 +184,18 @@ function deleteTooltip(mail: MailItemDto, selectedMailIds: Set<string>) {
         <span>Outlook 郵件抓取中...</span>
       </div>
     </div>
+
+    <teleport to="body">
+      <div
+        v-if="contextMenu.visible"
+        class="mail-context-menu"
+        :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+        @click.stop
+      >
+        <button type="button" class="danger" :disabled="contextDeleteDisabled()" @click="deleteFromContextMenu">
+          {{ contextDeleteLabel() }}
+        </button>
+      </div>
+    </teleport>
   </section>
 </template>

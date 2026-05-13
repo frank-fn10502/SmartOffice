@@ -32,7 +32,7 @@ const {
   showFolderMails,
   showMailFetchWarning,
   splitCategories,
-  startMailDrag,
+  startMailPointerDrag,
 } = props.dashboard
 </script>
 
@@ -65,7 +65,7 @@ const {
       @request-mails="requestMails"
       @select-mail="selectMail"
       @show-folder-mails="showFolderMails"
-      @start-mail-drag="startMailDrag"
+      @start-mail-pointer-drag="startMailPointerDrag"
     />
   </main>
 </template>

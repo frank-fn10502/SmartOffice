@@ -28,7 +28,7 @@ const {
   selectMail,
   selectedMailIds,
   splitCategories,
-  startMailDrag,
+  startMailPointerDrag,
   toggleSearchResultFolder,
   toggleSearchResultStore,
 } = props.dashboard
@@ -175,7 +175,7 @@ const {
           @clear-mail-drag="clearMailDrag"
           @open-mail-dialog="openMailDialog"
           @select-mail="selectMail"
-          @start-mail-drag="startMailDrag"
+          @start-mail-pointer-drag="startMailPointerDrag"
         />
         <div v-for="store in searchResultViewMode === 'tree' ? searchResultGroups : []" :key="store.key" class="search-result-store">
           <button class="search-result-tree-node store" type="button" @click="toggleSearchResultStore(store.key)">
@@ -209,7 +209,7 @@ const {
                   @clear-mail-drag="clearMailDrag"
                   @open-mail-dialog="openMailDialog"
                   @select-mail="selectMail"
-                  @start-mail-drag="startMailDrag"
+                  @start-mail-pointer-drag="startMailPointerDrag"
                 />
               </div>
             </div>
