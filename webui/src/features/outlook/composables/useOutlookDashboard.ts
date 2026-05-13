@@ -118,6 +118,7 @@ export function useOutlookDashboard() {
     selectedFolderPath,
   })
   const {
+    calendarEventDialogVisible,
     calendarEvents,
     calendarMonthLabel,
     calendarWeekdays,
@@ -710,7 +711,7 @@ export function useOutlookDashboard() {
   return {
     activeView, activeMailPropertySections, addCategoryToMasterList, addinLogs, addinStatus,
     attachmentExportRootDraft, attachmentExportSettings, addMailCategoryDraft, applyMailProperties,
-    calendarEvents, calendarMonthLabel, calendarWeekdays, calendarWeeks, cancelCreateFolder,
+    calendarEventDialogVisible, calendarEvents, calendarMonthLabel, calendarWeekdays, calendarWeeks, cancelCreateFolder,
     categories, categoryManagerVisible, categoryColorOptions, categoryColorStyle, categoryTagStyle,
     categoryCreateColor, categoryCreateDraft, changeCalendarMonth, chatMessages, chatPanelRef,
     chatText, clearMailDrag, clearSelectedMails, contextFolderName, createFolder,

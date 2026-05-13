@@ -184,6 +184,7 @@ namespace SmartOffice.Hub.Services
             {
                 Calendar("mock-cal-001", "SmartOffice mock sync review", today.AddHours(15), 30, "Teams", "busy", Recipient("required", "Ada Chen", "ada.chen@example.test")),
                 Calendar("mock-cal-002", "客戶需求釐清", today.AddDays(2).AddHours(10), 60, "會議室 3A", "tentative", Recipient("required", "Mock User", "mock.user@example.test"), Recipient("required", "Dana Hsu", "dana.hsu@example.test")),
+                Calendar("mock-cal-mail-004", "下週 demo 時程", today.AddDays(7).AddHours(14), 60, "Teams", "busy", Recipient("required", "Mock User", "mock.user@example.test"), Group("required", "Delivery Team", "delivery@example.test", "Dana Hsu", "Chris Wang", "Mock User")),
                 Calendar("mock-cal-003", "每週產品站會", today.AddDays(6).AddHours(9), 45, "Teams", "busy", new[] { Group("required", "Product Team", "product@example.test", "Ada Chen", "Ben Lin") }, true),
                 Calendar("mock-cal-004", "月中客戶回顧", today.AddDays(14).AddHours(14), 60, "Teams", "busy", Recipient("required", "Mock User", "mock.user@example.test"), Recipient("required", "Ada Chen", "ada.chen@example.test")),
                 Calendar("mock-cal-005", "月底交付檢查", today.AddDays(24).AddHours(16), 60, "會議室 2B", "free", Group("required", "QA Lab", "qa@example.test", "QA Lab Member")),

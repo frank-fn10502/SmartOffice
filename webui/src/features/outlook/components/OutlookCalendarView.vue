@@ -9,6 +9,7 @@ const props = defineProps<{
 }>()
 
 const {
+  calendarEventDialogVisible,
   calendarEvents,
   calendarMonthLabel,
   calendarWeekdays,
@@ -77,25 +78,36 @@ const {
           </div>
         </div>
 
-        <aside class="calendar-detail">
-          <template v-if="selectedCalendarEvent">
-            <div class="calendar-detail-title">{{ selectedCalendarEvent.subject }}</div>
-            <div class="rule-detail">
-              <span>{{ formatDateTime(selectedCalendarEvent.start) }} - {{ formatDateTime(selectedCalendarEvent.end) }}</span>
-              <span>地點：{{ selectedCalendarEvent.location || '-' }}</span>
-              <span>召集人：{{ formatRecipient(selectedCalendarEvent.organizer, '-') }}</span>
-              <span>出席者：{{ formatRecipients(selectedCalendarEvent.requiredAttendees) || '-' }}</span>
-            </div>
-            <div class="marker-tags">
-              <el-tag effect="plain">{{ selectedCalendarEvent.busyStatus || 'unknown' }}</el-tag>
-              <el-tag v-if="selectedCalendarEvent.isRecurring" type="warning" effect="plain">週期性</el-tag>
-            </div>
-          </template>
-          <div v-else class="empty-inspector">
-            點選月曆中的項目查看詳細資訊。
-          </div>
-        </aside>
       </div>
     </section>
+
+    <el-dialog
+      v-model="calendarEventDialogVisible"
+      width="min(560px, calc(100vw - 28px))"
+      class="calendar-event-dialog"
+      append-to-body
+    >
+      <template #header>
+        <div v-if="selectedCalendarEvent" class="calendar-dialog-title">
+          <span>Calendar Event</span>
+          <strong>{{ selectedCalendarEvent.subject }}</strong>
+        </div>
+      </template>
+
+      <div v-if="selectedCalendarEvent" class="calendar-dialog-content">
+        <div class="calendar-dialog-time">
+          {{ formatDateTime(selectedCalendarEvent.start) }} - {{ formatDateTime(selectedCalendarEvent.end) }}
+        </div>
+        <div class="rule-detail">
+          <span>地點：{{ selectedCalendarEvent.location || '-' }}</span>
+          <span>召集人：{{ formatRecipient(selectedCalendarEvent.organizer, '-') }}</span>
+          <span>出席者：{{ formatRecipients(selectedCalendarEvent.requiredAttendees) || '-' }}</span>
+        </div>
+        <div class="marker-tags">
+          <el-tag effect="plain">{{ selectedCalendarEvent.busyStatus || 'unknown' }}</el-tag>
+          <el-tag v-if="selectedCalendarEvent.isRecurring" type="warning" effect="plain">週期性</el-tag>
+        </div>
+      </div>
+    </el-dialog>
   </main>
 </template>

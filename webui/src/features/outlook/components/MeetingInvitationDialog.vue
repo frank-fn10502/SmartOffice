@@ -1,4 +1,5 @@
 ﻿<script setup lang="ts">
+import { ElMessage } from 'element-plus'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
 import { formatDateTime } from '../utils/formatters'
 import { formatMailSender, formatRecipient, formatRecipients, shouldShowRecipientSmtpAddress } from '../utils/mailAddresses'
@@ -21,6 +22,7 @@ function formatAttachmentMeta(contentType: string, size: number) {
 const {
   closeMailDialog,
   activeView,
+  calendarEvents,
   dialogLoading,
   dialogMail,
   dialogMailAttachments,
@@ -34,13 +36,42 @@ const {
   mailHtmlSandbox,
   openExportedAttachment,
   requestCalendar,
+  selectCalendarEvent,
   splitCategories,
 } = props.dashboard
+
+function normalizeSubject(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^re:\s*/i, '')
+    .replace(/^fw:\s*/i, '')
+    .replace(/^fwd:\s*/i, '')
+    .replace(/^會議邀請[:：]\s*/i, '')
+    .replace(/^會議更新[:：]\s*/i, '')
+    .replace(/\s+/g, '')
+}
+
+function findMatchingCalendarEvent(subject: string) {
+  const normalizedSubject = normalizeSubject(subject)
+  if (!normalizedSubject) return null
+  return calendarEvents.value.find((event) => {
+    const normalizedEventSubject = normalizeSubject(event.subject)
+    return normalizedEventSubject === normalizedSubject
+      || normalizedEventSubject.includes(normalizedSubject)
+      || normalizedSubject.includes(normalizedEventSubject)
+  }) ?? null
+}
 
 async function openCalendarView() {
   activeView.value = 'calendar'
   mailDialogVisible.value = false
   await requestCalendar()
+  const event = dialogMail.value ? findMatchingCalendarEvent(dialogMail.value.subject) : null
+  if (event) {
+    selectCalendarEvent(event)
+    return
+  }
+  ElMessage.warning('已切到月曆，但目前沒有找到可匹配的 calendar event。')
 }
 </script>
 

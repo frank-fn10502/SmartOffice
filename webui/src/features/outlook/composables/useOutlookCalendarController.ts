@@ -23,6 +23,7 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
   const calendarEvents = ref<CalendarEventDto[]>([])
   const calendarMonthDate = ref(monthStart(new Date()))
   const selectedCalendarEvent = ref<CalendarEventDto | null>(null)
+  const calendarEventDialogVisible = ref(false)
   const calendarWeekdays = ['日', '一', '二', '三', '四', '五', '六']
 
   const calendarMonthLabel = computed(() => {
@@ -54,6 +55,7 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
     if (outlookBusy.value) return
     calendarMonthDate.value = addMonths(calendarMonthDate.value, offset)
     selectedCalendarEvent.value = null
+    calendarEventDialogVisible.value = false
     await requestCalendar()
   }
 
@@ -61,14 +63,17 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
     if (outlookBusy.value) return
     calendarMonthDate.value = monthStart(new Date())
     selectedCalendarEvent.value = null
+    calendarEventDialogVisible.value = false
     await requestCalendar()
   }
 
   function selectCalendarEvent(event: CalendarEventDto) {
     selectedCalendarEvent.value = event
+    calendarEventDialogVisible.value = true
   }
 
   return {
+    calendarEventDialogVisible,
     calendarEvents,
     calendarMonthLabel,
     calendarWeekdays,

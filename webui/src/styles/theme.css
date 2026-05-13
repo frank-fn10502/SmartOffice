@@ -301,6 +301,16 @@
   color: var(--accent-strong);
 }
 
+:root[data-theme="dark"] .chat-bubble {
+  background: #203a55;
+  color: #eef6ff;
+}
+
+:root[data-theme="dark"] .chat-message.web .chat-bubble {
+  background: #1f4a35;
+  color: #f0fff6;
+}
+
 :root[data-theme="dark"] .folder-row.inbox,
 :root[data-theme="dark"] .calendar-day-count,
 :root[data-theme="dark"] .mail-summary:hover .mail-subject {
