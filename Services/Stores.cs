@@ -347,6 +347,7 @@ namespace SmartOffice.Hub.Services
                 foreach (var mail in batch.Mails)
                     UpsertMail(target, CloneMailMetadata(mail));
 
+                target.Sort((left, right) => right.ReceivedTime.CompareTo(left.ReceivedTime));
                 _folderMailResults = target.Select(CloneMailMetadata).ToList();
 
                 if (_mailSearchProgress.TryGetValue(batch.FolderMailsId, out var progress))

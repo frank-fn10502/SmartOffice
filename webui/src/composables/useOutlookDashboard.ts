@@ -583,17 +583,20 @@ function categoryTagStyle(name: string) {
   }
 
   function setMails(items: MailItemDto[], preferredMailId = selectedMail.value?.id ?? '') {
-    folderMails.value = items
+    const sortedItems = [...items].sort((left, right) =>
+      new Date(right.receivedTime).getTime() - new Date(left.receivedTime).getTime()
+    )
+    folderMails.value = sortedItems
     mailListMode.value = 'folder'
-    pruneSelectedMailIds(items)
+    pruneSelectedMailIds(sortedItems)
 
-    if (items.length === 0) {
+    if (sortedItems.length === 0) {
       selectedMailIndex.value = null
       lastSelectedMailIndex = -1
       return
     }
 
-    const nextIndex = preferredMailId ? items.findIndex((mail) => mail.id === preferredMailId) : -1
+    const nextIndex = preferredMailId ? sortedItems.findIndex((mail) => mail.id === preferredMailId) : -1
     selectedMailIndex.value = nextIndex >= 0 ? nextIndex : 0
   }
 
