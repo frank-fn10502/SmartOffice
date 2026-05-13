@@ -144,7 +144,7 @@ function upsertNode(nodes: FolderTreeNode[], next: FolderTreeNode) {
   else nodes[index] = next
 }
 
-function cloneTree(nodes: FolderTreeNode[]): FolderTreeNode[] {
+export function cloneTree(nodes: FolderTreeNode[]): FolderTreeNode[] {
   return nodes.map((node) => ({
     ...node,
     subFolders: cloneTree(node.subFolders),

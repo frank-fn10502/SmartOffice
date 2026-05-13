@@ -23,6 +23,7 @@ defineProps<{
   mailFetchCountdownText: string
   categoryTagStyle: (name: string) => CSSProperties
   deleteMail: (mail: MailItemDto) => void
+  deleteSelectedMails: () => void
   flagDisplayLabel: (interval: string, request: string) => string
   flagTagType: (interval: string) => string
   splitCategories: (categories: string) => string[]
@@ -36,6 +37,13 @@ defineEmits<{
   showFolderMails: []
   startMailDrag: [mail: MailItemDto, index: number, event: DragEvent]
 }>()
+
+function deleteTooltip(mail: MailItemDto, selectedMailIds: Set<string>) {
+  if (!canMoveOutlookItem(mail)) return '此 Outlook item 不能移動'
+  return selectedMailIds.size > 1 && selectedMailIds.has(mail.id)
+    ? `移動選取的 ${selectedMailIds.size} 封郵件到刪除的郵件`
+    : '移到刪除的郵件'
+}
 </script>
 
 <template>
@@ -60,6 +68,17 @@ defineEmits<{
       </div>
       <div class="mail-toolbar-actions">
         <el-button v-if="mailListMode === 'search'" size="small" @click="$emit('showFolderMails')">回到 folder list</el-button>
+        <el-button
+          v-if="selectedMailIds.size > 1"
+          :icon="Delete"
+          type="danger"
+          size="small"
+          plain
+          :disabled="outlookBusy"
+          @click="deleteSelectedMails"
+        >
+          刪除 {{ selectedMailIds.size }} 封
+        </el-button>
         <el-select v-model="mailLookbackHours" class="lookback-select" size="small">
           <el-option label="最近 12 小時" :value="12" />
           <el-option label="最近 24 小時" :value="24" />
@@ -87,7 +106,7 @@ defineEmits<{
         :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }"
       >
         <div class="mail-row-shell">
-          <el-tooltip :content="canMoveOutlookItem(mail) ? '移到刪除的郵件' : '此 Outlook item 不能移動'" placement="top">
+          <el-tooltip :content="deleteTooltip(mail, selectedMailIds)" placement="top">
             <el-button
               class="mail-delete-button"
               :icon="Delete"

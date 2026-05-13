@@ -1,11 +1,13 @@
 ﻿import type { Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { outlookApi } from '../api/outlook'
-import type { MailItemDto } from '../models/outlook'
-import { isMailSelectableFolder } from '../utils/folders'
+import type { FolderTreeNode, MailItemDto } from '../models/outlook'
+import { cloneTree, isMailSelectableFolder } from '../utils/folders'
+import { canMoveOutlookItem } from '../utils/outlookItemTypes'
 
 type MailListControllerOptions = {
   folderMails: Ref<MailItemDto[]>
+  folders: Ref<FolderTreeNode[]>
   mailSearchResults: Ref<MailItemDto[]>
   mailListMode: Ref<'folder' | 'search'>
   selectedMailIds: Ref<Set<string>>
@@ -28,6 +30,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     draggedMailId,
     dragOverFolderPath,
     folderMails,
+    folders,
     folderOptions,
     isInDeletedFolder,
     loadCachedFolders,
@@ -50,6 +53,14 @@ export function useOutlookMailListController(options: MailListControllerOptions)
 
   function selectedBulkMoveMails() {
     return mails.value.filter((mail) => mail.id && selectedMailIds.value.has(mail.id))
+  }
+
+  function selectedBulkDeleteMails() {
+    return selectedBulkMoveMails().filter((mail) => canMoveOutlookItem(mail) && !isInDeletedFolder(mail.folderPath))
+  }
+
+  function shouldBulkDeleteFromRow(mail: MailItemDto) {
+    return Boolean(mail.id && selectedMailIds.value.size > 1 && selectedMailIds.value.has(mail.id))
   }
 
   function selectOnlyMail(index: number) {
@@ -117,6 +128,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
   function captureMailListSnapshot() {
     return {
       folderMails: [...folderMails.value],
+      folders: cloneTree(folders.value),
       mailSearchResults: [...mailSearchResults.value],
       selectedMailIds: new Set(selectedMailIds.value),
       selectedMailIndex: selectedMailIndex.value,
@@ -126,6 +138,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
 
   function restoreMailListSnapshot(snapshot: ReturnType<typeof captureMailListSnapshot>) {
     folderMails.value = snapshot.folderMails
+    folders.value = cloneTree(snapshot.folders)
     mailSearchResults.value = snapshot.mailSearchResults
     selectedMailIds.value = snapshot.selectedMailIds
     selectedMailIndex.value = snapshot.selectedMailIndex
@@ -164,9 +177,51 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     ElMessage.error('移動郵件失敗，已還原畫面。')
   }
 
+  function applyFolderCountDeltas(deltas: Map<string, number>) {
+    if (deltas.size === 0) return
+
+    function patch(nodes: FolderTreeNode[]): FolderTreeNode[] {
+      return nodes.map((folder) => ({
+        ...folder,
+        itemCount: Math.max(0, folder.itemCount + (deltas.get(folder.folderPath) ?? 0)),
+        subFolders: patch(folder.subFolders),
+      }))
+    }
+
+    folders.value = patch(folders.value)
+  }
+
+  function addFolderDelta(deltas: Map<string, number>, folderPath: string, delta: number) {
+    if (!folderPath || delta === 0) return
+    deltas.set(folderPath, (deltas.get(folderPath) ?? 0) + delta)
+  }
+
+  function moveFolderCountDeltas(items: MailItemDto[], destinationFolderPath: string) {
+    const deltas = new Map<string, number>()
+    for (const mail of items) addFolderDelta(deltas, mail.folderPath, -1)
+    addFolderDelta(deltas, destinationFolderPath, items.length)
+    return deltas
+  }
+
+  function deleteFolderCountDeltas(items: MailItemDto[]) {
+    const deltas = new Map<string, number>()
+    for (const mail of items) {
+      addFolderDelta(deltas, mail.folderPath, -1)
+      const deletedFolderPath = deletedFolderForPath(mail.folderPath)?.folderPath
+      if (deletedFolderPath) addFolderDelta(deltas, deletedFolderPath, 1)
+    }
+    return deltas
+  }
+
+  function applyConfirmedFolderDeltas(deltas: Map<string, number>) {
+    applyFolderCountDeltas(deltas)
+    void loadCachedFolders()
+  }
+
   async function moveMailToFolder(mail: MailItemDto, destinationFolderPath: string) {
     if (!mail.id?.trim() || !destinationFolderPath || destinationFolderPath === mail.folderPath) return
     const snapshot = captureMailListSnapshot()
+    const folderDeltas = moveFolderCountDeltas([mail], destinationFolderPath)
     hideMovedMails([mail.id])
     const succeeded = await runMailOperation(
       () => outlookApi.requestMoveMail({
@@ -174,7 +229,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
         sourceFolderPath: mail.folderPath,
         destinationFolderPath,
       }),
-      async () => { await loadCachedFolders() },
+      async () => { applyConfirmedFolderDeltas(folderDeltas) },
     )
     if (!succeeded) restoreFailedMailMove(snapshot)
   }
@@ -184,6 +239,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     if (selected.length === 0 || !destinationFolderPath || outlookBusy.value) return
     const sourceFolderPaths = [...new Set(selected.map((mail) => mail.folderPath).filter(Boolean))]
     const snapshot = captureMailListSnapshot()
+    const folderDeltas = moveFolderCountDeltas(selected, destinationFolderPath)
     hideMovedMails(selected.map((mail) => mail.id))
     const succeeded = await runMailOperation(
       () => outlookApi.requestMoveMails({
@@ -193,7 +249,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
         destinationFolderPath,
         continueOnError: true,
       }),
-      async () => { await loadCachedFolders() },
+      async () => { applyConfirmedFolderDeltas(folderDeltas) },
     )
     if (succeeded) clearSelectedMails()
     else restoreFailedMailMove(snapshot)
@@ -215,6 +271,10 @@ export function useOutlookMailListController(options: MailListControllerOptions)
 
   async function deleteMail(mail: MailItemDto) {
     if (!mail?.id?.trim() || outlookBusy.value) return
+    if (shouldBulkDeleteFromRow(mail)) {
+      await deleteSelectedMails()
+      return
+    }
     if (isInDeletedFolder(mail.folderPath)) {
       ElMessage.warning(manualOutlookDeleteMessage)
       return
@@ -224,12 +284,45 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     const confirmed = window.confirm(`將郵件「${mail.subject || mail.id}」移到「${targetName}」？`)
     if (!confirmed) return
     const snapshot = captureMailListSnapshot()
+    const folderDeltas = deleteFolderCountDeltas([mail])
     hideDeletedMails([mail.id])
     const succeeded = await runMailOperation(
       () => outlookApi.requestDeleteMail({ mailId: mail.id, folderPath: mail.folderPath }),
-      async () => { await loadCachedFolders() },
+      async () => { applyConfirmedFolderDeltas(folderDeltas) },
     )
     if (!succeeded) restoreFailedMailMove(snapshot)
+  }
+
+  async function deleteSelectedMails() {
+    const selected = selectedBulkDeleteMails()
+    if (selected.length === 0 || outlookBusy.value) {
+      if (selectedMailIds.value.size > 0) ElMessage.warning(manualOutlookDeleteMessage)
+      return
+    }
+
+    const targetNames = [...new Set(selected
+      .map((mail) => deletedFolderForPath(mail.folderPath)?.label.trim())
+      .filter(Boolean))]
+    const targetName = targetNames.length === 1 ? targetNames[0] : '各自的刪除資料夾 / Deleted Items'
+    const confirmed = window.confirm(`將選取的 ${selected.length} 封郵件移到「${targetName}」？`)
+    if (!confirmed) return
+
+    const snapshot = captureMailListSnapshot()
+    const folderDeltas = deleteFolderCountDeltas(selected)
+    hideDeletedMails(selected.map((mail) => mail.id))
+
+    for (const [index, mail] of selected.entries()) {
+      const succeeded = await runMailOperation(
+        () => outlookApi.requestDeleteMail({ mailId: mail.id, folderPath: mail.folderPath }),
+        index === selected.length - 1 ? async () => { applyConfirmedFolderDeltas(folderDeltas) } : undefined,
+      )
+      if (!succeeded) {
+        restoreFailedMailMove(snapshot)
+        return
+      }
+    }
+
+    clearSelectedMails()
   }
 
   function startMailDrag(mail: MailItemDto, index: number, event: DragEvent) {
@@ -281,6 +374,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     clearSelectedMailIndex,
     clearSelectedMails,
     deleteMail,
+    deleteSelectedMails,
     moveDraggedMail,
     pruneSelectedMailIds,
     selectMail,

@@ -11,6 +11,7 @@ const {
   categoryTagStyle,
   clearMailDrag,
   deleteMail,
+  deleteSelectedMails,
   fetchedMailFolderName,
   flagDisplayLabel,
   flagTagType,
@@ -44,6 +45,7 @@ const {
       v-model:mail-lookback-hours="mailLookbackHours"
       :category-tag-style="categoryTagStyle"
       :delete-mail="deleteMail"
+      :delete-selected-mails="deleteSelectedMails"
       :fetched-mail-folder-name="fetchedMailFolderName"
       :flag-display-label="flagDisplayLabel"
       :flag-tag-type="flagTagType"
