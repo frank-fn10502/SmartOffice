@@ -18,7 +18,7 @@
 - 本 repository 是 PoC / prototype，不預設保留舊版相容程式碼；contract、DTO、UI state、mock 與文件都應以目前正式行為為準。
 - 修改 contract 或流程時，請刪除未使用的舊欄位、舊模式、相容 shim、fallback branch 與死碼；不要留下「可能以後會用」但目前無法驗證或無法處理的相容垃圾。
 - 若不確定某段舊行為是否仍有人依賴，最多先詢問使用者是否要完全刪除；除非使用者明確要求 backward compatibility，否則以乾淨刪除為預設。
-- 檔案行數限制是硬性規則，不是風格建議：`webui/src/` 內 `.ts` 與 `.vue` 檔案不得超過 800 行。任何 Web UI 變更完成前都必須讓 `npm run check:file-lines` 或 `./scripts/build-in-container.sh` 通過；若檔案超過 800 行，必須先切分成自然模組，不能只在回覆中解釋原因。詳見 `docs/ai/coding.md`、`docs/ai/frontend.md` 與 `docs/ai/validation.md`。
+- 檔案行數限制是硬性規則，不是風格建議：hand-written source file 不得超過 800 行，包含 `.cs`、`.ts`、`.vue`、`.js`、`.mjs`、`.css` 與 `.sh`。任何程式碼變更完成前都必須讓 `./scripts/check-source-lines.sh` 或 `./scripts/build-in-container.sh` 通過；Web UI 的 `.ts`/`.vue` 也會由 `npm run check:file-lines` 再檢查一次。若檔案超過 800 行，必須先切分成自然模組，不能只在回覆中解釋原因。詳見 `docs/ai/coding.md`、`docs/ai/frontend.md` 與 `docs/ai/validation.md`。
 - Office 2016 與受限企業環境是設計約束。除非任務明確需要，避免引入 database、frontend build system、background job framework 或 AI SDK。
 - 請假設 mail body、folder name 與 chat message 都可能含有敏感 business data。
 

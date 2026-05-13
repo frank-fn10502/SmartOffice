@@ -11,9 +11,9 @@
 如果 `webui/package.json` 存在，Quick Mode 會先執行前端 build，再執行 .NET build。
 不要在 host 直接執行 npm 指令；前端 npm install/build 必須在 Docker/devcontainer 內執行。
 
-## Web UI 行數 Gate
+## Source 行數 Gate
 
-`webui/src/` 內 `.ts` 與 `.vue` 檔案不得超過 800 行。這是硬性驗收規則，任何 Web UI 變更都必須經過檢查。
+Hand-written source file 不得超過 800 行。這是硬性驗收規則，目前涵蓋 `.cs`、`.ts`、`.vue`、`.js`、`.mjs`、`.css` 與 `.sh`。
 
 Preferred validation：
 
@@ -21,7 +21,13 @@ Preferred validation：
 ./scripts/build-in-container.sh
 ```
 
-此流程會執行 `npm run check:file-lines`。若只需要在 devcontainer 內快速檢查行數，可執行：
+此流程會執行 repo-level `./scripts/check-source-lines.sh`，前端 build 也會執行 `npm run check:file-lines` 重新檢查 `webui/src/` 的 `.ts` 與 `.vue`。若只需要快速檢查行數，可執行：
+
+```bash
+./scripts/check-source-lines.sh
+```
+
+若只需要在 devcontainer 內檢查 Web UI `.ts`/`.vue` gate，可執行：
 
 ```bash
 cd webui

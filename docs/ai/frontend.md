@@ -64,11 +64,11 @@ webui/src/features/outlook/
 
 ## 檔案切分原則
 
-前端要避免單一檔案長期膨脹。修改 `webui/src/` 時，行數限制是硬性規則：
+前端要避免單一檔案長期膨脹。行數限制是硬性規則，且不是前端特例：
 
-- `webui/src/` 內 `.ts` 與 `.vue` 檔案不得超過 800 行。
-- 這條規則由 `webui/scripts/check-file-lines.mjs` 檢查，`npm run build` 會先執行 `npm run check:file-lines`。
-- `./scripts/build-in-container.sh` 也會經過同一個 gate；若任一 `.ts` 或 `.vue` 超過 800 行，build 必須失敗。
+- Hand-written source file 不得超過 800 行，包含 `.cs`、`.ts`、`.vue`、`.js`、`.mjs`、`.css` 與 `.sh`。
+- Repo-level 規則由 `./scripts/check-source-lines.sh` 檢查，`./scripts/build-in-container.sh` 會先執行這個 gate。
+- `webui/src/` 內 `.ts` 與 `.vue` 另由 `webui/scripts/check-file-lines.mjs` 檢查，`npm run build` 會先執行 `npm run check:file-lines`。
 - 600 行以上視為預警區。繼續新增功能前，請先找自然切分點；接近 800 行時不得再把新功能塞進同一檔案。
 - 先抽出純資料與 pure helper，例如 enum mapping、formatting、normalizer、date helper、color helper。
 - UI 很自然成為獨立區塊時，再拆成 component；例如 folder tree、mail row、category editor、calendar grid。

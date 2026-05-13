@@ -14,27 +14,23 @@ namespace SmartOffice.Hub.Controllers
         private const int MaxMoveMailsBatchSize = 500;
 
         private readonly MailStore _mailStore;
-        private readonly ChatStore _chatStore;
         private readonly CommandResultStore _commandResults;
         private readonly OutlookCommandQueue _commandQueue;
-        private readonly MockOutlookService _mockOutlook;
         private readonly IHubContext<NotificationHub> _hub;
         private readonly AddinStatusStore _addinStatus;
-        private readonly AttachmentExportService _attachmentExports;
         private readonly OutlookFolderCacheService _folderCache;
+        private readonly OutlookFetchResultService _fetchResults;
 
-        public OutlookController(MailStore mailStore, ChatStore chatStore,
-            CommandResultStore commandResults, OutlookCommandQueue commandQueue, MockOutlookService mockOutlook, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus, AttachmentExportService attachmentExports, OutlookFolderCacheService folderCache)
+        public OutlookController(MailStore mailStore,
+            CommandResultStore commandResults, OutlookCommandQueue commandQueue, IHubContext<NotificationHub> hub, AddinStatusStore addinStatus, OutlookFolderCacheService folderCache, OutlookFetchResultService fetchResults)
         {
             _mailStore = mailStore;
-            _chatStore = chatStore;
             _commandResults = commandResults;
             _commandQueue = commandQueue;
-            _mockOutlook = mockOutlook;
             _hub = hub;
             _addinStatus = addinStatus;
-            _attachmentExports = attachmentExports;
             _folderCache = folderCache;
+            _fetchResults = fetchResults;
         }
 
         // ===================== Web UI 呼叫這些 endpoint =====================
@@ -54,127 +50,6 @@ namespace SmartOffice.Hub.Controllers
                 MailsRequest = normalized.Request
             };
             return await DispatchCommandAsync(cmd, ct);
-        }
-
-        /// <summary>
-        /// Web UI、AI 或 MCP client 要求單封 mail body；mail list 本身只應先載入 metadata。
-        /// </summary>
-        [HttpPost("request-mail-body")]
-        public async Task<IActionResult> RequestMailBody([FromBody] FetchMailBodyRequest req, CancellationToken ct)
-        {
-            var error = RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
-            if (error is not null) return error;
-
-            var cmd = new PendingCommand
-            {
-                Type = "fetch_mail_body",
-                MailBodyRequest = req
-            };
-            return await DispatchCommandAsync(cmd, ct);
-        }
-
-        /// <summary>
-        /// Web UI、AI 或 MCP client 要求單封 mail attachment metadata。
-        /// </summary>
-        [HttpPost("request-mail-attachments")]
-        public async Task<IActionResult> RequestMailAttachments([FromBody] FetchMailAttachmentsRequest req, CancellationToken ct)
-        {
-            var error = RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
-            if (error is not null) return error;
-
-            var cmd = new PendingCommand
-            {
-                Type = "fetch_mail_attachments",
-                MailAttachmentsRequest = req
-            };
-            return await DispatchCommandAsync(cmd, ct);
-        }
-
-        /// <summary>
-        /// Web UI、AI 或 MCP client 要求指定 mail 所屬 Outlook conversation。
-        /// </summary>
-        [HttpPost("request-mail-conversation")]
-        public async Task<IActionResult> RequestMailConversation([FromBody] FetchMailConversationRequest req, CancellationToken ct)
-        {
-            req ??= new FetchMailConversationRequest();
-            var error = RequireFields(("mailId", req.MailId), ("folderPath", req.FolderPath));
-            if (error is not null) return error;
-
-            req.MaxCount = Math.Clamp(req.MaxCount <= 0 ? 100 : req.MaxCount, 1, 300);
-            var cmd = new PendingCommand
-            {
-                Type = "fetch_mail_conversation",
-                MailConversationRequest = req
-            };
-            return await DispatchCommandAsync(cmd, ct);
-        }
-
-        /// <summary>
-        /// Web UI、AI 或 MCP client 要求 AddIn 將指定 attachment 匯出到本機約定目錄。
-        /// </summary>
-        [HttpPost("request-export-mail-attachment")]
-        public async Task<IActionResult> RequestExportMailAttachment([FromBody] ExportMailAttachmentRequest req, CancellationToken ct)
-        {
-            var error = RequireFields(
-                ("mailId", req?.MailId),
-                ("folderPath", req?.FolderPath),
-                ("attachmentId", req?.AttachmentId));
-            if (error is not null) return error;
-
-            if (string.IsNullOrWhiteSpace(req!.ExportRootPath))
-                req.ExportRootPath = _attachmentExports.RootPath;
-
-            var cmd = new PendingCommand
-            {
-                Type = "export_mail_attachment",
-                ExportMailAttachmentRequest = req
-            };
-            return await DispatchCommandAsync(cmd, ct);
-        }
-
-        /// <summary>
-        /// Web UI Host 開啟已匯出的附件；只接受 Hub 已記錄的 exported attachment id。
-        /// </summary>
-        [HttpPost("open-exported-attachment")]
-        public IActionResult OpenExportedAttachment([FromBody] OpenExportedAttachmentRequest req)
-        {
-            var error = RequireFields(("exportedAttachmentId", req?.ExportedAttachmentId));
-            if (error is not null) return error;
-
-            if (!_mailStore.TryGetExportedAttachment(req!.ExportedAttachmentId, out var attachment))
-                return NotFound(new { status = "not_found" });
-
-            try
-            {
-                _attachmentExports.OpenExportedFile(attachment.ExportedPath);
-                return Ok(new { status = "opened" });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { status = "open_failed", message = ex.Message });
-            }
-        }
-
-        [HttpGet("attachment-export-settings")]
-        public IActionResult GetAttachmentExportSettings()
-        {
-            return Ok(_attachmentExports.GetSettings());
-        }
-
-        [HttpPost("attachment-export-settings")]
-        public IActionResult UpdateAttachmentExportSettings([FromBody] UpdateAttachmentExportSettingsRequest req)
-        {
-            var error = RequireFields(("rootPath", req?.RootPath));
-            if (error is not null) return error;
-
-            try
-            {
-                return Ok(_attachmentExports.UpdateSettings(req!.RootPath));
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { status = "update_failed", message = ex.Message });
-            }
         }
 
         /// <summary>
@@ -371,7 +246,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-update-mail-properties")]
         public async Task<IActionResult> RequestUpdateMailProperties([FromBody] MailPropertiesCommandRequest req, CancellationToken ct)
         {
-            var error = RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
+            var error = ApiRequestValidation.RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
             if (error is not null) return error;
 
             if (!CanUpdateMailProperties(req?.MailId, out var unsupported))
@@ -388,7 +263,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-upsert-category")]
         public async Task<IActionResult> RequestUpsertCategory([FromBody] CategoryCommandRequest req, CancellationToken ct)
         {
-            var error = RequireFields(("name", req?.Name));
+            var error = ApiRequestValidation.RequireFields(("name", req?.Name));
             if (error is not null) return error;
 
             var cmd = new PendingCommand
@@ -402,7 +277,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-create-folder")]
         public async Task<IActionResult> RequestCreateFolder([FromBody] CreateFolderRequest req, CancellationToken ct)
         {
-            var error = RequireFields(("parentFolderPath", req?.ParentFolderPath), ("name", req?.Name));
+            var error = ApiRequestValidation.RequireFields(("parentFolderPath", req?.ParentFolderPath), ("name", req?.Name));
             if (error is not null) return error;
 
             var cmd = new PendingCommand
@@ -416,7 +291,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-delete-folder")]
         public async Task<IActionResult> RequestDeleteFolder([FromBody] DeleteFolderRequest req, CancellationToken ct)
         {
-            var error = RequireFields(("folderPath", req?.FolderPath));
+            var error = ApiRequestValidation.RequireFields(("folderPath", req?.FolderPath));
             if (error is not null) return error;
 
             var cmd = new PendingCommand
@@ -430,7 +305,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-move-mail")]
         public async Task<IActionResult> RequestMoveMail([FromBody] MoveMailRequest req, CancellationToken ct)
         {
-            var error = RequireFields(
+            var error = ApiRequestValidation.RequireFields(
                 ("mailId", req?.MailId),
                 ("sourceFolderPath", req?.SourceFolderPath),
                 ("destinationFolderPath", req?.DestinationFolderPath));
@@ -447,18 +322,18 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-move-mails")]
         public async Task<IActionResult> RequestMoveMails([FromBody] MoveMailsRequest req, CancellationToken ct)
         {
-            var error = RequireFields(("destinationFolderPath", req?.DestinationFolderPath));
+            var error = ApiRequestValidation.RequireFields(("destinationFolderPath", req?.DestinationFolderPath));
             if (error is not null) return error;
             if (req is null)
-                return MissingRequiredFields("destinationFolderPath", "mailIds");
+                return ApiRequestValidation.MissingRequiredFields("destinationFolderPath", "mailIds");
 
             req.MailIds ??= new List<string>();
             req.SourceFolderPaths ??= new List<string>();
 
             if (req.MailIds.Count == 0)
-                return MissingRequiredFields("mailIds");
+                return ApiRequestValidation.MissingRequiredFields("mailIds");
             if (string.IsNullOrWhiteSpace(req.SourceFolderPath) && req.SourceFolderPaths.Count == 0)
-                return MissingRequiredFields("sourceFolderPath");
+                return ApiRequestValidation.MissingRequiredFields("sourceFolderPath");
 
             if (req.MailIds.Count > MaxMoveMailsBatchSize)
             {
@@ -482,7 +357,7 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-delete-mail")]
         public async Task<IActionResult> RequestDeleteMail([FromBody] DeleteMailRequest req, CancellationToken ct)
         {
-            var error = RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
+            var error = ApiRequestValidation.RequireFields(("mailId", req?.MailId), ("folderPath", req?.FolderPath));
             if (error is not null) return error;
 
             var cmd = new PendingCommand
@@ -491,26 +366,6 @@ namespace SmartOffice.Hub.Controllers
                 DeleteMailRequest = req
             };
             return await DispatchCommandAsync(cmd, ct);
-        }
-
-        private static IActionResult? RequireFields(params (string Name, string? Value)[] fields)
-        {
-            var missing = fields
-                .Where(field => string.IsNullOrWhiteSpace(field.Value))
-                .Select(field => field.Name)
-                .ToArray();
-            return missing.Length == 0 ? null : MissingRequiredFields(missing);
-        }
-
-        private static IActionResult MissingRequiredFields(params string[] fields)
-        {
-            return new BadRequestObjectResult(new
-            {
-                status = "missing_required_fields",
-                state = "failed",
-                message = $"Missing required request field(s): {string.Join(", ", fields)}.",
-                requiredFields = fields,
-            });
         }
 
         private bool CanUpdateMailProperties(string? mailId, out MailItemDto? unsupported)
@@ -809,166 +664,7 @@ namespace SmartOffice.Hub.Controllers
 
         private IActionResult FetchResult(FetchResultRequest req, params string[] expectedTypes)
         {
-            req ??= new FetchResultRequest();
-            if (string.IsNullOrWhiteSpace(req.RequestId))
-                return BadRequest(new { state = "failed", message = "requestId is required." });
-
-            var status = _commandResults.Get(req.RequestId);
-            if (status is null)
-                return NotFound(new { requestId = req.RequestId, request = "", state = "failed", message = "request not found", next = new FetchResultNext(), data = new { } });
-
-            if (expectedTypes.Length > 0 && !expectedTypes.Contains(status.Type, StringComparer.OrdinalIgnoreCase))
-                return BadRequest(new { requestId = req.RequestId, request = RequestName(status.Type), state = "failed", message = "requestId does not match this fetch-result endpoint.", next = new FetchResultNext(), data = new { } });
-
-            var take = Math.Clamp(req.Take <= 0 ? 100 : req.Take, 1, 500);
-            var offset = int.TryParse(req.Cursor, out var parsed) && parsed > 0 ? parsed : 0;
-            var command = _commandResults.GetRequestCommand(req.RequestId);
-            var (data, next) = GetFetchResultData(status.Type, command, offset, take);
-
-            return Ok(new FetchResultResponse
-            {
-                RequestId = status.CommandId,
-                Request = RequestName(status.Type),
-                State = ResultState(status.Status),
-                Message = status.Message,
-                Next = next,
-                Data = data,
-            });
-        }
-
-        private (object Data, FetchResultNext Next) GetFetchResultData(string requestType, PendingCommand? command, int offset, int take)
-        {
-            switch (requestType)
-            {
-                case "fetch_folder_roots":
-                case "fetch_folder_children":
-                case "create_folder":
-                case "delete_folder":
-                {
-                    var snapshot = OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot());
-                    var page = Page(snapshot.Folders, offset, take);
-                    return (new { stores = snapshot.Stores, folders = page.Items }, page.Next);
-                }
-                case "find_folder":
-                {
-                    var snapshot = OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot());
-                    var matches = FindFolderMatches(snapshot.Stores, snapshot.Folders, command?.FindFolderRequest);
-                    var requestedMaxResults = command?.FindFolderRequest?.MaxResults ?? 20;
-                    var maxResults = Math.Clamp(requestedMaxResults <= 0 ? 20 : requestedMaxResults, 1, 100);
-                    var page = Page(matches.Take(maxResults).ToList(), offset, take);
-                    var pendingDiscoveryTargets = _mailStore.GetPendingFolderDiscoveryTargets().Count;
-                    return (new
-                    {
-                        query = new
-                        {
-                            name = command?.FindFolderRequest?.Name ?? string.Empty,
-                            folderPath = OutlookFolderPathMapper.ToApiPath(command?.FindFolderRequest?.FolderPath ?? string.Empty),
-                            folderType = command?.FindFolderRequest?.FolderType ?? string.Empty,
-                            storeId = command?.FindFolderRequest?.StoreId ?? string.Empty,
-                        },
-                        matchCount = matches.Count,
-                        isAmbiguous = matches.Count > 1,
-                        discoveryComplete = pendingDiscoveryTargets == 0,
-                        pendingDiscoveryTargets,
-                        folders = page.Items,
-                    }, page.Next);
-                }
-                case "fetch_mails":
-                case "update_mail_properties":
-                case "move_mail":
-                case "move_mails":
-                case "delete_mail":
-                {
-                    var page = Page(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails()), offset, take);
-                    return (new { mails = page.Items }, page.Next);
-                }
-                case "fetch_mail_body":
-                {
-                    var mails = OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails());
-                    var mail = FindRequestedMail(
-                        mails,
-                        command?.MailBodyRequest?.MailId,
-                        command?.MailBodyRequest?.FolderPath);
-                    var result = mail is null ? new List<MailItemDto>() : new List<MailItemDto> { mail };
-                    return (new { mails = result }, new FetchResultNext());
-                }
-                case "fetch_mail_attachments":
-                {
-                    var mailId = command?.MailAttachmentsRequest?.MailId ?? string.Empty;
-                    var attachments = string.IsNullOrWhiteSpace(mailId)
-                        ? null
-                        : _mailStore.GetMailAttachments(mailId);
-                    var apiAttachments = attachments is null
-                        ? null
-                        : OutlookFolderPathMapper.ToApiAttachments(attachments);
-                    var page = Page(apiAttachments?.Attachments ?? new List<MailAttachmentDto>(), offset, take);
-                    return (new { mailId, folderPath = apiAttachments?.FolderPath ?? string.Empty, attachments = page.Items }, page.Next);
-                }
-                case "fetch_mail_conversation":
-                {
-                    var mailId = command?.MailConversationRequest?.MailId ?? string.Empty;
-                    var conversation = string.IsNullOrWhiteSpace(mailId)
-                        ? null
-                        : _mailStore.GetMailConversation(mailId);
-                    var apiConversation = conversation is null
-                        ? new MailConversationDto { MailId = mailId, FolderPath = command?.MailConversationRequest?.FolderPath ?? string.Empty }
-                        : OutlookFolderPathMapper.ToApiConversation(conversation);
-                    var page = Page(apiConversation.Mails, offset, take);
-                    return (new
-                    {
-                        mailId = apiConversation.MailId,
-                        folderPath = apiConversation.FolderPath,
-                        conversationId = apiConversation.ConversationId,
-                        conversationTopic = apiConversation.ConversationTopic,
-                        mails = page.Items,
-                    }, page.Next);
-                }
-                case "export_mail_attachment":
-                    return (new { }, new FetchResultNext());
-                case "fetch_rules":
-                case "manage_rule":
-                {
-                    var page = Page(_mailStore.GetRules(), offset, take);
-                    return (new { rules = page.Items }, page.Next);
-                }
-                case "fetch_categories":
-                case "upsert_category":
-                {
-                    var page = Page(_mailStore.GetCategories(), offset, take);
-                    return (new { categories = page.Items }, page.Next);
-                }
-                case "fetch_calendar":
-                {
-                    var page = Page(_mailStore.GetCalendarEvents(), offset, take);
-                    return (new { calendarEvents = page.Items }, page.Next);
-                }
-                default:
-                    return (new { }, new FetchResultNext());
-            }
-        }
-
-        private static MailItemDto? FindRequestedMail(List<MailItemDto> mails, string? mailId, string? folderPath)
-        {
-            if (string.IsNullOrWhiteSpace(mailId))
-                return null;
-
-            var apiFolderPath = OutlookFolderPathMapper.ToApiPath(folderPath ?? string.Empty);
-            return mails.FirstOrDefault(mail =>
-                string.Equals(mail.Id, mailId, StringComparison.OrdinalIgnoreCase)
-                && (
-                    string.IsNullOrWhiteSpace(apiFolderPath)
-                    || string.Equals(mail.FolderPath, apiFolderPath, StringComparison.OrdinalIgnoreCase)
-                ));
-        }
-
-        private static (List<T> Items, FetchResultNext Next) Page<T>(List<T> source, int offset, int take)
-        {
-            var total = source.Count;
-            var safeOffset = Math.Clamp(offset, 0, total);
-            var items = source.Skip(safeOffset).Take(take).ToList();
-            var next = safeOffset + items.Count;
-            var hasMore = next < total;
-            return (items, new FetchResultNext { Cursor = hasMore ? next.ToString() : string.Empty, HasMore = hasMore });
+            return _fetchResults.FetchResult(req, expectedTypes);
         }
 
         private static string ResultState(string status)
@@ -1084,34 +780,6 @@ namespace SmartOffice.Hub.Controllers
             values.AddRange(normalized);
         }
 
-        private static List<FolderDto> FindFolderMatches(List<OutlookStoreDto> stores, List<FolderDto> folders, FindFolderRequest? request)
-        {
-            request ??= new FindFolderRequest();
-            var folderPath = OutlookFolderPathMapper.ToApiPath(request.FolderPath);
-            var byPath = !string.IsNullOrWhiteSpace(folderPath);
-            var name = request.Name.Trim();
-            var folderType = OutlookFolderType.Unknown;
-            var byFolderType = !string.IsNullOrWhiteSpace(request.FolderType)
-                && Enum.TryParse<OutlookFolderType>(request.FolderType, ignoreCase: true, out folderType);
-            var primaryStoreId = stores.FirstOrDefault()?.StoreId ?? string.Empty;
-            var storeId = request.StoreId;
-            if (byFolderType && string.IsNullOrWhiteSpace(storeId))
-                storeId = primaryStoreId;
-
-            return folders
-                .Where(folder => request.IncludeHidden || !folder.IsHidden)
-                .Where(folder => string.IsNullOrWhiteSpace(storeId)
-                    || string.Equals(folder.StoreId, storeId, StringComparison.OrdinalIgnoreCase))
-                .Where(folder => byPath
-                    ? string.Equals(folder.FolderPath, folderPath, StringComparison.OrdinalIgnoreCase)
-                    : byFolderType
-                        ? folder.FolderType == folderType
-                        : string.Equals(folder.Name, name, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(folder => folder.StoreId)
-                .ThenBy(folder => folder.FolderPath)
-                .ToList();
-        }
-
         private Func<bool>? DataReadyPredicate(PendingCommand cmd)
         {
             return cmd.Type switch
@@ -1126,141 +794,5 @@ namespace SmartOffice.Hub.Controllers
             };
         }
 
-        /// <summary>
-        /// Web UI 取得 mail list data。
-        /// </summary>
-        [HttpGet("mails")]
-        public IActionResult GetMails()
-        {
-            return Ok(OutlookFolderPathMapper.ToApiMails(_mailStore.GetMails()));
-        }
-
-        /// <summary>
-        /// Web UI、AI 或 MCP client 取得單封 mail 的 attachment metadata。
-        /// </summary>
-        [HttpGet("mail-attachments")]
-        public IActionResult GetMailAttachments([FromQuery] string mailId)
-        {
-            if (string.IsNullOrWhiteSpace(mailId))
-                return BadRequest(new { status = "missing_mail_id" });
-
-            var attachments = _mailStore.GetMailAttachments(mailId);
-            return attachments is null ? NotFound(new { status = "not_found" }) : Ok(OutlookFolderPathMapper.ToApiAttachments(attachments));
-        }
-
-        /// <summary>
-        /// Web UI、AI 或 MCP client 取得上次載入的單封 mail conversation。
-        /// </summary>
-        [HttpGet("mail-conversation")]
-        public IActionResult GetMailConversation([FromQuery] string mailId)
-        {
-            if (string.IsNullOrWhiteSpace(mailId))
-                return BadRequest(new { status = "missing_mail_id" });
-
-            var conversation = _mailStore.GetMailConversation(mailId);
-            return conversation is null ? NotFound(new { status = "not_found" }) : Ok(OutlookFolderPathMapper.ToApiConversation(conversation));
-        }
-
-        /// <summary>
-        /// Web UI 取得 folder data。
-        /// </summary>
-        [HttpGet("folders")]
-        public IActionResult GetFolders()
-        {
-            return Ok(OutlookFolderPathMapper.ToApiSnapshot(_mailStore.GetFolderSnapshot()));
-        }
-
-        /// <summary>
-        /// Web UI 取得 Outlook rules。
-        /// </summary>
-        [HttpGet("rules")]
-        public IActionResult GetRules()
-        {
-            return Ok(_mailStore.GetRules());
-        }
-
-        /// <summary>
-        /// Web UI 取得 Outlook master category list。
-        /// </summary>
-        [HttpGet("categories")]
-        public IActionResult GetCategories()
-        {
-            return Ok(_mailStore.GetCategories());
-        }
-
-        /// <summary>
-        /// Web UI 取得 Outlook calendar events。
-        /// </summary>
-        [HttpGet("calendar")]
-        public IActionResult GetCalendar()
-        {
-            return Ok(_mailStore.GetCalendarEvents());
-        }
-
-        /// <summary>
-        /// Web 或 Outlook 送出 chat message。
-        /// </summary>
-        [HttpPost("chat")]
-        public async Task<IActionResult> PostChat([FromBody] ChatMessageDto msg, CancellationToken ct)
-        {
-            if (string.IsNullOrWhiteSpace(msg.Source))
-                msg.Source = "web";
-
-            msg.Timestamp = DateTime.Now;
-            _chatStore.Add(msg);
-            await _hub.Clients.All.SendAsync("NewChatMessage", msg, ct);
-            await _mockOutlook.TryReplyToChatAsync(msg, ct);
-            return Ok(msg);
-        }
-
-        [HttpGet("chat")]
-        public IActionResult GetChat()
-        {
-            return Ok(_chatStore.GetAll());
-        }
-
-        /// <summary>
-        /// AI / MCP client 查詢 command 執行狀態。
-        /// </summary>
-        [HttpGet("command-results/{commandId}")]
-        public IActionResult GetCommandResult(string commandId)
-        {
-            var result = _commandResults.Get(commandId);
-            if (result is null)
-                return NotFound();
-
-            return Ok(result);
-        }
-
-        /// <summary>
-        /// AI / MCP client 查詢最近 command 執行狀態。
-        /// </summary>
-        [HttpGet("command-results")]
-        public IActionResult GetCommandResults()
-        {
-            return Ok(_commandResults.GetRecent());
-        }
-
-        // ===================== Admin endpoints =====================
-
-        [HttpGet("admin/status")]
-        public IActionResult GetAddinStatus()
-        {
-            return Ok(_addinStatus.GetStatus());
-        }
-
-        [HttpGet("admin/logs")]
-        public IActionResult GetAddinLogs()
-        {
-            return Ok(_addinStatus.GetLogs());
-        }
-
-        [HttpPost("admin/log")]
-        public async Task<IActionResult> PostAddinLog([FromBody] AddinLogEntry entry)
-        {
-            _addinStatus.AddLog(entry.Level, entry.Message);
-            await _hub.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs());
-            return Ok();
-        }
     }
 }

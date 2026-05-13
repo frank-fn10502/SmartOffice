@@ -31,5 +31,6 @@ sync_webui_dependencies() {
   popd >/dev/null
 }
 
+./scripts/check-source-lines.sh
 sync_webui_dependencies
 dotnet build SmartOffice.Hub.sln --configuration "${CONFIGURATION}"

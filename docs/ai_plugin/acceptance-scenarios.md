@@ -21,6 +21,10 @@
 - [ ] API online：讀 `GET /api/outlook/admin/status`，`connected=true` 時繼續工作。
 - [ ] API unavailable：`connected=false` 或 fetch result `state=unavailable` 時，停止並回報目前無法完成即時 Outlook request。
 - [ ] Request accepted：確認 `accepted` 只代表 SmartOffice API 收下 request，不代表 Outlook 操作成功。
+- [ ] Raw API response 可理解：不用 Web UI 轉譯也能從 response 看懂目前狀態、下一步、錯誤原因與資料欄位語意。
+- [ ] Unknown field：送錯欄位時，HTTP 400 body 必須是 `status="invalid_request_body"`、`state="failed"`，並在 `errors` 指出未知 JSON path。
+- [ ] Missing required field：缺必要欄位時，HTTP 400 body 必須清楚列出缺少的 field，不可只回 generic bad request。
+- [ ] External caller 欄位命名：驗收常見 AI 誤用，例如 `request-mail-search` 必須用 `keyword` 而不是 `query`，`request-calendar` 必須用 `daysForward` 而不是 `lookaheadDays`。
 - [ ] Fetch result pagination：`next.hasMore=true` 時使用 `next.cursor` 讀下一頁，直到沒有下一頁。
 - [ ] Wrong fetch-result endpoint：`requestId does not match this fetch-result endpoint` 時回報流程錯誤，不改用猜測資料。
 - [ ] Unknown request id：fetch result 回 `request not found` 時回報 request 已不存在或服務重啟可能造成資料失效。
@@ -153,11 +157,16 @@
 
 - [ ] `fetch-result-*` response 使用 `state`，不是 `status`。
 - [ ] `request-*` response 沒有 `success` 欄位。
+- [ ] Bad request response 使用穩定 envelope：`invalid_request_body` / `missing_required_fields` 搭配 `state="failed"`、`message` 與 `errors`，讓外部 AI 能修正 request body。
+- [ ] 直接以 `curl` 或 Swagger 檢查錯誤格式；不能只確認 Web UI 有顯示錯誤訊息。
 - [ ] Folder discovery 讀 `data.stores` / `data.folders`，不是 `data.mails`。
 - [ ] `request-folder-children` body 使用 `parentEntryId` / `parentFolderPath`，不是 `entryId` / `folderPath`。
 - [ ] `request-folder-mails` 使用 `fetch-result-folder-mails`，不是 legacy `GET /api/outlook/folder-mails`。
 - [ ] `request-mail-search` 使用 `fetch-result-mail-search`，不是 legacy `GET /api/outlook/mail-search`。
+- [ ] `request-mail-search` body 使用 `keyword`；若 caller 傳 `query`，API 應回未知欄位錯誤，而不是默默忽略。
 - [ ] `request-export-mail-attachment` 的 fetch result 不直接回 `exportedAttachmentId`。
 - [ ] Swagger 中所有 `fetch-result-*` endpoint 分類清楚，不落到預設 `Outlook` tag。
 - [ ] Skill 名稱、folder、installer 與 external docs 不包含內部實作術語。
 - [ ] 若 API / DTO / route / workflow / error semantics 有變更，`skills/smartoffice-outlook/SKILL.md` 與 `references/http-api.md`、`references/workflows.md` 已同步；外部 AI 不需要讀 repo `AGENTS.md` 也能理解操作方式。
+- [ ] Hand-written source file 不得超過 800 行；若出現 800+ 行檔案，必須先切分並讓 `./scripts/check-source-lines.sh` 或 `./scripts/build-in-container.sh` 通過。
+- [ ] 600 行以上為預警區；審查時要確認是否已有自然切分點，不讓 controller、service、store、component 或 CSS 繼續長成 1000+ 行。

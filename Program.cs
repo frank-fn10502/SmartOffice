@@ -87,6 +87,7 @@ namespace SmartOffice.Hub
             builder.Services.AddSingleton<OutlookSignalRCommandDispatcher>();
             builder.Services.AddSingleton<OutlookCommandQueue>();
             builder.Services.AddSingleton<OutlookFolderCacheService>();
+            builder.Services.AddSingleton<OutlookFetchResultService>();
             builder.Services.AddSingleton<MockOutlookService>();
 
             builder.Services.AddCors(options =>

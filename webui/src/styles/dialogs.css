@@ -1,0 +1,563 @@
+.inspector-panel-body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+.mail-attachments {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #edf0f5;
+  padding-top: 10px;
+}
+
+.attachment-header,
+.attachment-row,
+.attachment-actions {
+  display: flex;
+  align-items: center;
+}
+
+.attachment-header,
+.attachment-row {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.attachment-header {
+  color: #344054;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.attachment-header-title {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 8px;
+}
+
+.attachment-row {
+  border: 1px solid #edf0f5;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.attachment-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.attachment-main strong,
+.attachment-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-main span {
+  color: #667085;
+  font-size: 0.78rem;
+}
+
+.attachment-actions {
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.mail-detail-dialog.el-dialog {
+  display: flex;
+  flex-direction: column;
+  height: min(760px, calc(100vh - 96px));
+  max-height: calc(100vh - 96px);
+  margin-top: 48px;
+  margin-bottom: 48px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.mail-detail-dialog .el-dialog__header {
+  margin: 0;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid #e5edf5;
+  background: #f8fafc;
+}
+
+.mail-detail-dialog .el-dialog__body {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px 22px 20px;
+  background: #fff;
+}
+
+.dialog-mail-title {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-right: 28px;
+}
+
+.dialog-mail-title strong {
+  overflow-wrap: anywhere;
+  color: #172033;
+  font-size: 1.08rem;
+  line-height: 1.4;
+}
+
+.dialog-mail-title span {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dialog-mail-title span,
+.dialog-mail-meta span,
+.dialog-mail-meta small {
+  color: #667085;
+  font-size: 0.82rem;
+}
+
+.dialog-mail-content {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding-right: 2px;
+}
+
+.dialog-mail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 18px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dialog-mail-summary {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(260px, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.dialog-mail-meta {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+}
+
+.dialog-mail-meta span {
+  font-weight: 800;
+}
+
+.dialog-mail-meta strong {
+  overflow-wrap: anywhere;
+  color: #344054;
+  font-size: 0.88rem;
+}
+
+.dialog-mail-tags {
+  padding: 2px 0 4px;
+}
+
+.dialog-mail-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  padding-top: 4px;
+  border-top: 1px solid #edf0f5;
+  color: #344054;
+  font-size: 0.88rem;
+}
+
+.dialog-mail-body-frame {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dialog-mail-body {
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  max-height: none;
+  overflow: auto;
+  border-color: #cfd9e5;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.dialog-mail-body.mail-text {
+  max-height: none;
+}
+
+.dialog-mail-empty-body {
+  display: grid;
+  height: 100%;
+  min-height: 160px;
+  place-items: center;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.dialog-loading-block {
+  min-height: 220px;
+  padding: 14px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.dialog-loading-block.compact {
+  min-height: 74px;
+}
+
+.dialog-mail-attachments {
+  display: grid;
+  min-height: 0;
+  max-height: 120px;
+  overflow: auto;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #edf0f5;
+}
+
+.dialog-mail-attachments .attachment-row {
+  background: #fbfcfe;
+}
+
+.dialog-mail-conversation {
+  display: grid;
+  min-height: 0;
+  max-height: 190px;
+  overflow: auto;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #edf0f5;
+}
+
+.dialog-mail-conversation .attachment-header small {
+  min-width: 0;
+  overflow: hidden;
+  color: #667085;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.conversation-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #e5edf5;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.conversation-item.current {
+  border-color: #409eff;
+  background: #f0f7ff;
+}
+
+.conversation-marker {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #98a2b3;
+}
+
+.conversation-item.current .conversation-marker {
+  background: #409eff;
+}
+
+.conversation-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.conversation-main strong,
+.conversation-main span,
+.conversation-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-main strong {
+  color: #344054;
+  font-size: 0.84rem;
+}
+
+.conversation-main span,
+.conversation-main small {
+  color: #667085;
+  font-size: 0.78rem;
+}
+
+.meeting-invitation-dialog.el-dialog {
+  display: flex;
+  flex-direction: column;
+  height: min(720px, calc(100vh - 96px));
+  max-height: calc(100vh - 96px);
+  margin-top: 48px;
+  margin-bottom: 48px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.meeting-invitation-dialog .el-dialog__header {
+  margin: 0;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid #d6e4dc;
+  background: #f5faf7;
+}
+
+.meeting-invitation-dialog .el-dialog__body {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px 22px 20px;
+  background: #fff;
+}
+
+.meeting-dialog-title {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-right: 28px;
+}
+
+.meeting-dialog-title strong {
+  overflow-wrap: anywhere;
+  color: #173326;
+  font-size: 1.08rem;
+  line-height: 1.4;
+}
+
+.meeting-dialog-title span {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #5f6f67;
+  font-size: 0.82rem;
+}
+
+.meeting-kind {
+  width: fit-content;
+  padding: 2px 8px;
+  border: 1px solid #b9d8c6;
+  border-radius: 999px;
+  background: #fff;
+  color: #1f7a4d;
+  font-weight: 800;
+}
+
+.meeting-dialog-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  gap: 18px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.meeting-dialog-side,
+.meeting-dialog-main {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.meeting-dialog-side {
+  gap: 12px;
+  padding-right: 2px;
+}
+
+.meeting-dialog-main {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.meeting-info-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dfe8e3;
+  border-radius: 8px;
+  background: #fbfdfb;
+}
+
+.meeting-info-panel h3 {
+  margin: 0;
+  color: #173326;
+  font-size: 0.9rem;
+}
+
+.meeting-info-panel dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.meeting-info-panel dl div,
+.meeting-info-panel dd {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.meeting-info-panel dt {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.meeting-info-panel dd {
+  margin: 0;
+}
+
+.meeting-info-panel strong,
+.meeting-info-panel small {
+  overflow-wrap: anywhere;
+}
+
+.meeting-info-panel strong {
+  color: #344054;
+  font-size: 0.86rem;
+}
+
+.meeting-info-panel small {
+  color: #667085;
+  font-size: 0.78rem;
+}
+
+.meeting-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.meeting-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  color: #173326;
+  font-size: 0.9rem;
+}
+
+.meeting-body-frame {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.meeting-body {
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  max-height: none;
+  overflow: auto;
+  border-color: #cfe0d6;
+  border-radius: 8px;
+  background: #fbfdfb;
+}
+
+.meeting-body.mail-text {
+  max-height: none;
+}
+
+.meeting-empty-body {
+  display: grid;
+  height: 100%;
+  min-height: 180px;
+  place-items: center;
+  border: 1px solid #dfe8e3;
+  border-radius: 8px;
+  background: #fbfdfb;
+}
+
+.meeting-attachments {
+  display: grid;
+  min-height: 0;
+  max-height: 150px;
+  overflow: auto;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #edf0f5;
+}
+
+.meeting-attachment-row {
+  background: #fbfdfb;
+}
+
+@media (max-width: 720px) {
+  .mail-detail-dialog.el-dialog {
+    height: calc(100vh - 48px);
+    max-height: calc(100vh - 48px);
+    margin-top: 24px;
+    margin-bottom: 24px;
+  }
+
+  .dialog-mail-layout {
+    grid-template-rows: minmax(0, 1fr) minmax(220px, 0.75fr);
+  }
+
+  .dialog-mail-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .embedded-property-pane {
+    border-top: 1px solid #edf0f5;
+    border-left: 0;
+    padding-top: 14px;
+    padding-left: 0;
+  }
+
+  .meeting-invitation-dialog.el-dialog {
+    height: calc(100vh - 48px);
+    max-height: calc(100vh - 48px);
+    margin-top: 24px;
+    margin-bottom: 24px;
+  }
+
+  .meeting-dialog-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
