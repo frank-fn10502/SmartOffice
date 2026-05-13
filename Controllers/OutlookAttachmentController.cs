@@ -88,7 +88,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI、AI 或 MCP client 要求 AddIn 將指定 attachment 匯出到本機約定目錄。
+        /// Web UI、AI 或 MCP client 要求將指定 attachment 匯出到本機約定目錄。
         /// </summary>
         [HttpPost("request-export-mail-attachment")]
         public async Task<IActionResult> RequestExportMailAttachment([FromBody] ExportMailAttachmentRequest req, CancellationToken ct)

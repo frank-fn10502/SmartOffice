@@ -69,6 +69,12 @@ namespace SmartOffice.Hub
                 var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
                 if (File.Exists(xmlPath))
                     options.IncludeXmlComments(xmlPath);
+                options.CustomSchemaIds(type => type.Name switch
+                {
+                    "AddinStatusDto" => "OutlookWorkerStatusDto",
+                    "AddinLogEntry" => "OutlookWorkerLogEntry",
+                    _ => type.Name,
+                });
                 options.OperationFilter<OutlookSwaggerOperationFilter>();
             });
             // SignalR 預設 incoming message 上限較小；folder tree 必須使用

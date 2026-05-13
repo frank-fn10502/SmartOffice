@@ -36,7 +36,7 @@ namespace SmartOffice.Hub.Controllers
         // ===================== Web UI 呼叫這些 endpoint =====================
 
         /// <summary>
-        /// Web UI、AI 或 MCP client 要求 mails；Hub 會透過 SignalR dispatch 給 Outlook AddIn。
+        /// Web UI、AI 或 MCP client 要求 mails；Hub 會建立 request 並回傳 fetch-result endpoint。
         /// </summary>
         [HttpPost("request-mails")]
         public async Task<IActionResult> RequestMails([FromBody] RequestMailsApiRequest req, CancellationToken ct)
@@ -249,7 +249,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI、AI 或 MCP client 要求 Outlook AddIn 背景同步真正通訊錄。
+        /// Web UI、AI 或 MCP client 要求同步 Outlook address book。
         /// </summary>
         [HttpPost("request-address-book")]
         public async Task<IActionResult> RequestAddressBook([FromBody] AddressBookSyncRequest? req, CancellationToken ct)

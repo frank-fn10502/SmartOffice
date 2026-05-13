@@ -11,302 +11,307 @@ namespace SmartOffice.Hub.Swagger
     public class OutlookSwaggerOperationFilter : IOperationFilter
     {
         private const string Json = "application/json";
+        private const string RequestTag = "Outlook Requests";
+        private const string FetchTag = "Fetch Results";
+        private const string SearchTag = "Mail Search";
+        private const string AttachmentTag = "Attachments";
+        private const string HelperTag = "Lookup Helpers";
+        private const string DiagnosticsTag = "Diagnostics";
+        private const string ChatTag = "Chat";
 
         private static readonly Dictionary<string, OperationDocs> Docs = new(StringComparer.OrdinalIgnoreCase)
         {
             ["POST api/outlook/request-folders"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "要求 Outlook folder roots",
-                "發起載入 stores 與 root folders 的 request。取得 `requestId` 後，用 `paired POST /api/outlook/fetch-result-*` 查狀態與資料。",
+                "建立載入 stores 與 root folders 的 request。HTTP response 只代表 request 已建立；取得 `requestId` 與 `data.fetchResultEndpoint` 後，請輪詢 paired fetch-result endpoint 查狀態與資料。",
                 typeof(OutlookRequestResponse)),
             ["POST api/outlook/request-folder-children"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "要求單一 folder 的 children",
-                "建立載入單一 folder children 的 operation。HTTP API 的 folder path 使用 `/主要信箱 - User/Inbox`。`parentEntryId` 優先，`parentFolderPath` 可作為 fallback；SmartOffice API 會限制 `maxDepth` 1-3、`maxChildren` 1-200。",
+                "建立載入單一 folder children 的 request。folder path 必須來自 folder fetch result，例如 `/主要信箱 - User/收件匣`。`parentEntryId` 優先，`parentFolderPath` 可作為 fallback；SmartOffice API 會限制 `maxDepth` 1-3、`maxChildren` 1-200。完成後輪詢 `data.fetchResultEndpoint`。",
                 typeof(OutlookRequestResponse),
                 FolderChildrenExample()),
             ["POST api/outlook/request-find-folder"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "查找 Outlook folder",
                 "封裝 folder discovery：SmartOffice API 會載入 folder roots 與尚未載入的 children，再用 `folderPath` 完全比對或用 `name` 比對候選 folders。完成後用 `paired POST /api/outlook/fetch-result-find-folder` 讀 `data.matchCount`、`data.isAmbiguous` 與 `data.folders`。若回多筆候選，caller 必須請使用者確認。",
                 typeof(OutlookRequestResponse),
                 FindFolderExample()),
             ["POST api/outlook/request-mails"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "要求指定 folder 的郵件列表",
-                "`request-mails` 只發起 request，不直接代表最新郵件內容已在 response body。HTTP API 的 folder path 使用 `/主要信箱 - User/Inbox`。取得 `requestId` 後查 `paired POST /api/outlook/fetch-result-*`。",
+                "`request-mails` 只建立 request，不直接回傳郵件資料。folder path 必須來自 folder fetch result，例如 `/主要信箱 - User/收件匣`。取得 `requestId` 與 `data.fetchResultEndpoint` 後，輪詢 paired fetch-result endpoint 讀取 `data.mails`。",
                 typeof(OutlookRequestResponse),
                 FetchMailsExample()),
             ["POST api/outlook/request-mail-body"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "要求單封郵件 body",
-                "Mail list 預設只載入 metadata。呼叫此 endpoint 後用 `paired fetch-result-* endpoint` 等待完成，再從 paired fetch-result-* data 讀取同一封 mail 的 `body` / `bodyHtml`。",
+                "Mail list 預設只載入 metadata。建立 request 後用 `data.fetchResultEndpoint` 等待完成，再從 paired fetch-result data 讀取同一封 mail 的 `body` / `bodyHtml`。",
                 typeof(OutlookRequestResponse),
                 MailIdentityExample()),
             ["POST api/outlook/request-mail-attachments"] = new(
-                "Attachments",
+                AttachmentTag,
                 "要求單封郵件附件 metadata",
-                "建立讀取 attachment metadata 的 operation。完成後，附件 metadata 會更新到 mail / attachment state。",
+                "建立讀取 attachment metadata 的 request。完成後用 `data.fetchResultEndpoint` 讀取 `data.attachments`。",
+                typeof(OutlookRequestResponse),
+                MailIdentityExample()),
+            ["POST api/outlook/request-mail-conversation"] = new(
+                RequestTag,
+                "要求單封郵件對話脈絡",
+                "建立讀取同一 conversation 郵件脈絡的 request。完成後用 `data.fetchResultEndpoint` 讀取 `data.mails`。",
                 typeof(OutlookRequestResponse),
                 MailIdentityExample()),
             ["POST api/outlook/request-export-mail-attachment"] = new(
-                "Attachments",
+                AttachmentTag,
                 "要求匯出郵件附件",
                 "建立匯出 attachment 的 operation。`exportRootPath` 可留空，SmartOffice API 會使用目前 attachment export settings。`fetch-result-export-mail-attachment` 目前不直接回傳 `exportedAttachmentId`；完成後請重新讀同一封 mail 的 attachment metadata，再用已記錄的 `exportedAttachmentId` 呼叫 `open-exported-attachment`。",
                 typeof(OutlookRequestResponse),
                 ExportAttachmentExample()),
             ["POST api/outlook/open-exported-attachment"] = new(
-                "Attachments",
+                AttachmentTag,
                 "開啟已匯出的附件",
                 "只接受 SmartOffice API 已記錄的 `exportedAttachmentId`，不接受任意檔案路徑，避免 Swagger 使用者誤把這個 endpoint 當成本機檔案 opener。",
                 typeof(OpenExportedAttachmentResponse),
                 OpenExportedAttachmentExample()),
             ["GET api/outlook/attachment-export-settings"] = new(
-                "Attachments",
+                AttachmentTag,
                 "讀取附件匯出根目錄",
-                "讀取 SmartOffice API 要求 AddIn 匯出附件時使用的 root path。避免在共用環境暴露敏感本機路徑。",
+                "讀取附件匯出時使用的 root path。避免在共用環境暴露敏感本機路徑。",
                 typeof(AttachmentExportSettingsDto)),
             ["POST api/outlook/attachment-export-settings"] = new(
-                "Attachments",
+                AttachmentTag,
                 "更新附件匯出根目錄",
-                "更新 SmartOffice API 要求 AddIn 匯出附件時使用的 root path。避免在共用環境暴露敏感本機路徑。",
+                "更新附件匯出時使用的 root path。避免在共用環境暴露敏感本機路徑。",
                 typeof(AttachmentExportSettingsDto),
                 AttachmentExportSettingsExample()),
             ["POST api/outlook/request-rules"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "要求 Outlook rules",
-                "發起讀取 Outlook rules 的 request。完成後用 `paired fetch-result-* endpoint` 讀取資料。",
+                "建立讀取 Outlook rules 的 request。完成後用 `data.fetchResultEndpoint` 讀取 `data.rules`。",
+                typeof(OutlookRequestResponse)),
+            ["POST api/outlook/request-manage-rule"] = new(
+                RequestTag,
+                "建立或更新 Outlook rule",
+                "建立 rule mutation request。完成後用 `data.fetchResultEndpoint` 讀取更新後的 `data.rules`；若 request failed，請顯示 paired fetch-result 回傳的 `message`。",
                 typeof(OutlookRequestResponse)),
             ["POST api/outlook/request-categories"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "要求 Outlook master categories",
-                "發起讀取 Outlook master categories 的 request。完成後用 `paired fetch-result-* endpoint` 讀取資料。",
+                "建立讀取 Outlook master categories 的 request。完成後用 `data.fetchResultEndpoint` 讀取 `data.categories`。",
                 typeof(OutlookRequestResponse)),
             ["POST api/outlook/request-signalr-ping"] = new(
-                "Diagnostics",
-                "測試 Outlook AddIn SignalR channel",
-                "透過正式 AddIn channel 建立 `ping` operation。用於確認 SmartOffice API 能否聯絡目前連線的 Outlook AddIn。",
+                DiagnosticsTag,
+                "測試 Outlook worker channel",
+                "建立 `ping` diagnostics request，用於確認目前 Outlook worker channel 是否可用。這是診斷 endpoint，不是一般資料讀取流程；完成後輪詢 `fetch-result-signalr-ping`。",
                 typeof(OutlookRequestResponse)),
             ["POST api/outlook/request-calendar"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "要求 Outlook calendar events",
-                "`daysForward` 是相對今天的簡易範圍；若提供 `startDate` / `endDate`，AddIn 可依日期區間查詢。完成後用 `paired fetch-result-* endpoint` 讀取資料。",
+                "`daysForward` 是相對今天的簡易範圍；若提供 `startDate` / `endDate`，會依日期區間查詢。完成後用 `data.fetchResultEndpoint` 讀取 `data.calendarEvents`。",
                 typeof(OutlookRequestResponse),
                 CalendarExample()),
+            ["POST api/outlook/request-address-book"] = new(
+                RequestTag,
+                "要求 Outlook address book",
+                "建立通訊錄同步 request。完成後用 `data.fetchResultEndpoint` 讀取 `data.contacts`。",
+                typeof(OutlookRequestResponse)),
             ["POST api/outlook/request-update-mail-properties"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "更新單封郵件屬性",
-                "正式的單封 mail mutation 入口，可一次更新 read state、flag/task 與 categories。舊的 marker-style endpoint 已移除。",
+                "單封 mail mutation 入口，可一次更新 read state、flag/task 與 categories。完成後用 `data.fetchResultEndpoint` 讀取目前 mail snapshot。",
                 typeof(OutlookRequestResponse),
                 UpdateMailPropertiesExample()),
             ["POST api/outlook/request-upsert-category"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "新增或更新 Outlook master category",
-                "以 category `name` 為識別新增或更新顏色與 shortcut key。完成後用 `paired fetch-result-* endpoint` 讀取資料。",
+                "以 category `name` 為識別新增或更新顏色與 shortcut key。完成後用 `data.fetchResultEndpoint` 讀取 `data.categories`。",
                 typeof(OutlookRequestResponse),
                 CategoryExample()),
             ["POST api/outlook/request-create-folder"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "建立 Outlook folder",
-                "在 `parentFolderPath` 底下建立子 folder。完成後用 `paired fetch-result-* endpoint` 讀取資料。",
+                "在 `parentFolderPath` 底下建立子 folder。`parentFolderPath` 必須來自 folder fetch result。完成後用 `data.fetchResultEndpoint` 讀取更新後的 folder snapshot。",
                 typeof(OutlookRequestResponse),
                 CreateFolderExample()),
             ["POST api/outlook/request-delete-folder"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "移動 Outlook folder 到刪除資料夾",
-                "要求 AddIn 將指定 folder 移到 Outlook default Deleted Items folder；不得永久刪除。若目標已在 default Deleted Items folder 或其子層，paired fetch result 會回 `state=failed` / `message=manual_delete_required`，請使用者自行到 Outlook 操作。呼叫前請確認 folder path 來自 folder fetch result。",
+                "將指定 folder 移到 Outlook default Deleted Items folder；不得永久刪除。若目標已在 default Deleted Items folder 或其子層，paired fetch result 會回 `state=failed` / `message=manual_delete_required`，請使用者自行到 Outlook 操作。呼叫前請確認 folder path 來自 folder fetch result。",
                 typeof(OutlookRequestResponse),
                 DeleteFolderExample()),
             ["POST api/outlook/request-move-mail"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "移動單封郵件",
-                "將單封 mail 從 source folder 移到 destination folder。完成後用 `paired fetch-result-* endpoint` 或重新送出必要 request 確認結果。",
+                "將單封 mail 從 source folder 移到 destination folder。完成後用 `data.fetchResultEndpoint` 確認狀態；需要刷新列表時重新送出必要 request。",
                 typeof(OutlookRequestResponse),
                 MoveMailExample()),
             ["POST api/outlook/request-move-mails"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "移動多封郵件",
-                "將多封 mail 移到 destination folder。`mailIds` 必須來自 `paired fetch-result-* data` 或目前資料；單次最多 500 封，超過請由 caller 分批呼叫。完成後用 `paired fetch-result-* endpoint` 或重新送出必要 request 確認結果。",
+                "將多封 mail 移到 destination folder。`mailIds` 必須來自 paired fetch-result data 或目前資料；單次最多 500 封，超過請由 caller 分批呼叫。完成後用 `data.fetchResultEndpoint` 確認狀態；需要刷新列表時重新送出必要 request。",
                 typeof(OutlookRequestResponse),
                 MoveMailsExample()),
             ["POST api/outlook/request-delete-mail"] = new(
-                "Outlook Operations",
+                RequestTag,
                 "刪除單封郵件",
-                "要求 AddIn 將 mail 移到 Outlook default Deleted Items folder，不會永久刪除。完成後告知使用者 mail 已移到刪除資料夾；若要永久刪除，請使用者自行到 Outlook 操作。完成後用 `paired fetch-result-* endpoint` 或重新送出必要 request 確認結果。",
+                "將 mail 移到 Outlook default Deleted Items folder，不會永久刪除。完成後告知使用者 mail 已移到刪除資料夾；若要永久刪除，請使用者自行到 Outlook 操作。完成後用 `data.fetchResultEndpoint` 確認狀態；需要刷新列表時重新送出必要 request。",
                 typeof(OutlookRequestResponse),
                 DeleteMailExample()),
             ["POST api/outlook/fetch-result-folders"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 folders request 結果",
                 "查詢 `request-folders` 的狀態與分頁資料。`data` 包含 `stores` 與 root `folders`。若要查 `request-folder-children`，請使用 `fetch-result-folder-children`。"),
             ["POST api/outlook/fetch-result-folder-children"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 folder children request 結果",
                 "查詢 `request-folder-children` 的狀態與分頁資料。`data` 包含 `stores` 與 `folders`。"),
             ["POST api/outlook/fetch-result-find-folder"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 find folder 結果",
                 "查詢 `request-find-folder` 的狀態與分頁資料。`data` 包含 `query`、`matchCount`、`isAmbiguous`、`discoveryComplete`、`pendingDiscoveryTargets` 與候選 `folders`。"),
             ["POST api/outlook/fetch-result-mails"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 mails request 結果",
                 "查詢 `request-mails` 的狀態與分頁資料。`data` 包含 `mails`。"),
             ["POST api/outlook/fetch-result-mail-body"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 mail body request 結果",
                 "查詢 `request-mail-body` 的狀態與分頁資料。`data.mails` 內同一封 mail 會帶有 `body` / `bodyHtml`。"),
+            ["POST api/outlook/fetch-result-mail-conversation"] = FetchResultDocs(
+                FetchTag,
+                "取得 mail conversation request 結果",
+                "查詢 `request-mail-conversation` 的狀態與分頁資料。`data` 包含同一 conversation 的 `mails`。"),
             ["POST api/outlook/fetch-result-rules"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 rules request 結果",
                 "查詢 `request-rules` 的狀態與分頁資料。`data` 包含 `rules`。"),
+            ["POST api/outlook/fetch-result-manage-rule"] = FetchResultDocs(
+                FetchTag,
+                "取得 manage rule 結果",
+                "查詢 `request-manage-rule` 的狀態與分頁資料。`data` 包含更新後的 `rules`。"),
             ["POST api/outlook/fetch-result-categories"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 categories request 結果",
                 "查詢 `request-categories` 的狀態與分頁資料。`data` 包含 `categories`。"),
             ["POST api/outlook/fetch-result-signalr-ping"] = FetchResultDocs(
-                "Diagnostics",
+                DiagnosticsTag,
                 "取得 SignalR ping request 結果",
                 "查詢 `request-signalr-ping` 的狀態。這是診斷 endpoint，不是一般資料讀取流程。"),
             ["POST api/outlook/fetch-result-calendar"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 calendar request 結果",
                 "查詢 `request-calendar` 的狀態與分頁資料。`data` 包含 `calendarEvents`。"),
+            ["POST api/outlook/fetch-result-address-book"] = FetchResultDocs(
+                FetchTag,
+                "取得 address book request 結果",
+                "查詢 `request-address-book` 的狀態與分頁資料。`data` 包含 `contacts`。"),
             ["POST api/outlook/fetch-result-update-mail-properties"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 mail properties update 結果",
                 "查詢 `request-update-mail-properties` 的狀態與分頁資料。`data` 包含目前 mail snapshot。"),
             ["POST api/outlook/fetch-result-upsert-category"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 category upsert 結果",
                 "查詢 `request-upsert-category` 的狀態與分頁資料。`data` 包含 `categories`。"),
             ["POST api/outlook/fetch-result-create-folder"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 create folder 結果",
                 "查詢 `request-create-folder` 的狀態與分頁資料。`data` 包含 `stores` 與 `folders`。"),
             ["POST api/outlook/fetch-result-delete-folder"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 delete folder 結果",
                 "查詢 `request-delete-folder` 的狀態與分頁資料。`data` 包含 `stores` 與 `folders`。"),
             ["POST api/outlook/fetch-result-move-mail"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 move mail 結果",
                 "查詢 `request-move-mail` 的狀態與分頁資料。`data` 包含目前 mail snapshot。"),
             ["POST api/outlook/fetch-result-move-mails"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 move mails 結果",
                 "查詢 `request-move-mails` 的狀態與分頁資料。`data` 包含目前 mail snapshot。"),
             ["POST api/outlook/fetch-result-delete-mail"] = FetchResultDocs(
-                "Fetch Results",
+                FetchTag,
                 "取得 delete mail 結果",
                 "查詢 `request-delete-mail` 的狀態與分頁資料。`data` 包含目前 mail snapshot。"),
             ["POST api/outlook/fetch-result-mail-attachments"] = FetchResultDocs(
-                "Attachments",
+                AttachmentTag,
                 "取得 mail attachments request 結果",
                 "查詢 `request-mail-attachments` 的狀態與分頁資料。`data` 包含 `mailId`、`folderPath` 與 `attachments`。"),
             ["POST api/outlook/fetch-result-export-mail-attachment"] = FetchResultDocs(
-                "Attachments",
+                AttachmentTag,
                 "取得 export attachment request 結果",
                 "`request-export-mail-attachment` 完成狀態查詢。此 fetch result 目前不直接回傳 `exportedAttachmentId`，需要重新讀 attachment metadata。"),
             ["POST api/outlook/request-mail-search"] = new(
-                "Mail Search",
+                SearchTag,
                 "搜尋 Outlook mails",
                 "搜尋或篩選 Outlook mails。`scopeFolderPaths` 或 `storeId` 必須至少提供一個；只有明確全域搜尋時才設定 `allowGlobalScope=true`。完成後用 paired fetch-result endpoint 讀取 `data.searchId` 與 `data.mails`。",
                 typeof(OutlookRequestResponse),
                 MailSearchExample()),
             ["POST api/outlook/request-folder-mails"] = new(
-                "Mail Search",
+                SearchTag,
                 "列出指定 folder 範圍的 mails",
                 "列出指定 `folderPath` 範圍內的 mail metadata，適合批次搬移或統計前枚舉 ids。這是直接列出 folder mails，不是文字搜尋。`folderPath` 必須來自 folder fetch result。`includeSubFolders` 預設為 `true`；只有使用者明確排除 subfolders 時才設為 `false`。完成後用 paired fetch-result endpoint 讀 `data.folderMailsId` 與 `data.mails`。",
                 typeof(OutlookRequestResponse),
                 FolderMailsExample()),
             ["POST api/outlook/fetch-result-mail-search"] = FetchResultDocs(
-                "Mail Search",
+                SearchTag,
                 "取得 mail search 結果",
                 "查詢 `request-mail-search` 的狀態與分頁資料。`data` 包含 `searchId` 與 `mails`。"),
             ["POST api/outlook/fetch-result-folder-mails"] = FetchResultDocs(
-                "Mail Search",
+                SearchTag,
                 "取得 folder mails 結果",
-                "查詢 `request-folder-mails` 的狀態與分頁資料。`data` 包含 `searchId` 與 `mails`。"),
-            ["GET api/outlook/mail-search"] = new(
-                "Mail Search",
-                "取得 cached mail search results",
-                "只讀取最近一次 mail search 累積在 SmartOffice API 的結果，不會觸發 Outlook 搜尋。若需要最新結果，先呼叫 `POST /api/outlook/request-mail-search`。",
-                typeof(List<MailItemDto>)),
+                "查詢 `request-folder-mails` 的狀態與分頁資料。`data` 包含 `folderMailsId` 與 `mails`。"),
             ["GET api/outlook/mail-search/progress/{searchId}"] = new(
-                "Mail Search",
+                DiagnosticsTag,
                 "用 searchId 查詢搜尋進度",
-                "`searchId` 是 `request-mail-search` request 或 `data.searchId` 中的 correlation id。",
+                "診斷用 endpoint；正式資料取得流程請輪詢 `fetch-result-mail-search`。`searchId` 是 `request-mail-search` request 或 `data.searchId` 中的 correlation id。",
                 typeof(MailSearchProgressDto)),
             ["GET api/outlook/mail-search/progress/by-command/{commandId}"] = new(
-                "Mail Search",
+                DiagnosticsTag,
                 "用內部 commandId 查詢搜尋進度",
-                "診斷用 endpoint；正式 caller 優先讀 `paired fetch-result-* data`。",
+                "診斷用 endpoint；正式 caller 優先讀 paired fetch-result data。",
                 typeof(MailSearchProgressDto)),
-            ["GET api/outlook/mails"] = new(
-                "Cached Snapshots",
-                "取得 cached mails",
-                "只讀取 SmartOffice API 目前記憶體中的 mail snapshot，不會呼叫 Outlook。若需要刷新，先呼叫 `POST /api/outlook/request-mails` 或 `POST /api/outlook/request-mail-search`。",
-                typeof(List<MailItemDto>)),
-            ["GET api/outlook/mail-attachments"] = new(
-                "Attachments",
-                "取得單封郵件的 cached attachment metadata",
-                "只讀取 SmartOffice API 目前記憶體中的 attachment metadata。若需要刷新，先呼叫 `POST /api/outlook/request-mail-attachments`，等待 command 完成後用 query string `mailId` 查詢。",
-                typeof(MailAttachmentsDto)),
-            ["GET api/outlook/folders"] = new(
-                "Cached Snapshots",
-                "取得 cached folders",
-                "只讀取 SmartOffice API 目前記憶體中的 folder snapshot。HTTP API 回傳的 folder path 使用 `/主要信箱 - User/Inbox`。若 folder tree 不完整，先呼叫 `request-folders` 或 `request-folder-children`。",
-                typeof(FolderSnapshotDto)),
-            ["GET api/outlook/rules"] = new(
-                "Cached Snapshots",
-                "取得 cached Outlook rules",
-                "只讀取 SmartOffice API cache；若需要刷新，先呼叫 `POST /api/outlook/request-rules`。",
-                typeof(List<OutlookRuleDto>)),
-            ["GET api/outlook/categories"] = new(
-                "Cached Snapshots",
-                "取得 cached Outlook master categories",
-                "只讀取 SmartOffice API cache；若需要刷新，先呼叫 `POST /api/outlook/request-categories`。",
-                typeof(List<OutlookCategoryDto>)),
-            ["GET api/outlook/calendar"] = new(
-                "Cached Snapshots",
-                "取得 cached calendar events",
-                "只讀取 SmartOffice API cache；若需要刷新，先呼叫 `POST /api/outlook/request-calendar`。",
-                typeof(List<CalendarEventDto>)),
+            ["GET api/outlook/address-book/lookup"] = new(
+                HelperTag,
+                "查詢單一 email 的通訊錄線索",
+                "輕量查詢 endpoint，用於依 email 檢查目前已知的 mail 或 calendar 關係。需要完整通訊錄資料時，請使用 `request-address-book` 建立 request，再輪詢 `fetch-result-address-book`。",
+                typeof(AddressBookLookupResponse)),
             ["GET api/outlook/chat"] = new(
-                "Chat",
+                ChatTag,
                 "取得 chat messages",
                 "讀取目前已記錄的 chat messages。chat text 可能含敏感 business data。",
                 typeof(List<ChatMessageDto>)),
             ["POST api/outlook/chat"] = new(
-                "Chat",
+                ChatTag,
                 "送出 chat message",
                 "送出 chat message。chat text 可能含敏感 business data。",
                 typeof(ChatMessageDto),
                 ChatExample()),
             ["GET api/outlook/command-results/{commandId}"] = new(
-                "Command Results",
+                DiagnosticsTag,
                 "查詢指定 command 狀態",
                 "診斷用 endpoint；正式 client workflow 應使用 paired `POST /api/outlook/fetch-result-*` 查詢 `state` 與分頁資料。",
                 typeof(OutlookCommandStatusDto)),
             ["GET api/outlook/command-results"] = new(
-                "Command Results",
+                DiagnosticsTag,
                 "查詢最近 command 狀態",
                 "用於 diagnostics 或列出近期 dispatch 狀態；一般等待流程請優先使用 paired `fetch-result-*` endpoint。",
                 typeof(List<OutlookCommandStatusDto>)),
             ["GET api/outlook/admin/status"] = new(
-                "Diagnostics",
-                "取得 Outlook AddIn 連線狀態",
-                "讀取 SmartOffice API 對目前 AddIn SignalR 連線與最後 push/poll 的觀測狀態。",
+                DiagnosticsTag,
+                "取得 Outlook worker 連線狀態",
+                "讀取 SmartOffice API 對目前 Outlook worker channel 與最後 push/poll 的觀測狀態。",
                 typeof(AddinStatusDto)),
             ["GET api/outlook/admin/logs"] = new(
-                "Diagnostics",
-                "取得 AddIn logs",
-                "讀取 SmartOffice API 記錄的 AddIn diagnostic logs。",
+                DiagnosticsTag,
+                "取得 Outlook worker logs",
+                "讀取 SmartOffice API 記錄的 Outlook worker diagnostic logs。",
                 typeof(List<AddinLogEntry>)),
             ["POST api/outlook/admin/log"] = new(
-                "Diagnostics",
-                "寫入 AddIn log",
-                "供 AddIn 回推 diagnostic log；一般 Web UI / AI client 不需要呼叫。",
+                DiagnosticsTag,
+                "寫入 Outlook worker log",
+                "供 Outlook worker 回推 diagnostic log；一般 Web UI / AI client 不需要呼叫。",
                 null,
                 AddinLogExample()),
         };
@@ -316,6 +321,9 @@ namespace SmartOffice.Hub.Swagger
             var path = context.ApiDescription.RelativePath ?? string.Empty;
             var method = context.ApiDescription.HttpMethod ?? string.Empty;
             if (!Docs.TryGetValue($"{method} {path}", out var docs))
+                docs = BuildFallbackDocs(method, path);
+
+            if (docs is null)
                 return;
 
             operation.Tags = new List<OpenApiTag> { new() { Name = docs.Tag } };
@@ -353,18 +361,57 @@ namespace SmartOffice.Hub.Swagger
             return $"{method}_{path.Replace("api/outlook/", string.Empty).Replace("/", "_").Replace("{", string.Empty).Replace("}", string.Empty).Replace("-", "_")}";
         }
 
+        private static OperationDocs? BuildFallbackDocs(string method, string path)
+        {
+            if (!path.StartsWith("api/outlook/", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            var route = path["api/outlook/".Length..];
+            if (method.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+                route.StartsWith("request-", StringComparison.OrdinalIgnoreCase))
+            {
+                return new OperationDocs(
+                    RequestTag,
+                    $"建立 {route} request",
+                    "建立 Outlook request。HTTP response 只代表 request 已建立；請使用 response 內的 `requestId` 與 `data.fetchResultEndpoint` 輪詢結果。",
+                    typeof(OutlookRequestResponse));
+            }
+
+            if (method.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+                route.StartsWith("fetch-result-", StringComparison.OrdinalIgnoreCase))
+            {
+                return FetchResultDocs(
+                    FetchTag,
+                    $"取得 {route} 結果",
+                    "查詢 paired request 的狀態與分頁資料。");
+            }
+
+            if (route.StartsWith("admin/", StringComparison.OrdinalIgnoreCase) ||
+                route.StartsWith("command-results", StringComparison.OrdinalIgnoreCase) ||
+                route.StartsWith("mail-search/progress", StringComparison.OrdinalIgnoreCase))
+            {
+                return new OperationDocs(
+                    DiagnosticsTag,
+                    "Diagnostics endpoint",
+                    "診斷用 endpoint；一般資料取得流程請使用 request endpoint 建立工作，再輪詢 paired fetch-result endpoint。",
+                    null);
+            }
+
+            return null;
+        }
+
         private static OpenApiObject FolderChildrenExample() => new()
         {
             ["storeId"] = new OpenApiString("store-primary"),
             ["parentEntryId"] = new OpenApiString("00000000A1B2C3D4"),
-            ["parentFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["parentFolderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
             ["maxDepth"] = new OpenApiInteger(1),
             ["maxChildren"] = new OpenApiInteger(50),
         };
 
         private static OpenApiObject FetchMailsExample() => new()
         {
-            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
             ["lookbackHours"] = new OpenApiDouble(168),
             ["maxCount"] = new OpenApiInteger(30),
         };
@@ -382,13 +429,13 @@ namespace SmartOffice.Hub.Swagger
         private static OpenApiObject MailIdentityExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
         };
 
         private static OpenApiObject ExportAttachmentExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
             ["attachmentId"] = new OpenApiString("attachment-001"),
             ["index"] = new OpenApiInteger(1),
             ["name"] = new OpenApiString("報價單.pdf"),
@@ -417,7 +464,7 @@ namespace SmartOffice.Hub.Swagger
         private static OpenApiObject UpdateMailPropertiesExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
             ["isRead"] = new OpenApiBoolean(true),
             ["flagInterval"] = new OpenApiString("today"),
             ["flagRequest"] = new OpenApiString("今天"),
@@ -447,20 +494,20 @@ namespace SmartOffice.Hub.Swagger
 
         private static OpenApiObject CreateFolderExample() => new()
         {
-            ["parentFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["parentFolderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
             ["name"] = new OpenApiString("客戶追蹤"),
         };
 
         private static OpenApiObject DeleteFolderExample() => new()
         {
-            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox/客戶追蹤"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/收件匣/客戶追蹤"),
         };
 
         private static OpenApiObject MoveMailExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["sourceFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
-            ["destinationFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox/客戶追蹤"),
+            ["sourceFolderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
+            ["destinationFolderPath"] = new OpenApiString("/主要信箱 - User/收件匣/客戶追蹤"),
         };
 
         private static OpenApiObject MoveMailsExample() => new()
@@ -470,19 +517,19 @@ namespace SmartOffice.Hub.Swagger
                 new OpenApiString("mail-20260506-001"),
                 new OpenApiString("mail-20260506-002"),
             },
-            ["sourceFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["sourceFolderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
             ["sourceFolderPaths"] = new OpenApiArray
             {
-                new OpenApiString("/主要信箱 - User/Inbox"),
+                new OpenApiString("/主要信箱 - User/收件匣"),
             },
-            ["destinationFolderPath"] = new OpenApiString("/主要信箱 - User/Inbox/客戶追蹤"),
+            ["destinationFolderPath"] = new OpenApiString("/主要信箱 - User/收件匣/客戶追蹤"),
             ["continueOnError"] = new OpenApiBoolean(true),
         };
 
         private static OpenApiObject DeleteMailExample() => new()
         {
             ["mailId"] = new OpenApiString("mail-20260506-001"),
-            ["folderPath"] = new OpenApiString("/主要信箱 - User/Inbox"),
+            ["folderPath"] = new OpenApiString("/主要信箱 - User/收件匣"),
         };
 
         private static OperationDocs FetchResultDocs(string tag, string summary, string description) => new(
@@ -503,7 +550,7 @@ namespace SmartOffice.Hub.Swagger
         {
             ["searchId"] = new OpenApiString("6fb66d3a-7f4f-4a6d-9b3f-7e1e8c2f2d84"),
             ["storeId"] = new OpenApiString(""),
-            ["scopeFolderPaths"] = new OpenApiArray { new OpenApiString("/主要信箱 - User/Inbox") },
+            ["scopeFolderPaths"] = new OpenApiArray { new OpenApiString("/主要信箱 - User/收件匣") },
             ["allowGlobalScope"] = new OpenApiBoolean(false),
             ["includeSubFolders"] = new OpenApiBoolean(true),
             ["keyword"] = new OpenApiString("客戶"),
@@ -533,7 +580,7 @@ namespace SmartOffice.Hub.Swagger
         private static OpenApiObject AddinLogExample() => new()
         {
             ["level"] = new OpenApiString("info"),
-            ["message"] = new OpenApiString("AddIn connected."),
+            ["message"] = new OpenApiString("Outlook worker connected."),
             ["timestamp"] = new OpenApiString("2026-05-06T09:00:00+08:00"),
         };
 

@@ -32,7 +32,7 @@ namespace SmartOffice.Hub.Controllers
         }
 
         /// <summary>
-        /// Web UI、AI 或 MCP client 要求搜尋 mails；Hub 會展開 folder scope 並分片 dispatch 給 Outlook AddIn。
+        /// Web UI、AI 或 MCP client 要求搜尋 mails；Hub 會建立 request 並回傳 fetch-result endpoint。
         /// </summary>
         [HttpPost("request-mail-search")]
         public IActionResult RequestMailSearch([FromBody] SearchMailsRequest req, CancellationToken ct)
@@ -308,7 +308,7 @@ namespace SmartOffice.Hub.Controllers
                 Status = "pending",
                 Phase = "dispatch",
                 TotalFolders = slices.Count,
-                Message = "Folder mails request dispatched to Outlook AddIn.",
+                Message = "Folder mails request dispatched to Outlook worker.",
                 Timestamp = DateTime.Now,
             });
             await _hub.Clients.All.SendAsync("MailSearchProgress", progress, ct);
