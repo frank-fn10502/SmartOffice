@@ -37,16 +37,18 @@ metadata:
 
 ## 可選 Helper Scripts
 
-Skill 內附 `scripts/outlook-api.sh` 與 `scripts/outlook-api.ps1`。它們只封裝 HTTP 呼叫、request/fetch-result loop、分頁與常用 Golden Path；輸出 JSON 到 stdout，方便 AI 直接解析。
+Skill 內附兩類 script。`scripts/outlook-api.sh` 與 `scripts/outlook-api.ps1` 是底層 helper，只封裝 HTTP 呼叫、request/fetch-result loop 與分頁；`scripts/recipes/` 放已經形成穩定流程的實際操作案例。所有 script 都輸出 JSON 到 stdout，方便 AI 直接解析。
 
 - bash: `./scripts/outlook-api.sh status`
 - PowerShell: `pwsh ./scripts/outlook-api.ps1 status`
 - 指定 API URL: 設定 `SMARTOFFICE_OUTLOOK_BASE_URL`，或 bash 使用 `--base-url URL`，PowerShell 使用 `-BaseUrl URL`。
-- 取得主要 Inbox: `./scripts/outlook-api.sh inbox`
-- 最近郵件: `./scripts/outlook-api.sh recent-mails --lookback-hours 168 --max-count 30`
+- 取得主要 Inbox: `./scripts/recipes/inbox.sh`
+- 最近郵件: `./scripts/recipes/recent-mails.sh --lookback-hours 168 --max-count 30`
 - 通用 request/fetch: `./scripts/outlook-api.sh request-fetch /api/outlook/request-calendar '{"daysForward":31,"startDate":null,"endDate":null}'`
 
-使用 helper 時仍需遵守本文件規則：修改前先確認唯一 `mailId` / `folderPath`，只摘要必要資料，並在回覆使用者時說明 folder 範圍。
+PowerShell recipe 對應為 `pwsh ./scripts/recipes/inbox.ps1` 與 `pwsh ./scripts/recipes/recent-mails.ps1 -LookbackHours 168 -MaxCount 30`。只有當流程已經有實際案例、包含多步驟或容易做錯時，才新增 recipe；單一步驟或仍在探索中的呼叫請用底層 helper。
+
+使用 helper 或 recipe 時仍需遵守本文件規則：修改前先確認唯一 `mailId` / `folderPath`，只摘要必要資料，並在回覆使用者時說明 folder 範圍。
 
 ## Golden Path
 

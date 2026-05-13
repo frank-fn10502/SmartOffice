@@ -22,13 +22,9 @@ Usage:
   pwsh outlook-api.ps1 post <path> <json-or-@file>
   pwsh outlook-api.ps1 fetch <fetch-result-path> <request-id> [-Take N]
   pwsh outlook-api.ps1 request-fetch <request-path> <json-or-@file> [-Take N]
-  pwsh outlook-api.ps1 inbox
-  pwsh outlook-api.ps1 recent-mails [-LookbackHours N] [-MaxCount N] [-Take N]
 
 Examples:
   pwsh ./scripts/outlook-api.ps1 status
-  pwsh ./scripts/outlook-api.ps1 inbox
-  pwsh ./scripts/outlook-api.ps1 recent-mails -LookbackHours 168 -MaxCount 30
   pwsh ./scripts/outlook-api.ps1 request-fetch /api/outlook/request-calendar '{ "daysForward": 31, "startDate": null, "endDate": null }'
   pwsh ./scripts/outlook-api.ps1 post /api/outlook/request-mail-search @request.json
 
@@ -36,6 +32,9 @@ Rules implemented by this helper:
   - request-* responses are not treated as success until paired fetch-result completes.
   - fetch-result pagination continues while next.hasMore=true, even when state=completed.
   - failed, unavailable, and timeout states stop the helper with a non-zero exit code.
+
+Workflow recipes live in scripts/recipes/. Use those when a task has an established
+sequence such as locating Inbox before reading recent mail.
 "@
 }
 
@@ -94,9 +93,9 @@ function Invoke-FetchAll {
         } | ConvertTo-Json -Depth 5 -Compress
 
         $page = Invoke-ApiPost -Path $Endpoint -Body $body
-        $pages.Add($page)
 
         if ($page.state -in @("failed", "unavailable", "timeout")) {
+            $pages.Add($page)
             [pscustomobject]@{
                 endpoint = $Endpoint
                 requestId = $RequestId
@@ -107,11 +106,13 @@ function Invoke-FetchAll {
         }
 
         if ($page.next -and $page.next.hasMore) {
+            $pages.Add($page)
             $cursor = [string]$page.next.cursor
             continue
         }
 
         if ($page.state -eq "completed") {
+            $pages.Add($page)
             return [pscustomobject]@{
                 endpoint = $Endpoint
                 requestId = $RequestId
@@ -152,52 +153,6 @@ function Invoke-RequestFetch {
     [pscustomobject]@{
         requestResponse = $requestResponse
         fetchResult = Invoke-FetchAll -Endpoint $endpoint -RequestId $requestId -Take $Take
-    }
-}
-
-function Get-Inbox {
-    $body = @{
-        name = ""
-        folderPath = ""
-        folderType = "Inbox"
-        storeId = ""
-        includeHidden = $false
-        maxResults = 20
-    } | ConvertTo-Json -Depth 5 -Compress
-
-    $result = Invoke-RequestFetch -RequestPath "/api/outlook/request-find-folder" -RequestBody $body -Take $script:Take
-    $folders = @($result.fetchResult.pages | ForEach-Object { $_.data.folders } | Where-Object { $_ })
-    if ($folders.Count -lt 1) {
-        $result
-        throw "Inbox could not be uniquely located."
-    }
-
-    [pscustomobject]@{
-        folder = $folders[0]
-    }
-}
-
-function Get-RecentMails {
-    param(
-        [Parameter(Mandatory = $true)][int]$LookbackHours,
-        [Parameter(Mandatory = $true)][int]$MaxCount
-    )
-
-    $inbox = Get-Inbox
-    $folderPath = [string]$inbox.folder.folderPath
-    $bodyObject = @{
-        folderPath = $folderPath
-        lookbackHours = $LookbackHours
-        maxCount = $MaxCount
-    }
-    $body = $bodyObject | ConvertTo-Json -Depth 5 -Compress
-    $result = Invoke-RequestFetch -RequestPath "/api/outlook/request-mails" -RequestBody $body -Take $script:Take
-    $mails = @($result.fetchResult.pages | ForEach-Object { $_.data.mails } | Where-Object { $_ })
-
-    [pscustomobject]@{
-        folderPath = $folderPath
-        request = $bodyObject
-        mails = $mails
     }
 }
 
@@ -252,25 +207,6 @@ switch ($Command) {
             }
         }
         Invoke-RequestFetch -RequestPath $requestPath -RequestBody $requestBody -Take $script:Take | ConvertTo-Json -Depth 80
-    }
-    "inbox" {
-        Get-Inbox | ConvertTo-Json -Depth 50
-    }
-    "recent-mails" {
-        $lookbackHours = 168
-        $maxCount = 30
-        for ($i = 0; $i -lt $Args.Count; $i++) {
-            switch ($Args[$i]) {
-                "-LookbackHours" { $lookbackHours = [int](Read-OptionValue -Values $Args -Index ([ref]$i) -Name "-LookbackHours") }
-                "--lookback-hours" { $lookbackHours = [int](Read-OptionValue -Values $Args -Index ([ref]$i) -Name "--lookback-hours") }
-                "-MaxCount" { $maxCount = [int](Read-OptionValue -Values $Args -Index ([ref]$i) -Name "-MaxCount") }
-                "--max-count" { $maxCount = [int](Read-OptionValue -Values $Args -Index ([ref]$i) -Name "--max-count") }
-                "-Take" { $script:Take = [int](Read-OptionValue -Values $Args -Index ([ref]$i) -Name "-Take") }
-                "--take" { $script:Take = [int](Read-OptionValue -Values $Args -Index ([ref]$i) -Name "--take") }
-                default { throw "Unknown option: $($Args[$i])" }
-            }
-        }
-        Get-RecentMails -LookbackHours $lookbackHours -MaxCount $maxCount | ConvertTo-Json -Depth 80
     }
     default {
         Show-Usage

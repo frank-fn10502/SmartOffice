@@ -67,7 +67,7 @@
 可選 helper：
 
 ```bash
-./scripts/outlook-api.sh inbox
+./scripts/recipes/inbox.sh
 ```
 
 低階 fallback 流程只用於診斷：
@@ -238,7 +238,7 @@ Request body 重點欄位：
 可選 helper：
 
 ```bash
-./scripts/outlook-api.sh recent-mails --lookback-hours 168 --max-count 30
+./scripts/recipes/recent-mails.sh --lookback-hours 168 --max-count 30
 ```
 
 ## Date Range Mail Lookup

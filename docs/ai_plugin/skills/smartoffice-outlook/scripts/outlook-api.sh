@@ -15,13 +15,9 @@ Usage:
   outlook-api.sh [--base-url URL] post <path> <json-or-@file>
   outlook-api.sh [--base-url URL] fetch <fetch-result-path> <request-id> [--take N]
   outlook-api.sh [--base-url URL] request-fetch <request-path> <json-or-@file> [--take N]
-  outlook-api.sh [--base-url URL] inbox
-  outlook-api.sh [--base-url URL] recent-mails [--lookback-hours N] [--max-count N] [--take N]
 
 Examples:
   ./scripts/outlook-api.sh status
-  ./scripts/outlook-api.sh inbox
-  ./scripts/outlook-api.sh recent-mails --lookback-hours 168 --max-count 30
   ./scripts/outlook-api.sh request-fetch /api/outlook/request-calendar '{"daysForward":31,"startDate":null,"endDate":null}'
   ./scripts/outlook-api.sh post /api/outlook/request-mail-search @request.json
 
@@ -29,6 +25,9 @@ Rules implemented by this helper:
   - request-* responses are not treated as success until paired fetch-result completes.
   - fetch-result pagination continues while next.hasMore=true, even when state=completed.
   - failed, unavailable, and timeout states stop the helper with a non-zero exit code.
+
+Workflow recipes live in scripts/recipes/. Use those when a task has an established
+sequence such as locating Inbox before reading recent mail.
 USAGE
 }
 
@@ -87,13 +86,13 @@ fetch_all() {
     body="$(jq -nc --arg requestId "$request_id" --arg cursor "$cursor" --argjson take "$take" \
       '{requestId:$requestId,cursor:$cursor,take:$take}')"
     page="$(http_post "$endpoint" "$body")"
-    pages="$(jq -c --argjson page "$page" '. + [$page]' <<< "$pages")"
     state="$(jq -r '.state // ""' <<< "$page")"
     has_more="$(jq -r '.next.hasMore // false' <<< "$page")"
     next_cursor="$(jq -r '.next.cursor // ""' <<< "$page")"
 
     case "$state" in
       failed|unavailable|timeout)
+        pages="$(jq -c --argjson page "$page" '. + [$page]' <<< "$pages")"
         jq -nc --arg endpoint "$endpoint" --arg requestId "$request_id" --argjson pages "$pages" \
           '{endpoint:$endpoint,requestId:$requestId,state:"failed",pages:$pages}'
         return 1
@@ -101,11 +100,13 @@ fetch_all() {
     esac
 
     if [[ "$has_more" == "true" ]]; then
+      pages="$(jq -c --argjson page "$page" '. + [$page]' <<< "$pages")"
       cursor="$next_cursor"
       continue
     fi
 
     if [[ "$state" == "completed" ]]; then
+      pages="$(jq -c --argjson page "$page" '. + [$page]' <<< "$pages")"
       jq -nc --arg endpoint "$endpoint" --arg requestId "$request_id" --argjson pages "$pages" \
         '{endpoint:$endpoint,requestId:$requestId,state:"completed",pages:$pages}'
       return 0
@@ -135,32 +136,6 @@ request_fetch() {
   result="$(fetch_all "$endpoint" "$request_id" "$take")"
   jq -nc --argjson requestResponse "$response" --argjson fetchResult "$result" \
     '{requestResponse:$requestResponse,fetchResult:$fetchResult}'
-}
-
-inbox() {
-  local body result folder
-  body='{"name":"","folderPath":"","folderType":"Inbox","storeId":"","includeHidden":false,"maxResults":20}'
-  result="$(request_fetch "/api/outlook/request-find-folder" "$body" "$TAKE")"
-  folder="$(jq -c '[.fetchResult.pages[].data.folders[]?] | .[0] // null' <<< "$result")"
-  if [[ "$folder" == "null" ]]; then
-    echo "$result"
-    echo "Inbox could not be uniquely located." >&2
-    return 1
-  fi
-  jq -nc --argjson folder "$folder" '{folder:$folder}'
-}
-
-recent_mails() {
-  local lookback_hours="$1"
-  local max_count="$2"
-  local inbox_json folder_path body result
-  inbox_json="$(inbox)"
-  folder_path="$(jq -r '.folder.folderPath' <<< "$inbox_json")"
-  body="$(jq -nc --arg folderPath "$folder_path" --argjson lookbackHours "$lookback_hours" --argjson maxCount "$max_count" \
-    '{folderPath:$folderPath,lookbackHours:$lookbackHours,maxCount:$maxCount}')"
-  result="$(request_fetch "/api/outlook/request-mails" "$body" "$TAKE")"
-  jq -nc --arg folderPath "$folder_path" --argjson request "$body" --argjson result "$result" \
-    '{folderPath:$folderPath,request:$request,mails:[ $result.fetchResult.pages[].data.mails[]? ]}'
 }
 
 need_tool curl
@@ -227,22 +202,6 @@ case "$command_name" in
       esac
     done
     request_fetch "$request_path" "$request_body" "$TAKE"
-    ;;
-  inbox)
-    inbox
-    ;;
-  recent-mails)
-    lookback_hours="168"
-    max_count="30"
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --lookback-hours) lookback_hours="$2"; shift 2 ;;
-        --max-count) max_count="$2"; shift 2 ;;
-        --take) TAKE="$2"; shift 2 ;;
-        *) echo "Unknown option: $1" >&2; exit 2 ;;
-      esac
-    done
-    recent_mails "$lookback_hours" "$max_count"
     ;;
   *)
     usage >&2
