@@ -14,7 +14,7 @@
 - 不要用 `request-mails` 蒐集大量目標郵件，因為它是近期列表 API，受 `lookbackHours` / `maxCount` 限制。
 - 來源與目的 folder 都必須先用 `request-find-folder` 定位唯一 `folderPath`；不要自行組 path。
 - `POST /api/outlook/request-move-mails` 單次最多 500 個 `mailIds`；更多郵件必須切 batch。
-- 每批都要用 paired `fetch-result-move-mails` 等到 `state=completed` 後再送下一批。
+- 每批都要用 paired `fetch-result-move-mails` 等到 `state=completed` 且 `next.hasMore=false` 後再送下一批。
 - 若某批失敗，停止並回報失敗批次與已完成數量；不要假裝整批成功。
 - 全部批次完成後，重新查必要的 folders、folder mails 或 search 結果確認。
 
@@ -35,7 +35,7 @@
 }
 ```
 
-3. 用 `fetch-result-folder-mails` loop 到 `state=completed`，只取 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
+3. 用 `fetch-result-folder-mails` loop 到 `state=completed` 且 `next.hasMore=false`，只取每頁 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
 4. 若沒有 mails，回報來源 folder 沒有可搬移郵件並停止。
 5. 將結果依最多 500 封切 batch。
 6. 逐批呼叫 `request-move-mails`：
@@ -68,7 +68,7 @@
 }
 ```
 
-3. 用 `fetch-result-folder-mails` loop 到 `state=completed`，只取 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
+3. 用 `fetch-result-folder-mails` loop 到 `state=completed` 且 `next.hasMore=false`，只取每頁 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
 4. 將結果依最多 500 封切 batch。
 5. 逐批呼叫 `request-move-mails`：
 
@@ -111,7 +111,7 @@
 }
 ```
 
-3. 用 `fetch-result-mail-search` loop 到 `state=completed`，只取 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
+3. 用 `fetch-result-mail-search` loop 到 `state=completed` 且 `next.hasMore=false`，只取每頁 `data.mails[].id` 與 `data.mails[].folderPath` 等必要 metadata。
 4. 若沒有符合條件的 mails，回報找不到符合條件的郵件並停止。
 5. 將結果依最多 500 封切 batch。若結果跨 subfolders，`sourceFolderPath` 留空，`sourceFolderPaths` 放本批 mails 實際出現過的 source folder paths：
 
@@ -125,4 +125,4 @@
 }
 ```
 
-6. 每批都用 `fetch-result-move-mails` 等到 `state=completed` 後再送下一批。全部批次完成後，重新查必要的 folders 或 search 結果確認。
+6. 每批都用 `fetch-result-move-mails` 等到 `state=completed` 且 `next.hasMore=false` 後再送下一批。全部批次完成後，重新查必要的 folders 或 search 結果確認。

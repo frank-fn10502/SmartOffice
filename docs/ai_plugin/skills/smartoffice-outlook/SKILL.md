@@ -15,7 +15,7 @@ metadata:
 - 可用任何可呼叫 HTTP 與解析 JSON 的工具；不要把 `curl`、PowerShell 或特定 shell 視為必要條件。
 - 每次 `request-*` 後，先解析 request response 的固定欄位：`requestId`、`request`、`state`、`message`、`data`。`data.fetchResultEndpoint` 是下一步要呼叫的 paired endpoint；response 沒有 `success` 欄位，`accepted` 只代表 SmartOffice API 已收下 request，不代表 Outlook 操作已成功。
 - 取得 `requestId` 後呼叫 `data.fetchResultEndpoint`；回應固定提供 `requestId`、`request`、`state`、`message`、`next`、`data`。
-- 使用者或 AI 只需要 loop paired `fetch-result-*` 到 `state=completed`；若 `next.hasMore=true`，下一次 body 帶 `cursor=next.cursor`。
+- 使用者或 AI 只需要 loop paired `fetch-result-*`。每次都先檢查 `state`；若是 `failed`、`unavailable` 或 `timeout` 就停止並回報。若 `next.hasMore=true`，即使本頁 `state=completed`，仍要用 `cursor=next.cursor` 取下一頁；只有 `state=completed` 且 `next.hasMore=false` 才代表資料取完。
 - 若 `request-*` 回 HTTP 409 / 400 / 502 / 504，仍先解析 body 的 `state`、`message` 與可能存在的 `requestId`；不要靠猜測重試，也不要改用更大的搜尋範圍。
 - HTTP request body 不接受未文件化欄位；未知欄位會回 `400 invalid_request_body`。看到這個錯誤時，改用 Swagger 或任務對應 reference 裡的精確欄位名稱，不要猜 alias，例如 `request-mail-search` 用 `keyword` 而不是 `query`，`request-calendar` 用 `daysForward` 而不是 `lookaheadDays`。
 - 看到 `400 missing_required_fields` 時，只補齊 `requiredFields` 列出的欄位後重送；不要更換 endpoint、擴大搜尋範圍或省略 `folderPath`。
@@ -35,13 +35,26 @@ metadata:
 - 相對日期要轉成明確 `receivedFrom` / `receivedTo` 並在回覆中說明，例如「這週」代表本週一 00:00 到目前時間；「最近兩個月」代表從目前時間往前推兩個月到目前時間。若使用者說「這兩個月」且語意不明，預設按最近兩個月處理。
 - 大型 response 可暫存於 skill folder 的 `tmp/<run>/`，但不可提交或長期保留。
 
+## 可選 Helper Scripts
+
+Skill 內附 `scripts/outlook-api.sh` 與 `scripts/outlook-api.ps1`。它們只封裝 HTTP 呼叫、request/fetch-result loop、分頁與常用 Golden Path；輸出 JSON 到 stdout，方便 AI 直接解析。
+
+- bash: `./scripts/outlook-api.sh status`
+- PowerShell: `pwsh ./scripts/outlook-api.ps1 status`
+- 指定 API URL: 設定 `SMARTOFFICE_OUTLOOK_BASE_URL`，或 bash 使用 `--base-url URL`，PowerShell 使用 `-BaseUrl URL`。
+- 取得主要 Inbox: `./scripts/outlook-api.sh inbox`
+- 最近郵件: `./scripts/outlook-api.sh recent-mails --lookback-hours 168 --max-count 30`
+- 通用 request/fetch: `./scripts/outlook-api.sh request-fetch /api/outlook/request-calendar '{"daysForward":31,"startDate":null,"endDate":null}'`
+
+使用 helper 時仍需遵守本文件規則：修改前先確認唯一 `mailId` / `folderPath`，只摘要必要資料，並在回覆使用者時說明 folder 範圍。
+
 ## Golden Path
 
 使用者未指定 folder 時，請照這個最短正確路徑取得主要 mailbox 的 Inbox：
 
 1. 確認 API status。
 2. `POST /api/outlook/request-find-folder`，body 使用 `folderType="Inbox"`、`storeId=""`。未指定 `storeId` 時，SmartOffice API 會在主要 store 查找該 folder type。
-3. 取得 `requestId` 後 loop `POST /api/outlook/fetch-result-find-folder` 到 `state=completed`。
+3. 取得 `requestId` 後 loop `POST /api/outlook/fetch-result-find-folder`，直到 `state=completed` 且 `next.hasMore=false`。
 4. 若 `data.matchCount=1`，使用 `data.folders[0].folderPath` 呼叫 `request-mails` 或放入 `request-mail-search.scopeFolderPaths[0]`。
 5. 若 `matchCount=0` 或 `isAmbiguous=true`，停止並回報目前無法唯一定位主要 Inbox；不要自行改成全信箱或空 scope 搜尋。
 6. 取得後續 request 的 `requestId` 後 loop paired `fetch-result-*`，從 `data` 讀資料。

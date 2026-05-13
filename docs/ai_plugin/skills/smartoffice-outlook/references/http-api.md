@@ -30,7 +30,7 @@ Default: `http://localhost:2805`.
 
 1. 呼叫 `POST /api/outlook/request-*` 發起動作。
 2. 從 response 取得 `requestId` 與 `data.fetchResultEndpoint`。
-3. 持續呼叫該 request 配對的 `POST /api/outlook/fetch-result-*`，直到 `state=completed`，或遇到 `failed`、`unavailable`、`timeout`。
+3. 持續呼叫該 request 配對的 `POST /api/outlook/fetch-result-*`。遇到 `failed`、`unavailable`、`timeout` 時停止並回報；遇到 `state=completed` 仍要檢查 `next.hasMore`，只有 `state=completed` 且 `next.hasMore=false` 才代表資料取完。
 
 一般 `request-*` response：
 
@@ -116,7 +116,19 @@ Response:
 - `next.hasMore`: 是否還有下一段 result。
 - `data`: 該 `fetch-result-*` 自己的 domain struct，例如 `mails`、`folders`、`stores`、`rules`、`categories`、`calendarEvents`。
 
+`completed` 表示該 request 的工作已完成，不表示目前 response 已包含全部資料。`fetch-result-*` 會用 `next.hasMore` 與 `next.cursor` 做資料分頁；caller 必須持續抓到 `next.hasMore=false`。
+
 `take` 只控制此次 `fetch-result-*` response 最多回傳多少筆 result；它不改變原本 `request-*` 的工作範圍。`take` 會 clamp 到 1-500，建議 AI/MCP 使用 100。
+
+Skill folder 內的 `scripts/outlook-api.sh` 與 `scripts/outlook-api.ps1` 已封裝這個 loop。AI 可以直接使用：
+
+```bash
+./scripts/outlook-api.sh request-fetch /api/outlook/request-calendar '{"daysForward":31,"startDate":null,"endDate":null}'
+```
+
+```powershell
+pwsh ./scripts/outlook-api.ps1 request-fetch /api/outlook/request-calendar '{ "daysForward": 31, "startDate": null, "endDate": null }'
+```
 
 ## Error Envelopes
 
