@@ -37,7 +37,7 @@
 }
 ```
 
-`maxContacts`、`maxAddressEntriesPerList`、`maxGroupMembers` 與 `maxGroupDepth` 是負載上限；不要要求無限制 GAL 枚舉或無限制展開 nested group。讀取結果一律透過 `fetch-result-address-book` 用 `cursor` / `take` 分頁取得。
+`maxContacts`、`maxAddressEntriesPerList`、`maxGroupMembers` 與 `maxGroupDepth` 是負載上限；不要要求無限制 GAL 枚舉或無限制展開 nested group。`maxGroupMembers=0` 表示只讀 group metadata，不展開成員。讀取結果一律透過 `fetch-result-address-book` 用 `cursor` / `take` 分頁取得。
 
 ## Calendar / Rules / Categories
 
