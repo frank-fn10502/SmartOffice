@@ -383,6 +383,14 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
+        public async Task PushCalendarRooms(List<CalendarRoomDto> rooms)
+        {
+            _mailStore.SetCalendarRooms(rooms);
+            _addinStatus.RecordPush("calendar rooms", rooms.Count);
+            await _notifications.Clients.All.SendAsync("CalendarRoomsUpdated", rooms);
+            await BroadcastStatusAndLogsAsync();
+        }
+
         public async Task PushAddressBook(List<AddressBookContactDto> contacts)
         {
             _mailStore.SetAddressBookContacts(contacts);

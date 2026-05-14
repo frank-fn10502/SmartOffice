@@ -316,7 +316,7 @@ namespace SmartOffice.Hub.Services
             };
         }
 
-        private static CalendarEventDto CloneCalendarEvent(CalendarEventDto item)
+        internal static CalendarEventDto CloneCalendarEvent(CalendarEventDto item)
         {
             return new CalendarEventDto
             {
@@ -329,6 +329,8 @@ namespace SmartOffice.Hub.Services
                 RequiredAttendees = CloneRecipients(item.RequiredAttendees),
                 IsRecurring = item.IsRecurring,
                 BusyStatus = item.BusyStatus,
+                SmartOfficeOwned = item.SmartOfficeOwned,
+                SmartOfficeEventId = item.SmartOfficeEventId,
             };
         }
 
@@ -337,7 +339,7 @@ namespace SmartOffice.Hub.Services
             return recipients.Select(CloneRecipient).ToList();
         }
 
-        private static OutlookRecipientDto CloneRecipient(OutlookRecipientDto recipient)
+        internal static OutlookRecipientDto CloneRecipient(OutlookRecipientDto recipient)
         {
             return new OutlookRecipientDto
             {

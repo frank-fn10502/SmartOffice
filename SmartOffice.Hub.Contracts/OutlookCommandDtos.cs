@@ -167,6 +167,20 @@ namespace SmartOffice.Hub.Contracts
         public DateTime? EndDate { get; set; }
     }
 
+    public class CalendarEventCommandRequest
+    {
+        public string EventId { get; set; } = string.Empty;
+        public string SmartOfficeEventId { get; set; } = string.Empty;
+        public string Subject { get; set; } = string.Empty;
+        public DateTime? Start { get; set; }
+        public DateTime? End { get; set; }
+        public string Location { get; set; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
+        public string BusyStatus { get; set; } = "busy";
+        public List<OutlookRecipientDto> RequiredAttendees { get; set; } = new List<OutlookRecipientDto>();
+        public List<OutlookRecipientDto> Resources { get; set; } = new List<OutlookRecipientDto>();
+    }
+
     public class FetchMailBodyRequest
     {
         public string MailId { get; set; } = string.Empty;
@@ -323,6 +337,7 @@ namespace SmartOffice.Hub.Contracts
         public FetchMailConversationRequest MailConversationRequest { get; set; }
         public ExportMailAttachmentRequest ExportMailAttachmentRequest { get; set; }
         public FetchCalendarRequest CalendarRequest { get; set; }
+        public CalendarEventCommandRequest CalendarEventRequest { get; set; }
         public MailPropertiesCommandRequest MailPropertiesRequest { get; set; }
         public CategoryCommandRequest CategoryRequest { get; set; }
         public OutlookRuleCommandRequest RuleRequest { get; set; }
@@ -362,6 +377,7 @@ namespace SmartOffice.Hub.Contracts
         public OutlookCommandMailConversationRequest MailConversationRequest { get; set; }
         public OutlookCommandExportMailAttachmentRequest ExportMailAttachmentRequest { get; set; }
         public OutlookCommandCalendarRequest CalendarRequest { get; set; }
+        public CalendarEventCommandRequest CalendarEventRequest { get; set; }
         public OutlookCommandMailPropertiesRequest MailPropertiesRequest { get; set; }
         public OutlookCommandCategoryRequest CategoryRequest { get; set; }
         public OutlookCommandCreateFolderRequest CreateFolderRequest { get; set; }

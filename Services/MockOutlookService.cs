@@ -18,8 +18,7 @@ namespace SmartOffice.Hub.Services
         private List<OutlookStoreDto> _mockStores = new();
         private List<OutlookCategoryDto> _mockCategories = new();
         private List<OutlookRuleDto> _mockRules = new();
-        private List<CalendarEventDto> _mockCalendar = new();
-
+        private MockOutlookCalendarService? _calendar;
         public MockOutlookService(
             IWebHostEnvironment environment,
             MailStore mailStore,
@@ -37,7 +36,6 @@ namespace SmartOffice.Hub.Services
         }
 
         public bool IsEnabled => _environment.IsEnvironment("Mock");
-
         public void Seed()
         {
             if (!IsEnabled) return;
@@ -49,7 +47,8 @@ namespace SmartOffice.Hub.Services
                 _mailStore.SetMails(MockOutlookMailSearch.FilterMails(_mockMails, MockOutlookPaths.Inbox, MockOutlookPaths.Inbox, 30, DateTime.Now.AddDays(-7)));
                 _mailStore.SetCategories(new List<OutlookCategoryDto>(_mockCategories));
                 _mailStore.SetRules(new List<OutlookRuleDto>(_mockRules));
-                _mailStore.SetCalendarEvents(new List<CalendarEventDto>(_mockCalendar));
+                _mailStore.SetCalendarEvents(_calendar?.AllEvents() ?? new List<CalendarEventDto>());
+                _mailStore.SetCalendarRooms(_calendar?.Rooms() ?? new List<CalendarRoomDto>());
                 SeedChat();
                 _addinStatus.RecordMockBackendReady();
             }
@@ -73,7 +72,9 @@ namespace SmartOffice.Hub.Services
             List<OutlookCategoryDto>? categories = null;
             List<OutlookRuleDto>? rules = null;
             List<CalendarEventDto>? calendar = null;
+            List<CalendarRoomDto>? calendarRooms = null;
             List<AddressBookContactDto>? addressBook = null;
+            var commandSuccess = true;
             var resultMessage = string.Empty;
 
             lock (_lock)
@@ -169,8 +170,27 @@ namespace SmartOffice.Hub.Services
                         _mailStore.SetRules(rules);
                         break;
                     case "fetch_calendar":
-                        calendar = FilterCalendar(command.CalendarRequest);
+                        calendar = _calendar?.Filter(command.CalendarRequest) ?? new List<CalendarEventDto>();
                         _mailStore.SetCalendarEvents(calendar);
+                        break;
+                    case "fetch_calendar_rooms":
+                        calendarRooms = _calendar?.Rooms() ?? new List<CalendarRoomDto>();
+                        _mailStore.SetCalendarRooms(calendarRooms);
+                        break;
+                    case "create_calendar_event":
+                        calendar = _calendar?.Create(command.CalendarEventRequest) ?? new List<CalendarEventDto>();
+                        _mailStore.SetCalendarEvents(calendar);
+                        break;
+                    case "update_calendar_event":
+                        calendar = _calendar?.Update(command.CalendarEventRequest);
+                        if (calendar is null) commandSuccess = false;
+                        else _mailStore.SetCalendarEvents(calendar);
+                        break;
+                    case "delete_calendar_event":
+                        calendar = _calendar?.Delete(command.CalendarEventRequest);
+                        if (calendar is null) commandSuccess = false;
+                        else _mailStore.SetCalendarEvents(calendar);
+                        resultMessage = calendar is null ? "not_smartoffice_owned" : string.Empty;
                         break;
                     case "fetch_address_book":
                         addressBook = BuildMockAddressBook(command.AddressBookRequest);
@@ -288,13 +308,14 @@ namespace SmartOffice.Hub.Services
             if (categories is not null) await _notifications.Clients.All.SendAsync("CategoriesUpdated", categories, ct);
             if (rules is not null) await _notifications.Clients.All.SendAsync("RulesUpdated", rules, ct);
             if (calendar is not null) await _notifications.Clients.All.SendAsync("CalendarUpdated", calendar, ct);
+            if (calendarRooms is not null) await _notifications.Clients.All.SendAsync("CalendarRoomsUpdated", calendarRooms, ct);
             if (addressBook is not null) await _notifications.Clients.All.SendAsync("AddressBookUpdated", addressBook, ct);
             await _notifications.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), ct);
             await _notifications.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), ct);
             await _notifications.Clients.All.SendAsync("CommandResult", new OutlookCommandResult
             {
                 CommandId = command.Id,
-                Success = true,
+                Success = commandSuccess,
                 Message = resultMessage,
                 Timestamp = DateTime.Now,
             }, ct);
@@ -452,7 +473,7 @@ namespace SmartOffice.Hub.Services
             _mockMails.AddRange(data.Mails);
             _mockCategories = data.Categories;
             _mockRules = data.Rules;
-            _mockCalendar = data.Calendar;
+            _calendar = new MockOutlookCalendarService(data.Calendar);
         }
 
         private void SeedChat()
@@ -573,17 +594,6 @@ namespace SmartOffice.Hub.Services
                 ExportedAt = DateTime.Now,
             };
             return exported;
-        }
-
-        private List<CalendarEventDto> FilterCalendar(FetchCalendarRequest? request)
-        {
-            var start = request?.StartDate?.Date ?? DateTime.Now.Date;
-            var end = request?.EndDate?.Date ?? start.AddDays(Math.Max(1, request?.DaysForward ?? 31));
-            return _mockCalendar
-                .Where(item => item.Start >= start && item.Start < end)
-                .OrderBy(item => item.Start)
-                .Select(CloneCalendarEvent)
-                .ToList();
         }
 
         private List<MailItemDto> SyncVisibleMails(string? removedMailId = null)

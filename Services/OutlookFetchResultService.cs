@@ -145,9 +145,17 @@ namespace SmartOffice.Hub.Services
                     return (new { categories = page.Items }, page.Next);
                 }
                 case "fetch_calendar":
+                case "create_calendar_event":
+                case "update_calendar_event":
+                case "delete_calendar_event":
                 {
                     var page = Page(_mailStore.GetCalendarEvents(), offset, take);
                     return (new { calendarEvents = page.Items }, page.Next);
+                }
+                case "fetch_calendar_rooms":
+                {
+                    var page = Page(_mailStore.GetCalendarRooms(), offset, take);
+                    return (new { rooms = page.Items }, page.Next);
                 }
                 case "fetch_address_book":
                 {
@@ -240,6 +248,10 @@ namespace SmartOffice.Hub.Services
                 "fetch_categories" => "request-categories",
                 "ping" => "request-signalr-ping",
                 "fetch_calendar" => "request-calendar",
+                "fetch_calendar_rooms" => "request-calendar-rooms",
+                "create_calendar_event" => "request-create-calendar-event",
+                "update_calendar_event" => "request-update-calendar-event",
+                "delete_calendar_event" => "request-delete-calendar-event",
                 "fetch_address_book" => "request-address-book",
                 "update_mail_properties" => "request-update-mail-properties",
                 "upsert_category" => "request-upsert-category",

@@ -284,6 +284,8 @@ namespace SmartOffice.Hub.Services
                 RequiredAttendees = requiredAttendees.ToList(),
                 BusyStatus = busyStatus,
                 IsRecurring = recurring,
+                SmartOfficeOwned = id == "mock-cal-001",
+                SmartOfficeEventId = id == "mock-cal-001" ? "mock-smartoffice-owned-001" : string.Empty,
             };
         }
 

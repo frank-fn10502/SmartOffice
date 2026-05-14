@@ -211,6 +211,17 @@ namespace SmartOffice.Hub.Contracts
         public List<OutlookRecipientDto> RequiredAttendees { get; set; } = new List<OutlookRecipientDto>();
         public bool IsRecurring { get; set; }
         public string BusyStatus { get; set; } = string.Empty;
+        public bool SmartOfficeOwned { get; set; }
+        public string SmartOfficeEventId { get; set; } = string.Empty;
+    }
+
+    public class CalendarRoomDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string SmtpAddress { get; set; } = string.Empty;
+        public string RawAddress { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
     }
 
     public class AddressBookContactDto

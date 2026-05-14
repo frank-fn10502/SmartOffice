@@ -89,6 +89,7 @@ namespace SmartOffice.Hub.Services
         private List<OutlookRuleDto> _rules = new();
         private List<OutlookCategoryDto> _categories = new();
         private List<CalendarEventDto> _calendarEvents = new();
+        private List<CalendarRoomDto> _calendarRooms = new();
         private List<MailItemDto> _mailSearchResults = new();
         private List<MailItemDto> _folderMailResults = new();
         private DateTime _folderCacheUpdatedAt = DateTime.MinValue;
@@ -573,6 +574,16 @@ namespace SmartOffice.Hub.Services
         public List<CalendarEventDto> GetCalendarEvents()
         {
             lock (_lock) { return new List<CalendarEventDto>(_calendarEvents); }
+        }
+
+        public void SetCalendarRooms(List<CalendarRoomDto> rooms)
+        {
+            lock (_lock) { _calendarRooms = new List<CalendarRoomDto>(rooms); }
+        }
+
+        public List<CalendarRoomDto> GetCalendarRooms()
+        {
+            lock (_lock) { return new List<CalendarRoomDto>(_calendarRooms); }
         }
 
         private List<MailItemDto> GetOrCreateMailSearchResultList(string searchId)

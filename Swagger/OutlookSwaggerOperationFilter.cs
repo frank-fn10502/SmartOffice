@@ -111,6 +111,28 @@ namespace SmartOffice.Hub.Swagger
                 "`daysForward` 是相對今天的簡易範圍；若提供 `startDate` / `endDate`，會依日期區間查詢。完成後用 `data.fetchResultEndpoint` 讀取 `data.calendarEvents`。",
                 typeof(OutlookRequestResponse),
                 CalendarExample()),
+            ["POST api/outlook/request-calendar-rooms"] = new(
+                RequestTag,
+                "要求 Outlook room/resource 清單",
+                "建立讀取 Outlook room/resource 的 request。完成後用 `data.fetchResultEndpoint` 讀取 `data.rooms`，供 calendar 建立/更新時作為下拉選單。",
+                typeof(OutlookRequestResponse)),
+            ["POST api/outlook/request-create-calendar-event"] = new(
+                RequestTag,
+                "建立 SmartOffice calendar event",
+                "建立由 SmartOffice 擁有的 Outlook calendar event。完成後用 `data.fetchResultEndpoint` 讀取 `data.calendarEvents`。",
+                typeof(OutlookRequestResponse),
+                CalendarMutationExample(includeEventId: false)),
+            ["POST api/outlook/request-update-calendar-event"] = new(
+                RequestTag,
+                "更新 SmartOffice calendar event",
+                "只允許更新 SmartOffice 建立的 calendar event；非 SmartOffice event 會回 `not_smartoffice_owned`。",
+                typeof(OutlookRequestResponse),
+                CalendarMutationExample(includeEventId: true)),
+            ["POST api/outlook/request-delete-calendar-event"] = new(
+                RequestTag,
+                "刪除 SmartOffice calendar event",
+                "只允許刪除 SmartOffice 建立的 calendar event；非 SmartOffice event 會回 `not_smartoffice_owned`。",
+                typeof(OutlookRequestResponse)),
             ["POST api/outlook/request-address-book"] = new(
                 RequestTag,
                 "要求 Outlook address book",
@@ -459,6 +481,26 @@ namespace SmartOffice.Hub.Swagger
             ["daysForward"] = new OpenApiInteger(31),
             ["startDate"] = new OpenApiString("2026-05-06T00:00:00+08:00"),
             ["endDate"] = new OpenApiString("2026-06-06T23:59:59+08:00"),
+        };
+
+        private static OpenApiObject CalendarMutationExample(bool includeEventId) => new()
+        {
+            ["eventId"] = includeEventId ? new OpenApiString("calendar-entry-id") : new OpenApiString(""),
+            ["subject"] = new OpenApiString("SmartOffice review"),
+            ["start"] = new OpenApiString("2026-05-14T10:00:00+08:00"),
+            ["end"] = new OpenApiString("2026-05-14T11:00:00+08:00"),
+            ["location"] = new OpenApiString("Teams"),
+            ["body"] = new OpenApiString("Created by SmartOffice."),
+            ["busyStatus"] = new OpenApiString("busy"),
+            ["resources"] = new OpenApiArray
+            {
+                new OpenApiObject
+                {
+                    ["recipientKind"] = new OpenApiString("resource"),
+                    ["displayName"] = new OpenApiString("Room 3A"),
+                    ["rawAddress"] = new OpenApiString("Room 3A"),
+                },
+            },
         };
 
         private static OpenApiObject UpdateMailPropertiesExample() => new()
