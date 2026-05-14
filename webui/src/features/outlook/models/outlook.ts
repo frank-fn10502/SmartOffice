@@ -434,12 +434,6 @@ export interface AddressBookMergeSuggestionResponse {
   suggestions: AddressBookMergeSuggestionDto[]
 }
 
-export interface AddressBookResponse {
-  query: string
-  totalCount: number
-  contacts: AddressBookContactDto[]
-}
-
 export interface AddressBookRootDto {
   id: string
   name: string
@@ -480,6 +474,19 @@ export interface AddressBookGroupMembersResponse {
   totalCount: number
   updatedAt?: string
   members: AddressBookContactDto[]
+}
+
+export interface AddressBookRecipientRelevanceDto {
+  score: number
+  level: 'unknown' | 'weak' | 'broad' | 'strong' | 'direct' | string
+  summary: string
+  routeDepth: number
+  directPersonCount: number
+  directGroupCount: number
+  audienceSize: number
+  includesSelf: boolean
+  includesSelfDirectly: boolean
+  reasons: string[]
 }
 
 export interface ChatMessageDto {

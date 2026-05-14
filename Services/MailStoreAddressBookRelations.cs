@@ -51,6 +51,7 @@ namespace SmartOffice.Hub.Services
                 var memberGroups = target.IsGroup
                     ? ResolveRelationContacts(target.MemberGroupSmtpAddresses, contactsByKey, take)
                     : new List<AddressBookContactDto>();
+                var recipientRelevance = BuildRecipientRelevance(target, members, memberGroups);
 
                 return new AddressBookRelationLookupResponse
                 {
@@ -68,8 +69,114 @@ namespace SmartOffice.Hub.Services
                     IsRelatedToSelf = target.IsRelatedToSelf,
                     GroupMembersLoaded = target.GroupMembersLoaded,
                     GroupMembersLoading = target.GroupMembersLoading,
+                    RecipientRelevance = recipientRelevance,
                 };
             }
+        }
+
+        private static AddressBookRecipientRelevanceDto BuildRecipientRelevance(
+            AddressBookContactDto target,
+            List<AddressBookContactDto> members,
+            List<AddressBookContactDto> memberGroups)
+        {
+            if (target is null) return new AddressBookRecipientRelevanceDto();
+
+            var personCount = members.Count(member => !member.IsGroup);
+            var groupCount = memberGroups
+                .Select(contact => ContactKeys(contact).FirstOrDefault(key => !string.IsNullOrWhiteSpace(key)) ?? string.Empty)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            var audienceSize = Math.Max(target.MemberCount, personCount + groupCount);
+            var includesSelfDirectly = target.IsLikelySelf || members.Any(member => member.IsLikelySelf);
+            var includesSelfThroughDirectGroup = memberGroups.Any(group => group.IsRelatedToSelf);
+            var includesSelf = includesSelfDirectly || target.IsRelatedToSelf || includesSelfThroughDirectGroup;
+            var routeDepth = RecipientRouteDepth(target, includesSelfDirectly, includesSelfThroughDirectGroup, includesSelf);
+            var reasons = new List<string>();
+
+            var score = target.IsGroup
+                ? RecipientRouteDepthScore(routeDepth)
+                : target.IsLikelySelf ? 100 : 0;
+
+            if (target.IsGroup && score > 0)
+            {
+                score = (int)Math.Round(score * AudienceBreadthFactor(audienceSize));
+                score += Math.Min(15, target.RelationScore / 5);
+            }
+
+            score = Math.Clamp(score, 0, 100);
+            if (includesSelfDirectly) reasons.Add("You are a direct recipient or direct member.");
+            else if (includesSelfThroughDirectGroup) reasons.Add("You are related through a direct nested group.");
+            else if (includesSelf) reasons.Add("The recipient group is related to you through a known membership path.");
+            if (audienceSize > 0) reasons.Add($"Audience size is about {audienceSize} direct entries.");
+            if (groupCount > 0) reasons.Add($"It contains {groupCount} direct group entries.");
+            if (target.MailCount > 0) reasons.Add($"This entry appears in {target.MailCount} mail interaction(s).");
+            if (target.CalendarCount > 0) reasons.Add($"This entry appears in {target.CalendarCount} calendar interaction(s).");
+            if (reasons.Count == 0) reasons.Add("No strong recipient-path evidence is available for this entry.");
+
+            return new AddressBookRecipientRelevanceDto
+            {
+                Score = score,
+                Level = RecipientRelevanceLevel(score),
+                Summary = RecipientRelevanceSummary(target, score, audienceSize, includesSelf),
+                RouteDepth = routeDepth,
+                DirectPersonCount = personCount,
+                DirectGroupCount = groupCount,
+                AudienceSize = audienceSize,
+                IncludesSelf = includesSelf,
+                IncludesSelfDirectly = includesSelfDirectly,
+                Reasons = reasons,
+            };
+        }
+
+        private static int RecipientRouteDepth(
+            AddressBookContactDto target,
+            bool includesSelfDirectly,
+            bool includesSelfThroughDirectGroup,
+            bool includesSelf)
+        {
+            if (!target.IsGroup) return target.IsLikelySelf ? 0 : -1;
+            if (includesSelfDirectly) return 1;
+            if (includesSelfThroughDirectGroup) return 2;
+            if (includesSelf) return 3;
+            return -1;
+        }
+
+        private static int RecipientRouteDepthScore(int routeDepth)
+        {
+            if (routeDepth < 0) return 0;
+            if (routeDepth <= 2) return 100 - routeDepth * 5;
+            return (int)Math.Round(90 * Math.Exp(-0.4 * (routeDepth - 2)));
+        }
+
+        private static double AudienceBreadthFactor(int audienceSize)
+        {
+            if (audienceSize <= 10) return 1.0;
+            if (audienceSize <= 50) return 0.92;
+            if (audienceSize <= 200) return 0.82;
+            return 0.72;
+        }
+
+        private static string RecipientRelevanceLevel(int score)
+        {
+            if (score >= 80) return "direct";
+            if (score >= 60) return "strong";
+            if (score >= 35) return "broad";
+            if (score > 0) return "weak";
+            return "unknown";
+        }
+
+        private static string RecipientRelevanceSummary(AddressBookContactDto target, int score, int audienceSize, bool includesSelf)
+        {
+            if (!target.IsGroup)
+                return score >= 80 ? "This person is a direct recipient-path match." : "This person has limited recipient-path evidence.";
+            if (!includesSelf)
+                return "This group is not known to include you.";
+            if (audienceSize >= 50)
+                return "This recipient group appears broad; content signals may matter more than recipient path alone.";
+            if (audienceSize >= 10)
+                return "This recipient group appears team or department sized; it is related to you, but not necessarily personally actionable.";
+            return "This recipient path is small or direct, so it is likely personally relevant.";
         }
 
         private static AddressBookContactDto? FindRelationLookupTarget(List<AddressBookContactDto> contacts, AddressBookRelationLookupRequest request)

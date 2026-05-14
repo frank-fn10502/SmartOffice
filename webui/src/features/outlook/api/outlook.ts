@@ -8,7 +8,6 @@
   AddressBookMergeSuggestionResponse,
   AddressBookRootDto,
   AddressBookRootsResponse,
-  AddressBookResponse,
   AttachmentExportSettingsDto,
   CalendarEventDto,
   CalendarRoomDto,
@@ -311,16 +310,6 @@ function normalizeAddressBookMergeSuggestionResponse(item: unknown): AddressBook
   }
 }
 
-function normalizeAddressBookResponse(item: unknown): AddressBookResponse {
-  const source = (item ?? {}) as LooseRecord
-  const contacts = source.contacts ?? source.Contacts
-  return {
-    query: readString(source, 'query', 'Query'),
-    totalCount: readNumber(source, 'totalCount', 'TotalCount'),
-    contacts: Array.isArray(contacts) ? contacts.map(normalizeAddressBookContact) : [],
-  }
-}
-
 function normalizeAddressBookRoot(item: unknown): AddressBookRootDto {
   const source = (item ?? {}) as LooseRecord
   return {
@@ -454,9 +443,21 @@ export function normalizeOutlookRules(items: unknown): OutlookRuleDto[] {
   return Array.isArray(items) ? items.map(normalizeOutlookRule).filter((rule) => rule.name.trim()) : []
 }
 
+async function readErrorMessage(response: Response) {
+  const fallback = `Request failed: ${response.status}`
+  try {
+    const body = await response.json() as LooseRecord
+    const message = typeof body.message === 'string' ? body.message.trim() : ''
+    const status = typeof body.status === 'string' ? body.status.trim() : ''
+    return message || status || fallback
+  } catch {
+    return fallback
+  }
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`)
+  if (!response.ok) throw new Error(await readErrorMessage(response))
   return response.json() as Promise<T>
 }
 
@@ -466,7 +467,7 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   })
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`)
+  if (!response.ok) throw new Error(await readErrorMessage(response))
   return response.json() as Promise<T>
 }
 
@@ -478,12 +479,23 @@ export const outlookApi = {
   suggestAddressBookMerges: async (recipients: string[]) =>
     normalizeAddressBookMergeSuggestionResponse(await postJson<unknown>('/api/outlook/address-book/merge-suggestions', { recipients })),
   requestAddressBookGroupMembers: async (body: { groupId?: string; groupSmtpAddress?: string; maxMembers?: number; forceRefresh?: boolean }) => {
-    const response = await postJson<OutlookRequestResponse<unknown>>('/api/outlook/request-address-book', body)
+    const response = await postJson<OutlookRequestResponse<unknown>>('/api/outlook/request-address-book-group-members', body)
     return { ...response, data: normalizeAddressBookGroupMembersResponse(response.data) }
   },
-  requestAddressBookRoots: () => postJson<OutlookRequestResponse>('/api/outlook/request-address-book', {}),
+  requestAddressBookRoots: () => postJson<OutlookRequestResponse>('/api/outlook/request-address-book-roots'),
   requestAddressListEntries: (body: { addressListId?: string; addressListName?: string; offset?: number; pageSize?: number }) =>
-    postJson<OutlookRequestResponse>('/api/outlook/request-address-book', body),
+    postJson<OutlookRequestResponse>('/api/outlook/request-address-list-entries', body),
+  requestAddressBookRelation: (body: {
+    targetKind?: 'group' | 'person' | string
+    query?: string
+    id?: string
+    displayName?: string
+    smtpAddress?: string
+    email?: string
+    groupId?: string
+    groupSmtpAddress?: string
+    take?: number
+  }) => postJson<OutlookRequestResponse>('/api/outlook/request-address-book-relation', body),
   normalizeAddressBookRootsData,
   normalizeAddressListEntriesData,
   normalizeAddressBookGroupMembersResponse,
@@ -560,22 +572,6 @@ export const outlookApi = {
   }) => postJson<OutlookRequestResponse>('/api/outlook/request-update-calendar-event', body),
   requestDeleteCalendarEvent: (body: { eventId: string; smartOfficeEventId: string }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-delete-calendar-event', body),
-  requestAddressBook: (body: {
-    includeOutlookContacts?: boolean
-    includeAddressLists?: boolean
-    maxContacts?: number
-    maxAddressEntriesPerList?: number
-    maxGroupMembers?: number
-    maxGroupDepth?: number
-    addressListId?: string
-    addressListName?: string
-    offset?: number
-    pageSize?: number
-    groupId?: string
-    groupSmtpAddress?: string
-    forceRefresh?: boolean
-  }) =>
-    postJson<OutlookRequestResponse>('/api/outlook/request-address-book', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
 
   requestUpdateMailProperties: (body: MailPropertiesCommandRequest) =>

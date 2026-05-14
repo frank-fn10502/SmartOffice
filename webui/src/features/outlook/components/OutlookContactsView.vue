@@ -23,7 +23,7 @@ const query = ref('')
 const loadingContacts = ref(false)
 const lookupLoading = ref(false)
 const lastUpdatedAt = ref<Date | null>(null)
-const loadMessage = ref('尚未載入通訊錄。')
+const loadMessage = ref('尚未查詢通訊錄。')
 const lookupEmail = ref('')
 const lookupMessage = ref('')
 const groupMembersByKey = ref<Record<string, AddressBookContactDto[]>>({})
@@ -209,7 +209,7 @@ async function loadAddressListEntriesPage(root: AddressBookRootDto, offset = 0) 
   selectedContact.value = selectedContact.value && contacts.value.some((contact) => contactKey(contact) === contactKey(selectedContact.value!))
     ? selectedContact.value
     : contacts.value[0] ?? null
-  loadMessage.value = `${rootTitle(root)} 已載入 ${contacts.value.length}/${page.totalCount} 筆。`
+  loadMessage.value = `${rootTitle(root)} 目前頁面 ${contacts.value.length}/${page.totalCount} 筆。`
 }
 
 async function streamContactsFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
@@ -239,8 +239,8 @@ async function streamContactsFromRequest(response: { requestId?: string; request
     }
 
     loadMessage.value = state.state === 'completed'
-      ? `通訊錄同步完成，共 ${seen.size} 筆。`
-      : `通訊錄載入中，已取得 ${seen.size} 筆...`
+      ? `通訊錄查詢完成，共 ${seen.size} 筆。`
+      : `通訊錄查詢中，已取得 ${seen.size} 筆...`
 
     if (state.next.hasMore) {
       cursor = state.next.cursor
@@ -262,7 +262,7 @@ async function fetchAddressBookPage(endpoint: string, requestId: string, cursor:
   try {
     return await outlookApi.fetchResult<{ contacts?: unknown[] }>(endpoint, { requestId, cursor, take: 100 })
   } catch (error) {
-    if (error instanceof Error && error.message === 'Request failed: 404') return null
+    if (error instanceof Error && (error.message === 'Request failed: 404' || error.message === 'request not found')) return null
     throw error
   }
 }
@@ -467,8 +467,9 @@ watch(
 
       <div class="contacts-sync-status" :class="{ loading: loadingContacts }">
         <div>
-          <strong>{{ loadingContacts ? '通訊錄載入中...' : '通訊錄狀態' }}</strong>
+          <strong>{{ loadingContacts ? '通訊錄查詢中...' : '通訊錄狀態' }}</strong>
           <span>{{ loadMessage }}</span>
+          <span class="contacts-search-hint">列表只顯示目前頁面；確認 person/group 請用搜尋。</span>
         </div>
         <div class="contacts-sync-stats">
           <span>{{ personCount }} 個人</span>
@@ -498,7 +499,7 @@ watch(
             </span>
             <el-tag size="small" effect="plain">{{ root.entryCount }}</el-tag>
           </button>
-          <el-empty v-if="!loadingContacts && addressBookRoots.length === 0" description="尚未載入來源" />
+          <el-empty v-if="!loadingContacts && addressBookRoots.length === 0" description="尚未查詢來源" />
         </nav>
 
         <div class="contacts-list">
@@ -616,7 +617,7 @@ watch(
               </span>
               <span v-if="selectedContact.isGroup">成員數：{{ selectedContact.memberCount }}</span>
               <span v-if="selectedContact.isGroup">
-                展開狀態：{{ selectedGroupExpanded ? '已載入' : selectedGroupLoading ? '載入中' : '未展開' }}
+                成員狀態：{{ selectedGroupExpanded ? '已展開' : selectedGroupLoading ? '查詢中' : '未展開' }}
               </span>
               <span v-if="selectedContact.memberOfGroupSmtpAddresses.length > 0">
                 隸屬群組：{{ selectedContact.memberOfGroupSmtpAddresses.slice(0, 5).join(', ') }}
@@ -649,7 +650,7 @@ watch(
                   <el-tag v-if="member.isGroup" size="small" effect="plain">子群組</el-tag>
                 </button>
               </div>
-              <span v-else class="group-members-empty">尚未展開；點「展開成員」後會載入 direct members。</span>
+              <span v-else class="group-members-empty">尚未展開；點「展開成員」後會查詢 direct members。</span>
             </div>
 
             <div class="marker-tags">

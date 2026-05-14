@@ -383,6 +383,21 @@ namespace SmartOffice.Hub.Contracts
         public bool IsRelatedToSelf { get; set; }
         public bool GroupMembersLoaded { get; set; }
         public bool GroupMembersLoading { get; set; }
+        public AddressBookRecipientRelevanceDto RecipientRelevance { get; set; } = new AddressBookRecipientRelevanceDto();
+    }
+
+    public class AddressBookRecipientRelevanceDto
+    {
+        public int Score { get; set; }
+        public string Level { get; set; } = "unknown";
+        public string Summary { get; set; } = string.Empty;
+        public int RouteDepth { get; set; }
+        public int DirectPersonCount { get; set; }
+        public int DirectGroupCount { get; set; }
+        public int AudienceSize { get; set; }
+        public bool IncludesSelf { get; set; }
+        public bool IncludesSelfDirectly { get; set; }
+        public List<string> Reasons { get; set; } = new List<string>();
     }
 
     public class AddinLogEntry

@@ -31,6 +31,11 @@ export function fetchResultEndpoint(response: { request?: string; data?: unknown
     : 'fetch-result-mails'
 }
 
+function isTransientRequestNotFound(error: unknown) {
+  return error instanceof Error
+    && (error.message === 'Request failed: 404' || error.message === 'request not found')
+}
+
 export async function waitForOutlookRequest(
   response: { requestId?: string; request?: string },
   options: { timeoutMs?: number; isUnmounted?: () => boolean } = {},
@@ -51,7 +56,7 @@ export async function waitForOutlookRequest(
         throw new Error(state.message || 'Outlook operation failed')
       }
     } catch (error) {
-      if (error instanceof Error && error.message !== 'Request failed: 404') throw error
+      if (!isTransientRequestNotFound(error)) throw error
     }
     await new Promise((resolve) => window.setTimeout(resolve, 300))
   }
