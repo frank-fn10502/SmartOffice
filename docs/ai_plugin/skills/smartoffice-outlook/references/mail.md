@@ -120,7 +120,6 @@ Request:
 Progress:
 
 - `GET /api/outlook/mail-search/progress/{searchId}`
-- `GET /api/outlook/mail-search/progress/by-command/{commandId}`：診斷用；正式 caller 優先讀 paired `fetch-result-*` 的 `data`。
 
 Result:
 

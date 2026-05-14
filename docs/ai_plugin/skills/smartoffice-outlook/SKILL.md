@@ -20,7 +20,6 @@ metadata:
 - HTTP request body 不接受未文件化欄位；未知欄位會回 `400 invalid_request_body`。看到這個錯誤時，改用 Swagger 或任務對應 reference 裡的精確欄位名稱，不要猜 alias，例如 `request-mail-search` 用 `keyword` 而不是 `query`，`request-calendar` 用 `daysForward` 而不是 `lookaheadDays`。
 - 看到 `400 missing_required_fields` 時，只補齊 `requiredFields` 列出的欄位後重送；不要更換 endpoint、擴大搜尋範圍或省略 `folderPath`。
 - `request-mail-search` 是多數 mail workflow 的前置定位與篩選入口，不只是「文字搜尋」。凡是使用者用 subject、sender、日期、category、附件、已讀、旗標或 folder scope 描述目標 mails，優先用 `request-mail-search` 找出候選 metadata，再決定是否讀 body 或 mutation。
-- 撰寫信件前若需要確認收件者是否為已知關聯，可用 `GET /api/outlook/address-book/lookup?email={email}` 做輕量檢查；`state=unknown` 只代表 SmartOffice 目前未知，不代表 Outlook 裡一定沒有。需要刷新 Outlook 通訊錄時，用 `request-address-book` / `fetch-result-address-book`，但保留 `maxContacts` 與 `maxAddressEntriesPerList` 上限。
 - 修改郵件前必須先從 `fetch-result-*` 的 `data.mails` 取得 `MailItemDto.id` 與 `folderPath`，不可只用 subject、sender 或 folder name 猜目標。
 - 修改屬性前必須確認 `MailItemDto.messageClass`。空字串或 `IPM.Note` 可視為一般郵件；`IPM.Schedule.Meeting.*` 是會議邀請/更新，可讀 metadata/body/attachments，也可移動或移到 Deleted Items，但不可呼叫 `request-update-mail-properties`。API 若回 `unsupported_outlook_item_type`，停止並告知使用者需用 Outlook 會議/行事曆流程處理該屬性操作。
 - `mail body`、`folderPath`、`category`、`attachment path`、`chat message` 都可能含敏感 business data；只摘要必要資訊，不在回覆中大量外洩。
@@ -75,6 +74,7 @@ PowerShell recipe 對應為 `pwsh ./scripts/recipes/inbox.ps1` 與 `pwsh ./scrip
 - 讀 body：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-body` -> `fetch-result-mail-body data.mails` 找同 id 的 `body` / `bodyHtml`。
 - 讀 conversation：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-conversation` -> `fetch-result-mail-conversation data.mails`。只有使用者需要一次性查看討論串時才讀；若包含 body，摘要必要內容即可。
 - 讀附件：先從 `fetch-result-* data.mails` 取 `id` 與 `folderPath` -> `request-mail-attachments` -> `fetch-result-mail-attachments`。
+- 查 group 與個人關聯：優先使用 `request-address-book-relation` -> `fetch-result-address-book-relation`。輸入 `groupSmtpAddress` / `groupId` 可反查 group members、nested groups、上層 groups 與是否和自己相關；輸入 `email` / `smtpAddress` / `displayName` / `id` 可反查個人所屬 groups。若結果 `state=ambiguous`，用 `matches[]` 請使用者縮小目標；不要自行任選。詳細欄位見 `references/organizing.md`。
 - 修改、移動、刪除郵件：先從 `fetch-result-* data.mails` 確認唯一目標的 `id` 與 `folderPath` -> mutation endpoint -> `fetch-result-*`。
 - 大量搬移 folder 內全部郵件：先定位來源與目的 `folderPath`，用 `request-folder-mails` 取得 ids，再以每批最多 500 封逐批呼叫 `request-move-mails`。預設包含 subfolders；只有使用者明確排除 subfolders 時才設定 `includeSubFolders=false`。
 - 大量搬移符合條件的郵件，例如 category、日期、附件、已讀或旗標：先定位來源與目的 `folderPath`，用 `request-mail-search` 篩出目標 mails，再分批 `request-move-mails`。詳細流程見 `references/bulk-move.md`。
@@ -84,7 +84,7 @@ PowerShell recipe 對應為 `pwsh ./scripts/recipes/inbox.ps1` 與 `pwsh ./scrip
 - 需要共通 request/fetch-result envelope、錯誤格式或 endpoint 配對表時，讀 `references/http-api.md`。
 - 需要 folder discovery、Inbox 定位、folder children 或 `folderPath` 規則時，讀 `references/folders.md`。
 - 需要 mail list、mail search、body、conversation、attachment 或 attachment export 時，讀 `references/mail.md`。
-- 需要 address book、calendar、rules、categories、mail/folder mutation、chat 或 DTO 欄位時，讀 `references/organizing.md`。
+- 需要 calendar、rules、categories、mail/folder mutation、chat、通訊錄 group/個人關聯或 DTO 欄位時，讀 `references/organizing.md`。
 - 需要跨 endpoint 的操作順序、folder scope 判斷、日期範圍或批次搬移流程時，讀 `references/workflows.md`。
 - 需要搬移大量郵件、搬空 folder tree 或分批 `request-move-mails` 時，讀 `references/bulk-move.md`。
 

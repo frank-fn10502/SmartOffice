@@ -20,7 +20,7 @@ Default: `http://localhost:2805`.
 
 - Folder discovery、Inbox、children、folder path：讀 `folders.md`。
 - Mail list、mail search、body、conversation、attachments：讀 `mail.md`。
-- Address book、calendar、rules、categories、mail/folder mutation、chat、DTO 欄位：讀 `organizing.md`。
+- Calendar、rules、categories、mail/folder mutation、chat、DTO 欄位：讀 `organizing.md`。
 - 多步驟操作、日期範圍、批次搬移與判斷規則：讀 `workflows.md`。
 - 大量搬移、搬空 folder tree、分批 `request-move-mails`：讀 `bulk-move.md`。
 
@@ -144,7 +144,7 @@ Request body 使用錯欄位名時：
   "message": "Request JSON does not match this endpoint schema. Remove unknown fields and use the exact property names documented in Swagger.",
   "errors": {
     "$.query": [
-      "The JSON property 'query' could not be mapped to any .NET member contained in type 'SmartOffice.Hub.Contracts.SearchMailsRequest'."
+      "Unknown field 'query'. Use the documented request schema."
     ]
   },
   "data": {}
@@ -182,6 +182,8 @@ Request body 使用錯欄位名時：
 | `POST /api/outlook/request-mail-attachments` | `POST /api/outlook/fetch-result-mail-attachments` | `mailId`, `folderPath`, `attachments` | `mail.md` |
 | `POST /api/outlook/request-mail-conversation` | `POST /api/outlook/fetch-result-mail-conversation` | `mailId`, `folderPath`, `conversationId`, `conversationTopic`, `mails` | `mail.md` |
 | `POST /api/outlook/request-export-mail-attachment` | `POST /api/outlook/fetch-result-export-mail-attachment` | `{}` | `mail.md` |
+| `POST /api/outlook/request-address-book` | `POST /api/outlook/fetch-result-address-book` | `roots`, `contacts`, group relation data | `organizing.md` |
+| `POST /api/outlook/request-address-book-relation` | `POST /api/outlook/fetch-result-address-book-relation` | `target`, `matches`, `members`, `memberOfGroups`, `containingGroups` | `organizing.md` |
 | `POST /api/outlook/request-rules` | `POST /api/outlook/fetch-result-rules` | `rules` | `organizing.md` |
 | `POST /api/outlook/request-categories` | `POST /api/outlook/fetch-result-categories` | `categories` | `organizing.md` |
 | `POST /api/outlook/request-calendar` | `POST /api/outlook/fetch-result-calendar` | `calendarEvents` | `organizing.md` |
@@ -189,8 +191,6 @@ Request body 使用錯欄位名時：
 | `POST /api/outlook/request-create-calendar-event` | `POST /api/outlook/fetch-result-create-calendar-event` | `calendarEvents` | `organizing.md` |
 | `POST /api/outlook/request-update-calendar-event` | `POST /api/outlook/fetch-result-update-calendar-event` | `calendarEvents` | `organizing.md` |
 | `POST /api/outlook/request-delete-calendar-event` | `POST /api/outlook/fetch-result-delete-calendar-event` | `calendarEvents` | `organizing.md` |
-| `POST /api/outlook/request-address-book` | `POST /api/outlook/fetch-result-address-book` | `contacts` | `organizing.md` |
-| `POST /api/outlook/address-book/merge-suggestions` | immediate response | `suggestions` | `organizing.md` |
 | `POST /api/outlook/request-update-mail-properties` | `POST /api/outlook/fetch-result-update-mail-properties` | `mails` | `organizing.md` |
 | `POST /api/outlook/request-upsert-category` | `POST /api/outlook/fetch-result-upsert-category` | `categories` | `organizing.md` |
 | `POST /api/outlook/request-create-folder` | `POST /api/outlook/fetch-result-create-folder` | `stores`, `folders` | `organizing.md` |
@@ -201,13 +201,9 @@ Request body 使用錯欄位名時：
 
 ## Diagnostic And Lightweight Endpoints
 
-一般 client 優先使用 `request-*` / `fetch-result-*`。以下 endpoint 只做診斷或輕量輔助：
+一般 client 優先使用 `request-*` / `fetch-result-*`。以下 endpoint 只做狀態檢查或輕量輔助：
 
 - `GET /api/outlook/admin/status`
-- `GET /api/outlook/admin/logs`
-- `GET /api/outlook/command-results/{commandId}`
-- `GET /api/outlook/command-results`
-- `GET /api/outlook/address-book/lookup?email={email}`
 - `GET /api/outlook/chat`
 
 服務重啟後，重新送出相關 `request-*` 取得資料。

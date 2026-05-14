@@ -1,44 +1,14 @@
 ﻿# Organizing API Reference
 
-讀這份文件處理 address book、calendar、rules、categories、mail/folder mutation、chat 與常用 DTO。共通 request/fetch-result envelope 見 `http-api.md`。
+讀這份文件處理 calendar、rules、categories、mail/folder mutation、chat 與常用 DTO。共通 request/fetch-result envelope 見 `http-api.md`。
 
 ## 目錄
 
-- `Address Book`: 輕量 lookup 與通訊錄同步。
 - `Calendar / Rules / Categories`: calendar、rule、category endpoint 與欄位。
 - `Mail / Folder Mutations`: update、move、delete 與 create folder。
 - `Chat`: chat endpoint。
 - `CalendarEventDto`: calendar event 欄位。
-
-## Address Book
-
-通訊錄是 SmartOffice 的關聯視圖。資料來源包含已讀取 mails 的 sender / to / cc / bcc / group members、已讀取 calendar events 的 organizer / attendees，以及 `request-address-book` 從 Outlook Contacts folder / AddressLists / GAL 同步回來的 metadata。它只暴露 metadata、mail ids 與少量 subject sample，不會讀取或回傳完整 mail body。
-
-使用方式：
-
-- 想檢查一個收件者是否和使用者有已知互動：呼叫 `GET /api/outlook/address-book/lookup?email={email}`。
-- `state=known` 代表 SmartOffice 找到 mail 或 calendar 關聯；`state=unknown` 只代表目前未知，不代表 Outlook 裡一定沒有。
-- 若使用者要求同步真正 Outlook 通訊錄，呼叫 `POST /api/outlook/request-address-book`，再用 `POST /api/outlook/fetch-result-address-book` 讀 `data.contacts`。
-- 若需要查看 group 成員，呼叫 `POST /api/outlook/request-address-book-group-members` 展開單一 group，再用 `POST /api/outlook/fetch-result-address-book-group-members` 讀 `data.members`。Hub 會 cache 已展開 group；nested group 只會標示為 group，必須由使用者或 agent 明確指定後再展開。
-- 需要檢查收件者是否能用 group 合併時，呼叫 `POST /api/outlook/address-book/merge-suggestions`，body 為 `{ "recipients": ["frank@example.test", "group1@example.test"] }`。
-- `contact.relationKinds` 會指出 `sender`、`to`、`cc`、`bcc`、`organizer`、`attendee` 或 `group_member` 等關聯。
-- `contact.isGroup=true` 代表該 entry 是 distribution list 或 group；用 `memberCount`、`memberSmtpAddresses`、`memberGroupSmtpAddresses` 摘要成員與子群組。個人或 group 的 `memberOfGroupSmtpAddresses` 表示它被哪些 group 包含。
-- `contact.isLikelySelf=true` 代表該地址看起來是自己的寄件地址；Hub 主要從 Sent folder 的 sender 推斷。
-
-`request-address-book` body：
-
-```json
-{
-  "includeOutlookContacts": true,
-  "includeAddressLists": true,
-  "maxContacts": 0,
-  "maxAddressEntriesPerList": 0,
-  "maxGroupMembers": 0,
-  "maxGroupDepth": 1
-}
-```
-
-`maxContacts`、`maxAddressEntriesPerList`、`maxGroupMembers` 與 `maxGroupDepth` 是負載上限；`maxContacts=0` 與 `maxAddressEntriesPerList=0` 表示不限制筆數，預設應載入完整通訊錄。輕量同步靠 `maxGroupMembers=0` 與 AddIn 端只讀 metadata 來避免 Outlook/VSTO 在 UI 執行緒上大量解析 GAL。不要無限制展開 nested group。`maxGroupMembers=0` 表示只讀 group metadata，不展開成員。讀取結果一律透過 `fetch-result-address-book` 用 `cursor` / `take` 分頁取得。
+- `Address Book / Group Relations`: 通訊錄、group members、個人與 group 關聯。
 
 ## Calendar / Rules / Categories
 
@@ -128,6 +98,150 @@
 | 黑色 | `olCategoryColorBlack` | `15` |
 
 Agent 處理 category 時應先用 `request-categories` / `fetch-result-categories` 讀取 master category list。Category name 比對大小寫不敏感；若已有同名 category，`request-upsert-category` 視為更新該 category。使用者指定顏色不在上表時，請使用者改選，不要猜 `OlCategoryColor` enum 或 numeric value。套用 category 到 mail 前，必須先從 mail fetch result 定位唯一 `mailId` 與同筆 mail 的 `folderPath`。
+
+## Address Book / Group Relations
+
+反查 group 與個人關聯時，優先使用：
+
+- `POST /api/outlook/request-address-book-relation`
+- `POST /api/outlook/fetch-result-address-book-relation`
+
+只有需要瀏覽通訊錄來源、分頁列出 entries 或手動展開特定 group members 時，才使用：
+
+- `POST /api/outlook/request-address-book`
+- `POST /api/outlook/fetch-result-address-book`
+
+### 反查 group 或個人關聯
+
+查 group：
+
+```json
+{
+  "targetKind": "group",
+  "groupSmtpAddress": "group@example.com",
+  "groupId": "",
+  "take": 50
+}
+```
+
+查個人：
+
+```json
+{
+  "targetKind": "person",
+  "email": "person@example.com",
+  "smtpAddress": "",
+  "displayName": "",
+  "id": "",
+  "take": 50
+}
+```
+
+`targetKind` 可用 `group`、`person` 或空字串；空字串代表自動判斷。Fetch result 的 `data` 常用欄位：
+
+- `state`: `found`、`not_found`、`ambiguous`。
+- `target`: 找到的 group 或個人。
+- `matches`: 多筆候選；若 `state=ambiguous`，請使用者縮小目標，不要任選。
+- `members`: group 的 direct members。
+- `memberGroups`: group 直接包含的 nested groups。
+- `memberOfGroups`: 個人所屬 groups，或目標 entry 目前已知的上層 groups。
+- `containingGroups`: 直接包含目標 entry 的 groups。
+- `isLikelySelf`, `isRelatedToSelf`, `groupMembersLoaded`, `groupMembersLoading`: 可直接判讀的關聯狀態。
+
+判讀規則：
+
+- `state=found` 才能回覆確定關聯。
+- `state=ambiguous` 時列出必要候選，請使用者確認目標。
+- `state=not_found` 只代表目前資料找不到目標，不代表 Outlook 裡一定不存在。
+- group 的 `isRelatedToSelf=true` 代表目前資料顯示該 group 與自己有關。
+- `members[]` 裡有 `isLikelySelf=true` 的 entry 時，可回覆自己在該 group 中。
+- 個人的 `memberOfGroups[]` 表示目前資料顯示該個人屬於哪些 groups。
+- `groupMembersLoading=true` 時，先回報仍在讀取或稍後再 fetch result；不要判定為沒有關聯。
+
+### 取得通訊錄來源
+
+Request:
+
+```json
+{}
+```
+
+Fetch result 的 `data.roots[]` 會列出可讀取來源。每個 root 常用欄位：
+
+- `id`
+- `name`
+- `entryCount`
+- `canPageEntries`
+
+### 分頁讀取人員與 group
+
+Request:
+
+```json
+{
+  "addressListId": "root-id",
+  "addressListName": "root-name",
+  "offset": 0,
+  "pageSize": 100
+}
+```
+
+`addressListId` 優先取自 `data.roots[].id`。Fetch result 的 `data.contacts[]` 會回傳人員、group、shared mailbox、resource 等 entries；若 `next.hasMore=true` 或 `data.hasMore=true`，用下一個 `offset` 繼續分頁，不要把第一頁當成全部資料。
+
+### 展開 group members
+
+已知 group 的 `smtpAddress` 或 `id` 後：
+
+```json
+{
+  "groupSmtpAddress": "group@example.com",
+  "groupId": "",
+  "maxGroupMembers": 5000,
+  "forceRefresh": false
+}
+```
+
+Fetch result 的 `data.members[]` 是該 group 目前可取得的 members。若 member 本身也是 group，會以 `isGroup=true` 表示；需要查看下一層時，再對該 member 的 `smtpAddress` 或 `id` 發起一次 `request-address-book`。不要在沒有任務需求時遞迴展開所有 nested groups。
+
+### Entries 內的關聯欄位
+
+`AddressBookContactDto` 常用欄位：
+
+- `displayName`
+- `smtpAddress`
+- `isGroup`
+- `isLikelySelf`
+- `isRelatedToSelf`
+- `memberCount`
+- `groupMembersLoaded`
+- `groupMembersLoading`
+- `memberSmtpAddresses`
+- `memberGroupSmtpAddresses`
+- `memberOfGroupSmtpAddresses`
+
+判讀規則：
+
+- `isLikelySelf=true`：此 entry 代表目前使用者自己。
+- group 的 `isRelatedToSelf=true`：目前資料顯示該 group 與自己有關，通常表示自己是該 group 的 member，或 group 展開後能判定與自己相關。
+- 個人的 `memberOfGroupSmtpAddresses[]`：目前資料顯示該個人屬於哪些 group。
+- group 的 `memberSmtpAddresses[]`：目前資料顯示該 group 包含哪些 member SMTP。
+- group 的 `memberGroupSmtpAddresses[]`：目前資料顯示該 group 包含哪些 nested groups。
+- `groupMembersLoading=true` 時，先回報仍在讀取或稍後再 fetch result；不要判定為沒有關聯。
+- `groupMembersLoaded=false` 且 `isRelatedToSelf=false` 只代表目前資料尚未顯示關聯，不代表一定沒有關聯。
+
+### 備用任務流程
+
+確認「某個 group 是否包含自己」：
+
+1. 優先用 `request-address-book-relation`，body 放 `groupSmtpAddress` 或 `groupId`。
+2. 若 `state=found`，讀 `isRelatedToSelf`、`members[]`、`memberGroups[]` 與 `containingGroups[]`。
+3. 若 `state=ambiguous`，請使用者確認 `matches[]` 裡的目標。
+
+確認「某個人屬於哪些 group」：
+
+1. 優先用 `request-address-book-relation`，body 放 `email`、`smtpAddress`、`displayName` 或 `id`。
+2. 若 `state=found`，讀 `memberOfGroups[]` 與 `containingGroups[]`。
+3. 若 `state=not_found` 或 `memberOfGroups[]` 為空，只能回報目前資料未顯示所屬 group。
 
 ## Mail / Folder Mutations
 
