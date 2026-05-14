@@ -185,6 +185,7 @@ namespace SmartOffice.Hub.Services
                         calendar = _calendar?.Update(command.CalendarEventRequest);
                         if (calendar is null) commandSuccess = false;
                         else _mailStore.SetCalendarEvents(calendar);
+                        resultMessage = calendar is null ? "not_smartoffice_owned" : string.Empty;
                         break;
                     case "delete_calendar_event":
                         calendar = _calendar?.Delete(command.CalendarEventRequest);

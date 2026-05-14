@@ -244,7 +244,10 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
     if (!confirmed) return
     loadingCalendar.value = true
     try {
-      const response = await outlookApi.requestDeleteCalendarEvent({ eventId: event.id })
+      const response = await outlookApi.requestDeleteCalendarEvent({
+        eventId: event.id,
+        smartOfficeEventId: event.smartOfficeEventId,
+      })
       await waitForRequest(response)
       await loadCalendarFromRequest(response)
       selectedCalendarEvent.value = null

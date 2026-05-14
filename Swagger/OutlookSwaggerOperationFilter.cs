@@ -125,14 +125,15 @@ namespace SmartOffice.Hub.Swagger
             ["POST api/outlook/request-update-calendar-event"] = new(
                 RequestTag,
                 "更新 SmartOffice calendar event",
-                "只允許更新 SmartOffice 建立的 calendar event；非 SmartOffice event 會回 `not_smartoffice_owned`。",
+                "只允許更新 SmartOffice 建立且 smartOfficeEventId 相符的 calendar event；非 SmartOffice event 會回 `not_smartoffice_owned`。",
                 typeof(OutlookRequestResponse),
                 CalendarMutationExample(includeEventId: true)),
             ["POST api/outlook/request-delete-calendar-event"] = new(
                 RequestTag,
                 "刪除 SmartOffice calendar event",
-                "只允許刪除 SmartOffice 建立的 calendar event；非 SmartOffice event 會回 `not_smartoffice_owned`。",
-                typeof(OutlookRequestResponse)),
+                "只允許刪除 SmartOffice 建立且 smartOfficeEventId 相符的 calendar event；非 SmartOffice event 會回 `not_smartoffice_owned`。",
+                typeof(OutlookRequestResponse),
+                CalendarDeleteExample()),
             ["POST api/outlook/request-address-book"] = new(
                 RequestTag,
                 "要求 Outlook address book",
@@ -491,6 +492,7 @@ namespace SmartOffice.Hub.Swagger
         private static OpenApiObject CalendarMutationExample(bool includeEventId) => new()
         {
             ["eventId"] = includeEventId ? new OpenApiString("calendar-entry-id") : new OpenApiString(""),
+            ["smartOfficeEventId"] = includeEventId ? new OpenApiString("smartoffice-event-id") : new OpenApiString(""),
             ["subject"] = new OpenApiString("SmartOffice review"),
             ["start"] = new OpenApiString("2026-05-14T10:00:00+08:00"),
             ["end"] = new OpenApiString("2026-05-14T11:00:00+08:00"),
@@ -516,6 +518,12 @@ namespace SmartOffice.Hub.Swagger
                     ["rawAddress"] = new OpenApiString("Room 3A"),
                 },
             },
+        };
+
+        private static OpenApiObject CalendarDeleteExample() => new()
+        {
+            ["eventId"] = new OpenApiString("calendar-entry-id"),
+            ["smartOfficeEventId"] = new OpenApiString("smartoffice-event-id"),
         };
 
         private static OpenApiObject UpdateMailPropertiesExample() => new()

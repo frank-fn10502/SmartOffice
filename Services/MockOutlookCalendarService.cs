@@ -52,7 +52,7 @@ namespace SmartOffice.Hub.Services
 
         public List<CalendarEventDto>? Update(CalendarEventCommandRequest? request)
         {
-            var item = FindSmartOfficeEvent(request?.EventId);
+            var item = FindSmartOfficeEvent(request);
             if (item is null) return null;
 
             item.Subject = request!.Subject.Trim();
@@ -69,16 +69,22 @@ namespace SmartOffice.Hub.Services
 
         public List<CalendarEventDto>? Delete(CalendarEventCommandRequest? request)
         {
-            var item = FindSmartOfficeEvent(request?.EventId);
+            var item = FindSmartOfficeEvent(request);
             if (item is null) return null;
             _events.Remove(item);
             return CurrentWindow();
         }
 
-        private CalendarEventDto? FindSmartOfficeEvent(string? eventId)
+        private CalendarEventDto? FindSmartOfficeEvent(CalendarEventCommandRequest? request)
         {
+            var eventId = request?.EventId;
+            var smartOfficeEventId = request?.SmartOfficeEventId;
             if (string.IsNullOrWhiteSpace(eventId)) return null;
-            return _events.FirstOrDefault(item => string.Equals(item.Id, eventId, StringComparison.OrdinalIgnoreCase) && item.SmartOfficeOwned);
+            if (string.IsNullOrWhiteSpace(smartOfficeEventId)) return null;
+            return _events.FirstOrDefault(item =>
+                string.Equals(item.Id, eventId, StringComparison.OrdinalIgnoreCase)
+                && item.SmartOfficeOwned
+                && string.Equals(item.SmartOfficeEventId, smartOfficeEventId.Trim(), StringComparison.Ordinal));
         }
 
         private List<CalendarEventDto> CurrentWindow()

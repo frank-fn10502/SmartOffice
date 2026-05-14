@@ -15,7 +15,7 @@ namespace SmartOffice.Hub.Controllers
             var cmd = new PendingCommand
             {
                 Type = "create_calendar_event",
-                CalendarEventRequest = NormalizeCalendarEventRequest(req),
+                CalendarEventRequest = NormalizeCalendarEventRequest(req, generateSmartOfficeEventId: true),
             };
             return await DispatchCommandAsync(cmd, ct);
         }
@@ -32,13 +32,13 @@ namespace SmartOffice.Hub.Controllers
             var error = ValidateCalendarEventMutation(req, requireEventId: true);
             if (error is not null) return error;
 
-            if (IsKnownCalendarEventNotOwned(req.EventId))
+            if (IsKnownCalendarEventOwnershipMismatch(req.EventId, req.SmartOfficeEventId))
                 return CalendarOwnershipError("update_calendar_event", req.EventId);
 
             var cmd = new PendingCommand
             {
                 Type = "update_calendar_event",
-                CalendarEventRequest = NormalizeCalendarEventRequest(req),
+                CalendarEventRequest = NormalizeCalendarEventRequest(req, generateSmartOfficeEventId: false),
             };
             return await DispatchCommandAsync(cmd, ct);
         }
@@ -46,16 +46,16 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("request-delete-calendar-event")]
         public async Task<IActionResult> RequestDeleteCalendarEvent([FromBody] CalendarEventCommandRequest req, CancellationToken ct)
         {
-            var error = ApiRequestValidation.RequireFields(("eventId", req?.EventId));
+            var error = ApiRequestValidation.RequireFields(("eventId", req?.EventId), ("smartOfficeEventId", req?.SmartOfficeEventId));
             if (error is not null) return error;
 
-            if (IsKnownCalendarEventNotOwned(req?.EventId))
+            if (IsKnownCalendarEventOwnershipMismatch(req?.EventId, req?.SmartOfficeEventId))
                 return CalendarOwnershipError("delete_calendar_event", req?.EventId ?? string.Empty);
 
             var cmd = new PendingCommand
             {
                 Type = "delete_calendar_event",
-                CalendarEventRequest = NormalizeCalendarEventRequest(req),
+                CalendarEventRequest = NormalizeCalendarEventRequest(req, generateSmartOfficeEventId: false),
             };
             return await DispatchCommandAsync(cmd, ct);
         }
@@ -87,7 +87,7 @@ namespace SmartOffice.Hub.Controllers
         private IActionResult? ValidateCalendarEventMutation(CalendarEventCommandRequest? req, bool requireEventId)
         {
             var error = requireEventId
-                ? ApiRequestValidation.RequireFields(("eventId", req?.EventId), ("subject", req?.Subject))
+                ? ApiRequestValidation.RequireFields(("eventId", req?.EventId), ("smartOfficeEventId", req?.SmartOfficeEventId), ("subject", req?.Subject))
                 : ApiRequestValidation.RequireFields(("subject", req?.Subject));
             if (error is not null) return error;
 
@@ -109,7 +109,7 @@ namespace SmartOffice.Hub.Controllers
             return null;
         }
 
-        private CalendarEventCommandRequest NormalizeCalendarEventRequest(CalendarEventCommandRequest? req)
+        private CalendarEventCommandRequest NormalizeCalendarEventRequest(CalendarEventCommandRequest? req, bool generateSmartOfficeEventId)
         {
             req ??= new CalendarEventCommandRequest();
             req.Start = UtcDateTime.Normalize(req.Start);
@@ -117,17 +117,20 @@ namespace SmartOffice.Hub.Controllers
             req.RequiredAttendees ??= new List<OutlookRecipientDto>();
             req.Resources ??= new List<OutlookRecipientDto>();
             req.SmartOfficeEventId = string.IsNullOrWhiteSpace(req.SmartOfficeEventId)
-                ? Guid.NewGuid().ToString()
+                ? (generateSmartOfficeEventId ? Guid.NewGuid().ToString() : string.Empty)
                 : req.SmartOfficeEventId.Trim();
             return req;
         }
 
-        private bool IsKnownCalendarEventNotOwned(string? eventId)
+        private bool IsKnownCalendarEventOwnershipMismatch(string? eventId, string? smartOfficeEventId)
         {
             if (string.IsNullOrWhiteSpace(eventId)) return false;
             var known = _mailStore.GetCalendarEvents().FirstOrDefault(item =>
                 string.Equals(item.Id, eventId, StringComparison.OrdinalIgnoreCase));
-            return known is not null && !known.SmartOfficeOwned;
+            if (known is null) return false;
+            if (!known.SmartOfficeOwned) return true;
+            return string.IsNullOrWhiteSpace(smartOfficeEventId)
+                || !string.Equals(known.SmartOfficeEventId, smartOfficeEventId.Trim(), StringComparison.Ordinal);
         }
 
         private IActionResult CalendarOwnershipError(string commandType, string eventId)
@@ -137,7 +140,7 @@ namespace SmartOffice.Hub.Controllers
                 request = RequestName(commandType),
                 status = "not_smartoffice_owned",
                 state = "failed",
-                message = "SmartOffice 只能更新或刪除由 SmartOffice 建立的 calendar event。",
+                message = "SmartOffice 只能更新或刪除由 SmartOffice 建立且 smartOfficeEventId 相符的 calendar event。",
                 eventId,
                 data = new { },
             });

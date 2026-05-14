@@ -492,7 +492,7 @@ export const outlookApi = {
     requiredAttendees?: OutlookRecipientDto[]
     resources?: OutlookRecipientDto[]
   }) => postJson<OutlookRequestResponse>('/api/outlook/request-update-calendar-event', body),
-  requestDeleteCalendarEvent: (body: { eventId: string }) =>
+  requestDeleteCalendarEvent: (body: { eventId: string; smartOfficeEventId: string }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-delete-calendar-event', body),
   requestAddressBook: (body: {
     includeOutlookContacts: boolean
