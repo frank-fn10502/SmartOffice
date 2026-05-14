@@ -394,6 +394,7 @@ export interface AddressBookContactDto {
   domain: string
   isKnown: boolean
   isLikelySelf: boolean
+  isRelatedToSelf: boolean
   isGroup: boolean
   memberCount: number
   groupMembersLoaded: boolean
@@ -436,6 +437,29 @@ export interface AddressBookMergeSuggestionResponse {
 export interface AddressBookResponse {
   query: string
   totalCount: number
+  contacts: AddressBookContactDto[]
+}
+
+export interface AddressBookRootDto {
+  id: string
+  name: string
+  addressListType: string
+  source: string
+  entryCount: number
+  canPageEntries: boolean
+}
+
+export interface AddressBookRootsResponse {
+  roots: AddressBookRootDto[]
+}
+
+export interface AddressBookListEntriesResponse {
+  addressListId: string
+  addressListName: string
+  offset: number
+  pageSize: number
+  totalCount: number
+  hasMore: boolean
   contacts: AddressBookContactDto[]
 }
 

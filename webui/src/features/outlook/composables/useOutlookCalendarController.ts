@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 import { outlookApi } from '../api/outlook'
 import type { AddressBookContactDto, CalendarEventDto, CalendarRoomDto, OutlookRecipientDto } from '../models/outlook'
+import { collectOutlookRequestData } from './outlookRequests'
 import {
   addMonths,
   buildCalendarWeeks,
@@ -14,7 +15,6 @@ import {
 type CalendarControllerOptions = {
   loadingCalendar: Ref<boolean>
   loadCalendarFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
-  loadCalendarAddressBookFromRequest: (response: { requestId?: string; request?: string }) => Promise<AddressBookContactDto[]>
   loadCalendarRoomsFromRequest: (response: { requestId?: string; request?: string }) => Promise<CalendarRoomDto[]>
   outlookBusy: ComputedRef<boolean>
   waitForRequest: (response: { requestId?: string; request?: string }, timeoutMs?: number) => Promise<void>
@@ -46,7 +46,7 @@ type CalendarDraft = {
 }
 
 export function useOutlookCalendarController(options: CalendarControllerOptions) {
-  const { loadCalendarAddressBookFromRequest, loadCalendarFromRequest, loadCalendarRoomsFromRequest, loadingCalendar, outlookBusy, waitForRequest } = options
+  const { loadCalendarFromRequest, loadCalendarRoomsFromRequest, loadingCalendar, outlookBusy, waitForRequest } = options
   const calendarEvents = ref<CalendarEventDto[]>([])
   const calendarAddressBook = ref<AddressBookContactDto[]>([])
   const calendarRooms = ref<CalendarRoomDto[]>([])
@@ -171,16 +171,22 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
 
   async function requestCalendarAddressBook() {
     if (outlookBusy.value || calendarAddressBook.value.length > 0) return
-    const response = await outlookApi.requestAddressBook({
-      includeOutlookContacts: true,
-      includeAddressLists: true,
-      maxContacts: 0,
-      maxAddressEntriesPerList: 0,
-      maxGroupMembers: 0,
-      maxGroupDepth: 1,
+    const rootsResponse = await outlookApi.requestAddressBookRoots()
+    await waitForRequest(rootsResponse)
+    const rootPages = await collectOutlookRequestData<{ roots?: unknown[] }>(rootsResponse, { take: 50 })
+    const roots = rootPages.flatMap((page) => outlookApi.normalizeAddressBookRootsData(page.data).roots)
+    const root = roots[0]
+    if (!root) return
+
+    const entriesResponse = await outlookApi.requestAddressListEntries({
+      addressListId: root.id,
+      addressListName: root.name,
+      offset: 0,
+      pageSize: 100,
     })
-    await waitForRequest(response, 120000)
-    calendarAddressBook.value = await loadCalendarAddressBookFromRequest(response)
+    await waitForRequest(entriesResponse)
+    const entryPages = await collectOutlookRequestData<Record<string, unknown>>(entriesResponse, { take: 500 })
+    calendarAddressBook.value = entryPages.flatMap((page) => outlookApi.normalizeAddressListEntriesData(page.data).contacts)
   }
 
   function setCalendarRoom(roomId: string) {

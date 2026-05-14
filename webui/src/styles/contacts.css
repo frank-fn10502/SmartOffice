@@ -57,7 +57,7 @@
 
 .contacts-page {
   display: grid;
-  grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 300px) minmax(320px, 460px) minmax(0, 1fr);
   flex: 1;
   gap: 14px;
   min-height: 0;
@@ -65,6 +65,7 @@
   overflow: hidden;
 }
 
+.contacts-source-tree,
 .contacts-list,
 .contact-detail {
   min-width: 0;
@@ -73,6 +74,80 @@
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--surface-1);
+}
+
+.contacts-source-tree {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+}
+
+.contacts-tree-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.contacts-tree-title strong {
+  color: var(--text-main);
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+.source-row:hover,
+.source-row.active {
+  border-color: var(--accent);
+  background: var(--surface-selected);
+}
+
+.source-branch {
+  width: 14px;
+  height: 28px;
+  border-left: 2px solid var(--border-default);
+  border-bottom: 2px solid var(--border-default);
+  border-bottom-left-radius: 6px;
+}
+
+.source-row.active .source-branch {
+  border-color: var(--accent);
+}
+
+.source-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.source-main strong,
+.source-main small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-main small {
+  color: var(--text-muted);
 }
 
 .contacts-list {
@@ -89,6 +164,10 @@
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.load-next-page {
+  width: 100%;
 }
 
 .contacts-loading {
@@ -114,8 +193,33 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+.contact-tree-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tree-connector {
+  width: 18px;
+  margin-bottom: 16px;
+  border-left: 2px solid var(--border-default);
+  border-bottom: 2px solid var(--border-default);
+  border-bottom-left-radius: 6px;
+}
+
+.tree-connector.child {
+  align-self: stretch;
+  min-height: 22px;
+  margin-bottom: 10px;
+}
+
 .contact-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 4px;
   width: 100%;
   min-width: 0;
@@ -134,6 +238,22 @@
   background: var(--surface-selected);
 }
 
+.contact-row.group {
+  border-style: dashed;
+}
+
+.contact-row-main,
+.contact-row-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.contact-row-meta {
+  justify-items: end;
+  align-content: center;
+}
+
 .contact-row strong,
 .contact-row span,
 .contact-row small {
@@ -145,6 +265,50 @@
 
 .contact-row span,
 .contact-row small {
+  color: var(--text-muted);
+}
+
+.group-row-action {
+  align-self: stretch;
+  min-width: 72px;
+}
+
+.contact-children {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin-left: 26px;
+}
+
+.contact-child-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+.contact-child-row:hover {
+  border-color: var(--accent);
+  background: var(--surface-selected);
+}
+
+.contact-child-row strong,
+.contact-child-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contact-child-row span {
   color: var(--text-muted);
 }
 

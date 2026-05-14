@@ -3,8 +3,11 @@
   AddinStatusDto,
   AddressBookContactDto,
   AddressBookGroupMembersResponse,
+  AddressBookListEntriesResponse,
   AddressBookLookupResponse,
   AddressBookMergeSuggestionResponse,
+  AddressBookRootDto,
+  AddressBookRootsResponse,
   AddressBookResponse,
   AttachmentExportSettingsDto,
   CalendarEventDto,
@@ -259,6 +262,7 @@ export function normalizeAddressBookContact(item: unknown): AddressBookContactDt
     domain: readString(source, 'domain', 'Domain'),
     isKnown: readBoolean(source, 'isKnown', 'IsKnown'),
     isLikelySelf: readBoolean(source, 'isLikelySelf', 'IsLikelySelf'),
+    isRelatedToSelf: readBoolean(source, 'isRelatedToSelf', 'IsRelatedToSelf'),
     isGroup: readBoolean(source, 'isGroup', 'IsGroup'),
     memberCount: readNumber(source, 'memberCount', 'MemberCount'),
     groupMembersLoaded: readBoolean(source, 'groupMembersLoaded', 'GroupMembersLoaded'),
@@ -313,6 +317,38 @@ function normalizeAddressBookResponse(item: unknown): AddressBookResponse {
   return {
     query: readString(source, 'query', 'Query'),
     totalCount: readNumber(source, 'totalCount', 'TotalCount'),
+    contacts: Array.isArray(contacts) ? contacts.map(normalizeAddressBookContact) : [],
+  }
+}
+
+function normalizeAddressBookRoot(item: unknown): AddressBookRootDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    id: readString(source, 'id', 'Id'),
+    name: readString(source, 'name', 'Name'),
+    addressListType: readString(source, 'addressListType', 'AddressListType'),
+    source: readString(source, 'source', 'Source'),
+    entryCount: readNumber(source, 'entryCount', 'EntryCount'),
+    canPageEntries: readBoolean(source, 'canPageEntries', 'CanPageEntries', true),
+  }
+}
+
+function normalizeAddressBookRootsData(item: unknown): AddressBookRootsResponse {
+  const source = (item ?? {}) as LooseRecord
+  const roots = source.roots ?? source.Roots
+  return { roots: Array.isArray(roots) ? roots.map(normalizeAddressBookRoot) : [] }
+}
+
+function normalizeAddressListEntriesData(item: unknown): AddressBookListEntriesResponse {
+  const source = (item ?? {}) as LooseRecord
+  const contacts = source.contacts ?? source.Contacts
+  return {
+    addressListId: readString(source, 'addressListId', 'AddressListId'),
+    addressListName: readString(source, 'addressListName', 'AddressListName'),
+    offset: readNumber(source, 'offset', 'Offset'),
+    pageSize: readNumber(source, 'pageSize', 'PageSize'),
+    totalCount: readNumber(source, 'totalCount', 'TotalCount'),
+    hasMore: readBoolean(source, 'hasMore', 'HasMore'),
     contacts: Array.isArray(contacts) ? contacts.map(normalizeAddressBookContact) : [],
   }
 }
@@ -442,9 +478,14 @@ export const outlookApi = {
   suggestAddressBookMerges: async (recipients: string[]) =>
     normalizeAddressBookMergeSuggestionResponse(await postJson<unknown>('/api/outlook/address-book/merge-suggestions', { recipients })),
   requestAddressBookGroupMembers: async (body: { groupId?: string; groupSmtpAddress?: string; maxMembers?: number; forceRefresh?: boolean }) => {
-    const response = await postJson<OutlookRequestResponse<unknown>>('/api/outlook/request-address-book-group-members', body)
+    const response = await postJson<OutlookRequestResponse<unknown>>('/api/outlook/request-address-book', body)
     return { ...response, data: normalizeAddressBookGroupMembersResponse(response.data) }
   },
+  requestAddressBookRoots: () => postJson<OutlookRequestResponse>('/api/outlook/request-address-book', {}),
+  requestAddressListEntries: (body: { addressListId?: string; addressListName?: string; offset?: number; pageSize?: number }) =>
+    postJson<OutlookRequestResponse>('/api/outlook/request-address-book', body),
+  normalizeAddressBookRootsData,
+  normalizeAddressListEntriesData,
   normalizeAddressBookGroupMembersResponse,
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
@@ -520,12 +561,19 @@ export const outlookApi = {
   requestDeleteCalendarEvent: (body: { eventId: string; smartOfficeEventId: string }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-delete-calendar-event', body),
   requestAddressBook: (body: {
-    includeOutlookContacts: boolean
-    includeAddressLists: boolean
-    maxContacts: number
-    maxAddressEntriesPerList: number
+    includeOutlookContacts?: boolean
+    includeAddressLists?: boolean
+    maxContacts?: number
+    maxAddressEntriesPerList?: number
     maxGroupMembers?: number
     maxGroupDepth?: number
+    addressListId?: string
+    addressListName?: string
+    offset?: number
+    pageSize?: number
+    groupId?: string
+    groupSmtpAddress?: string
+    forceRefresh?: boolean
   }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-address-book', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
