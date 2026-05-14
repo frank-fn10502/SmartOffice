@@ -66,8 +66,8 @@ const {
       <OutlookRulesView v-else-if="activeView === 'rules'" :dashboard="dashboard" />
       <OutlookChatView v-else-if="activeView === 'chat'" :dashboard="dashboard" />
       <OutlookCalendarView v-else-if="activeView === 'calendar'" :dashboard="dashboard" />
-      <OutlookContactsView v-else-if="activeView === 'contacts'" />
     </KeepAlive>
+    <OutlookContactsView v-show="activeView === 'contacts'" :dashboard="dashboard" />
 
     <MeetingInvitationDialog v-if="dialogMail && isMeetingMessage(dialogMail)" :dashboard="dashboard" />
     <MailDetailDialog v-else :dashboard="dashboard" />

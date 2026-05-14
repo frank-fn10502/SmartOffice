@@ -409,9 +409,24 @@ export interface AddressBookContactDto {
   relationKinds: string[]
   sources: string[]
   memberSmtpAddresses: string[]
+  memberGroupSmtpAddresses: string[]
+  memberOfGroupSmtpAddresses: string[]
   folderPaths: string[]
   recentMailIds: string[]
   sampleSubjects: string[]
+}
+
+export interface AddressBookMergeSuggestionDto {
+  groupSmtpAddress: string
+  groupDisplayName: string
+  coveredContacts: AddressBookContactDto[]
+  coveredRecipientKeys: string[]
+  message: string
+}
+
+export interface AddressBookMergeSuggestionResponse {
+  state: string
+  suggestions: AddressBookMergeSuggestionDto[]
 }
 
 export interface AddressBookResponse {

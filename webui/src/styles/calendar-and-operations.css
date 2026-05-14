@@ -103,6 +103,39 @@
   width: min(340px, 42vw);
 }
 
+.contacts-sync-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.contacts-sync-status.loading {
+  color: var(--accent-strong);
+}
+
+.contacts-sync-status > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.contacts-sync-status strong {
+  color: var(--text-main);
+}
+
+.contacts-sync-stats {
+  justify-content: flex-end;
+  font-weight: 800;
+}
+
 .contacts-layout {
   min-height: 0;
   height: calc(100vh - 116px);
@@ -487,6 +520,14 @@
 .calendar-editor-form {
   display: grid;
   gap: 2px;
+}
+
+.calendar-editor-form .el-select {
+  width: 100%;
+}
+
+.calendar-merge-hint {
+  margin-top: 8px;
 }
 
 .calendar-room-option {

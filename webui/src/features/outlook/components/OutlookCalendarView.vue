@@ -11,11 +11,13 @@ const props = defineProps<{
 const {
   beginCreateCalendarEvent,
   beginEditCalendarEvent,
+  calendarAttendeeOptions,
   calendarDraft,
   calendarEditorMode,
   calendarEditorVisible,
   calendarEventDialogVisible,
   calendarEvents,
+  calendarMergeHints,
   calendarMonthLabel,
   calendarRooms,
   calendarWeekdays,
@@ -185,6 +187,39 @@ const {
             >
               <span>{{ room.displayName }}</span>
               <small class="calendar-room-option">{{ room.smtpAddress || room.rawAddress }}</small>
+            </el-option>
+          </el-select>
+          <el-alert
+            v-for="hint in calendarMergeHints"
+            :key="hint.groupLabel"
+            class="calendar-merge-hint"
+            type="info"
+            :closable="false"
+            show-icon
+          >
+            <template #title>
+              {{ hint.groupLabel }} 已包含 {{ hint.coveredLabels.join('、') }}，可保留 group 並移除重複出席者。
+            </template>
+          </el-alert>
+        </el-form-item>
+        <el-form-item label="出席者">
+          <el-select
+            v-model="calendarDraft.attendeeKeys"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            :disabled="outlookBusy"
+            placeholder="搜尋通訊錄，或輸入 email"
+          >
+            <el-option
+              v-for="attendee in calendarAttendeeOptions"
+              :key="attendee.value"
+              :label="attendee.label"
+              :value="attendee.value"
+            >
+              <span>{{ attendee.label }}</span>
+              <small class="calendar-room-option">{{ attendee.meta }}</small>
             </el-option>
           </el-select>
         </el-form-item>

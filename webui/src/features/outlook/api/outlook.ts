@@ -3,6 +3,7 @@
   AddinStatusDto,
   AddressBookContactDto,
   AddressBookLookupResponse,
+  AddressBookMergeSuggestionResponse,
   AddressBookResponse,
   AttachmentExportSettingsDto,
   CalendarEventDto,
@@ -272,9 +273,32 @@ export function normalizeAddressBookContact(item: unknown): AddressBookContactDt
     relationKinds: readStringArray(source.relationKinds ?? source.RelationKinds),
     sources: readStringArray(source.sources ?? source.Sources),
     memberSmtpAddresses: readStringArray(source.memberSmtpAddresses ?? source.MemberSmtpAddresses),
+    memberGroupSmtpAddresses: readStringArray(source.memberGroupSmtpAddresses ?? source.MemberGroupSmtpAddresses),
+    memberOfGroupSmtpAddresses: readStringArray(source.memberOfGroupSmtpAddresses ?? source.MemberOfGroupSmtpAddresses),
     folderPaths: readStringArray(source.folderPaths ?? source.FolderPaths),
     recentMailIds: readStringArray(source.recentMailIds ?? source.RecentMailIds),
     sampleSubjects: readStringArray(source.sampleSubjects ?? source.SampleSubjects),
+  }
+}
+
+function normalizeAddressBookMergeSuggestionResponse(item: unknown): AddressBookMergeSuggestionResponse {
+  const source = (item ?? {}) as LooseRecord
+  const suggestions = source.suggestions ?? source.Suggestions
+  return {
+    state: readString(source, 'state', 'State'),
+    suggestions: Array.isArray(suggestions)
+      ? suggestions.map((suggestion) => {
+        const suggestionSource = (suggestion ?? {}) as LooseRecord
+        const coveredContacts = suggestionSource.coveredContacts ?? suggestionSource.CoveredContacts
+        return {
+          groupSmtpAddress: readString(suggestionSource, 'groupSmtpAddress', 'GroupSmtpAddress'),
+          groupDisplayName: readString(suggestionSource, 'groupDisplayName', 'GroupDisplayName'),
+          coveredContacts: Array.isArray(coveredContacts) ? coveredContacts.map(normalizeAddressBookContact) : [],
+          coveredRecipientKeys: readStringArray(suggestionSource.coveredRecipientKeys ?? suggestionSource.CoveredRecipientKeys),
+          message: readString(suggestionSource, 'message', 'Message'),
+        }
+      })
+      : [],
   }
 }
 
@@ -395,6 +419,8 @@ export const outlookApi = {
     normalizeMailSearchProgress(await getJson<unknown>(`/api/outlook/mail-search/progress/${encodeURIComponent(searchId)}`)),
   lookupAddressBookContact: async (email: string) =>
     normalizeAddressBookLookupResponse(await getJson<unknown>(`/api/outlook/address-book/lookup?email=${encodeURIComponent(email)}`)),
+  suggestAddressBookMerges: async (recipients: string[]) =>
+    normalizeAddressBookMergeSuggestionResponse(await postJson<unknown>('/api/outlook/address-book/merge-suggestions', { recipients })),
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
   getAdminLogs: () => getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),
@@ -451,6 +477,7 @@ export const outlookApi = {
     location: string
     body: string
     busyStatus: string
+    requiredAttendees?: OutlookRecipientDto[]
     resources?: OutlookRecipientDto[]
   }) => postJson<OutlookRequestResponse>('/api/outlook/request-create-calendar-event', body),
   requestUpdateCalendarEvent: (body: {
@@ -462,11 +489,19 @@ export const outlookApi = {
     location: string
     body: string
     busyStatus: string
+    requiredAttendees?: OutlookRecipientDto[]
     resources?: OutlookRecipientDto[]
   }) => postJson<OutlookRequestResponse>('/api/outlook/request-update-calendar-event', body),
   requestDeleteCalendarEvent: (body: { eventId: string }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-delete-calendar-event', body),
-  requestAddressBook: (body: { includeOutlookContacts: boolean; includeAddressLists: boolean; maxContacts: number; maxAddressEntriesPerList: number }) =>
+  requestAddressBook: (body: {
+    includeOutlookContacts: boolean
+    includeAddressLists: boolean
+    maxContacts: number
+    maxAddressEntriesPerList: number
+    maxGroupMembers?: number
+    maxGroupDepth?: number
+  }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-address-book', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
 

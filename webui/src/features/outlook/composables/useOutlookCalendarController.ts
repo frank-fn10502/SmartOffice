@@ -2,7 +2,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 import { outlookApi } from '../api/outlook'
-import type { CalendarEventDto, CalendarRoomDto } from '../models/outlook'
+import type { AddressBookContactDto, CalendarEventDto, CalendarRoomDto, OutlookRecipientDto } from '../models/outlook'
 import {
   addMonths,
   buildCalendarWeeks,
@@ -14,9 +14,22 @@ import {
 type CalendarControllerOptions = {
   loadingCalendar: Ref<boolean>
   loadCalendarFromRequest: (response: { requestId?: string; request?: string }) => Promise<void>
+  loadCalendarAddressBookFromRequest: (response: { requestId?: string; request?: string }) => Promise<AddressBookContactDto[]>
   loadCalendarRoomsFromRequest: (response: { requestId?: string; request?: string }) => Promise<CalendarRoomDto[]>
   outlookBusy: ComputedRef<boolean>
   waitForRequest: (response: { requestId?: string; request?: string }, timeoutMs?: number) => Promise<void>
+}
+
+type CalendarAttendeeOption = {
+  value: string
+  label: string
+  meta: string
+  contact: AddressBookContactDto
+}
+
+type CalendarMergeHint = {
+  groupLabel: string
+  coveredLabels: string[]
 }
 
 type CalendarDraft = {
@@ -27,13 +40,15 @@ type CalendarDraft = {
   roomId: string
   room: string
   roomAddress: string
+  attendeeKeys: string[]
   body: string
   busyStatus: string
 }
 
 export function useOutlookCalendarController(options: CalendarControllerOptions) {
-  const { loadCalendarFromRequest, loadCalendarRoomsFromRequest, loadingCalendar, outlookBusy, waitForRequest } = options
+  const { loadCalendarAddressBookFromRequest, loadCalendarFromRequest, loadCalendarRoomsFromRequest, loadingCalendar, outlookBusy, waitForRequest } = options
   const calendarEvents = ref<CalendarEventDto[]>([])
+  const calendarAddressBook = ref<AddressBookContactDto[]>([])
   const calendarRooms = ref<CalendarRoomDto[]>([])
   const calendarMonthDate = ref(monthStart(new Date()))
   const selectedCalendarEvent = ref<CalendarEventDto | null>(null)
@@ -45,6 +60,33 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
 
   const calendarMonthLabel = computed(() => {
     return calendarMonthDate.value.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long' })
+  })
+
+  const calendarAttendeeOptions = computed(() => {
+    return calendarAddressBook.value
+      .filter((contact) => Boolean(contact.displayName || contact.smtpAddress || contact.rawAddress))
+      .map((contact) => ({
+        value: contactKey(contact),
+        label: contact.displayName || contact.smtpAddress || contact.rawAddress,
+        meta: attendeeMeta(contact),
+        contact,
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label, 'zh-TW'))
+  })
+
+  const calendarMergeHints = computed<CalendarMergeHint[]>(() => {
+    const selected = new Set(calendarDraft.value.attendeeKeys.map(normalizeKey))
+    const selectedOptions = calendarAttendeeOptions.value.filter((option) => selected.has(normalizeKey(option.value)))
+    return selectedOptions
+      .filter((option) => option.contact.isGroup)
+      .map((group) => {
+        const memberKeys = new Set(group.contact.memberSmtpAddresses.concat(group.contact.memberGroupSmtpAddresses).map(normalizeKey))
+        const coveredLabels = selectedOptions
+          .filter((option) => option.value !== group.value && memberKeys.has(normalizeKey(option.value)))
+          .map((option) => option.label)
+        return { groupLabel: group.label, coveredLabels }
+      })
+      .filter((hint) => hint.coveredLabels.length > 0)
   })
 
   const calendarWeeks = computed(() => buildCalendarWeeks(calendarMonthDate.value, calendarEvents.value))
@@ -94,6 +136,7 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
     calendarDraft.value = defaultCalendarDraft()
     calendarEditorVisible.value = true
     void requestCalendarRooms()
+    void requestCalendarAddressBook()
   }
 
   function beginEditCalendarEvent(event: CalendarEventDto) {
@@ -110,11 +153,13 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
       roomId: '',
       room: '',
       roomAddress: '',
+      attendeeKeys: formatAttendeeKeys(event.requiredAttendees),
       body: '',
       busyStatus: normalizeBusyStatus(event.busyStatus),
     }
     calendarEditorVisible.value = true
     void requestCalendarRooms()
+    void requestCalendarAddressBook()
   }
 
   async function requestCalendarRooms() {
@@ -122,6 +167,20 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
     const response = await outlookApi.requestCalendarRooms()
     await waitForRequest(response)
     calendarRooms.value = await loadCalendarRoomsFromRequest(response)
+  }
+
+  async function requestCalendarAddressBook() {
+    if (outlookBusy.value || calendarAddressBook.value.length > 0) return
+    const response = await outlookApi.requestAddressBook({
+      includeOutlookContacts: true,
+      includeAddressLists: true,
+      maxContacts: 1000,
+      maxAddressEntriesPerList: 500,
+      maxGroupMembers: 50,
+      maxGroupDepth: 1,
+    })
+    await waitForRequest(response, 120000)
+    calendarAddressBook.value = await loadCalendarAddressBookFromRequest(response)
   }
 
   function setCalendarRoom(roomId: string) {
@@ -149,6 +208,7 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
         location: draft.location.trim(),
         body: draft.body,
         busyStatus: 'busy',
+        requiredAttendees: draft.attendeeKeys.map((key) => attendeeRecipient(key, calendarAttendeeOptions.value)),
         resources: draft.room.trim()
           ? [{ recipientKind: 'resource', displayName: draft.room.trim(), smtpAddress: draft.roomAddress, rawAddress: draft.roomAddress || draft.room.trim(), addressType: '', entryUserType: '', isGroup: false, isResolved: false, members: [] }]
           : [],
@@ -197,6 +257,8 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
   return {
     beginCreateCalendarEvent,
     beginEditCalendarEvent,
+    calendarAttendeeOptions,
+    calendarMergeHints,
     calendarDraft,
     calendarEditorMode,
     calendarEditorVisible,
@@ -223,10 +285,63 @@ function defaultCalendarDraft(): CalendarDraft {
   start.setMinutes(0, 0, 0)
   start.setHours(start.getHours() + 1)
   const end = new Date(start.getTime() + 60 * 60 * 1000)
-  return { subject: '', start, end, location: '', roomId: '', room: '', roomAddress: '', body: '', busyStatus: 'busy' }
+  return { subject: '', start, end, location: '', roomId: '', room: '', roomAddress: '', attendeeKeys: [], body: '', busyStatus: 'busy' }
 }
 
 function normalizeBusyStatus(value: string) {
   const normalized = value.trim().toLowerCase()
   return ['free', 'tentative', 'busy', 'out_of_office'].includes(normalized) ? normalized : 'busy'
+}
+
+function contactKey(contact: AddressBookContactDto) {
+  return contact.smtpAddress || contact.rawAddress || contact.displayName || contact.id
+}
+
+function normalizeKey(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function attendeeMeta(contact: AddressBookContactDto) {
+  const parts = [
+    contact.isGroup ? '群組' : '聯絡人',
+    contact.smtpAddress || contact.rawAddress,
+    contact.department,
+  ].filter(Boolean)
+  return parts.join(' / ')
+}
+
+function attendeeRecipient(value: string, options: CalendarAttendeeOption[]): OutlookRecipientDto {
+  const contact = options.find((option) => option.value === value)?.contact
+  if (contact) {
+    return {
+      recipientKind: 'required',
+      displayName: contact.displayName || contact.smtpAddress || contact.rawAddress,
+      smtpAddress: contact.smtpAddress,
+      rawAddress: contact.rawAddress || contact.smtpAddress || contact.displayName,
+      addressType: contact.addressType,
+      entryUserType: contact.entryUserType,
+      isGroup: contact.isGroup,
+      isResolved: true,
+      members: [],
+    }
+  }
+  const trimmed = value.trim()
+  return {
+    recipientKind: 'required',
+    displayName: trimmed,
+    smtpAddress: trimmed.includes('@') ? trimmed : '',
+    rawAddress: trimmed,
+    addressType: trimmed.includes('@') ? 'SMTP' : '',
+    entryUserType: '',
+    isGroup: false,
+    isResolved: false,
+    members: [],
+  }
+}
+
+function formatAttendeeKeys(attendees: CalendarEventDto['requiredAttendees']) {
+  return attendees
+    .filter((attendee) => attendee.recipientKind !== 'resource')
+    .map((attendee) => attendee.smtpAddress || attendee.rawAddress || attendee.displayName)
+    .filter(Boolean)
 }

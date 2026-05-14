@@ -1,5 +1,6 @@
 ﻿import { computed } from 'vue'
 import {
+  normalizeAddressBookContact,
   normalizeCalendarRooms,
   normalizeMailAttachments,
   normalizeMailItems,
@@ -7,6 +8,7 @@ import {
 } from '../api/outlook'
 import type {
   CalendarEventDto,
+  AddressBookContactDto,
   MailAttachmentsDto,
   MailConversationDto,
   MailItemDto,
@@ -122,11 +124,13 @@ export function useOutlookDashboard() {
   const {
     beginCreateCalendarEvent,
     beginEditCalendarEvent,
+    calendarAttendeeOptions,
     calendarDraft,
     calendarEditorMode,
     calendarEditorVisible,
     calendarEventDialogVisible,
     calendarEvents,
+    calendarMergeHints,
     calendarMonthLabel,
     calendarRooms,
     calendarWeekdays,
@@ -141,6 +145,7 @@ export function useOutlookDashboard() {
     setCalendarRoom,
   } = useOutlookCalendarController({
     loadCalendarFromRequest,
+    loadCalendarAddressBookFromRequest,
     loadCalendarRoomsFromRequest,
     loadingCalendar,
     outlookBusy,
@@ -308,6 +313,11 @@ export function useOutlookDashboard() {
   async function loadCalendarRoomsFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
     const pages = await collectOutlookRequestData<{ rooms?: unknown[] }>(response, { isUnmounted: () => unmounted })
     return normalizeCalendarRooms(pages.flatMap((page) => page.data?.rooms ?? []))
+  }
+
+  async function loadCalendarAddressBookFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
+    const pages = await collectOutlookRequestData<{ contacts?: unknown[] }>(response, { isUnmounted: () => unmounted })
+    return pages.flatMap((page) => page.data?.contacts ?? []).map(normalizeAddressBookContact)
   }
 
   const {
@@ -729,9 +739,9 @@ export function useOutlookDashboard() {
   return {
     activeView, activeMailPropertySections, addCategoryToMasterList, addinLogs, addinStatus,
     attachmentExportRootDraft, attachmentExportSettings, addMailCategoryDraft, applyMailProperties,
-    beginCreateCalendarEvent, beginEditCalendarEvent, calendarDraft, calendarEditorMode,
+    beginCreateCalendarEvent, beginEditCalendarEvent, calendarAttendeeOptions, calendarDraft, calendarEditorMode,
     calendarEditorVisible, calendarEventDialogVisible, calendarEvents, calendarMonthLabel,
-    calendarRooms,
+    calendarMergeHints, calendarRooms,
     calendarWeekdays, calendarWeeks, cancelCreateFolder,
     categories, categoryManagerVisible, categoryColorOptions, categoryColorStyle, categoryTagStyle,
     categoryCreateColor, categoryCreateDraft, changeCalendarMonth, chatMessages, chatPanelRef,
@@ -750,7 +760,7 @@ export function useOutlookDashboard() {
     mails, moveDraggedMail, navOptions, openFolderContextMenu, openExportedAttachment,
     openMailDialog, closeMailDialog,
     operationLoading: requestLoading,
-    outlookBusy, outlookBusyText, openCategoryManager, refreshAdminData, requestCalendar,
+    outlookBusy, outlookBusyText, outlookFirstLoadCompleted, openCategoryManager, refreshAdminData, requestCalendar,
     requestCategories, requestFolders, requestRules, requestSignalRPing, requestMails,
     requestMailSearch, resetMailPropertiesDraft, resetRuleDraft, resetAttachmentExportRoot,
     removeMailCategoryDraft, saveAttachmentExportSettings, savingAttachmentExportSettings,
