@@ -135,4 +135,24 @@
         public AddressBookContactDto? Contact { get; set; }
         public List<AddressBookContactDto> Suggestions { get; set; } = new();
     }
+
+    public class AddressBookMergeSuggestionRequest
+    {
+        public List<string> Recipients { get; set; } = new();
+    }
+
+    public class AddressBookMergeSuggestionDto
+    {
+        public string GroupSmtpAddress { get; set; } = string.Empty;
+        public string GroupDisplayName { get; set; } = string.Empty;
+        public List<AddressBookContactDto> CoveredContacts { get; set; } = new();
+        public List<string> CoveredRecipientKeys { get; set; } = new();
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class AddressBookMergeSuggestionResponse
+    {
+        public string State { get; set; } = "ok";
+        public List<AddressBookMergeSuggestionDto> Suggestions { get; set; } = new();
+    }
 }

@@ -19,8 +19,9 @@
 - 想檢查一個收件者是否和使用者有已知互動：呼叫 `GET /api/outlook/address-book/lookup?email={email}`。
 - `state=known` 代表 SmartOffice 找到 mail 或 calendar 關聯；`state=unknown` 只代表目前未知，不代表 Outlook 裡一定沒有。
 - 若使用者要求同步真正 Outlook 通訊錄，呼叫 `POST /api/outlook/request-address-book`，再用 `POST /api/outlook/fetch-result-address-book` 讀 `data.contacts`。
+- 需要檢查收件者是否能用 group 合併時，呼叫 `POST /api/outlook/address-book/merge-suggestions`，body 為 `{ "recipients": ["frank@example.test", "group1@example.test"] }`。
 - `contact.relationKinds` 會指出 `sender`、`to`、`cc`、`bcc`、`organizer`、`attendee` 或 `group_member` 等關聯。
-- `contact.isGroup=true` 代表該 entry 是 distribution list 或 group；用 `memberCount` 與 `memberSmtpAddresses` 摘要成員，不要假設已完整展開整個群組。
+- `contact.isGroup=true` 代表該 entry 是 distribution list 或 group；用 `memberCount`、`memberSmtpAddresses`、`memberGroupSmtpAddresses` 摘要成員與子群組。個人或 group 的 `memberOfGroupSmtpAddresses` 表示它被哪些 group 包含。
 - `contact.isLikelySelf=true` 代表該地址看起來是自己的寄件地址；Hub 主要從 Sent folder 的 sender 推斷。
 
 `request-address-book` body：
@@ -30,18 +31,20 @@
   "includeOutlookContacts": true,
   "includeAddressLists": true,
   "maxContacts": 1000,
-  "maxAddressEntriesPerList": 500
+  "maxAddressEntriesPerList": 500,
+  "maxGroupMembers": 50,
+  "maxGroupDepth": 1
 }
 ```
 
-`maxContacts` 與 `maxAddressEntriesPerList` 是負載上限；不要要求無限制 GAL 枚舉。
+`maxContacts`、`maxAddressEntriesPerList`、`maxGroupMembers` 與 `maxGroupDepth` 是負載上限；不要要求無限制 GAL 枚舉或無限制展開 nested group。讀取結果一律透過 `fetch-result-address-book` 用 `cursor` / `take` 分頁取得。
 
 ## Calendar / Rules / Categories
 
 - `POST /api/outlook/request-calendar` with `{ "daysForward": 31, "startDate": null, "endDate": null }` -> `POST /api/outlook/fetch-result-calendar`
 - `POST /api/outlook/request-calendar-rooms` -> `POST /api/outlook/fetch-result-calendar-rooms`
-- `POST /api/outlook/request-create-calendar-event` with calendar event fields -> `POST /api/outlook/fetch-result-create-calendar-event`
-- `POST /api/outlook/request-update-calendar-event` with `eventId` and calendar event fields -> `POST /api/outlook/fetch-result-update-calendar-event`
+- `POST /api/outlook/request-create-calendar-event` with calendar event fields, `requiredAttendees[]`, and optional `resources[]` -> `POST /api/outlook/fetch-result-create-calendar-event`
+- `POST /api/outlook/request-update-calendar-event` with `eventId`, calendar event fields, `requiredAttendees[]`, and optional `resources[]` -> `POST /api/outlook/fetch-result-update-calendar-event`
 - `POST /api/outlook/request-delete-calendar-event` with `eventId` -> `POST /api/outlook/fetch-result-delete-calendar-event`
 - `POST /api/outlook/request-rules` -> `POST /api/outlook/fetch-result-rules`
 - `POST /api/outlook/request-manage-rule` with `OutlookRuleCommandRequest` -> `POST /api/outlook/fetch-result-manage-rule`
@@ -228,4 +231,4 @@ Chat text 可能含敏感 business data。
 
 Calendar update / delete 只適用 `smartOfficeOwned=true` 的 event。若 API 回 `not_smartoffice_owned`，停止操作並告知使用者 SmartOffice 只能更新或刪除 SmartOffice 建立的 calendar event。
 
-建立或更新 calendar event 時先用 `request-calendar-rooms` 取得 `data.rooms`，讓使用者從下拉選單選會議室或設備 resource。送出 create/update 時把選取項目放進 `resources[]`；SmartOffice 會交由 Outlook 解析。UI 上的「會議室 / Resource」不是地點文字，而是 Outlook resource recipient。
+建立或更新 calendar event 時，出席者放在 `requiredAttendees[]`，會議室或設備放在 `resources[]`。先用 `request-calendar-rooms` 取得 `data.rooms`，讓使用者從下拉選單選會議室或設備 resource。送出 create/update 時把選取項目放進 `resources[]`；SmartOffice 會交由 Outlook 解析。UI 上的「會議室 / Resource」不是地點文字，也不是一般出席者，而是 Outlook resource recipient。

@@ -68,6 +68,15 @@ namespace SmartOffice.Hub.Services
                     "henry.kao@example.test",
                     "ivy.lin@example.test",
                     "jacky.lee@example.test"),
+                MockGroup(
+                    "mock-group-005",
+                    "Executive Review Circle",
+                    "exec-review@example.test",
+                    "Leadership",
+                    "global_address_list",
+                    "product-launch@example.test",
+                    "finance-approvers@example.test",
+                    "olivia.brown@customer.example.test"),
             };
 
             return contacts.Take(max).ToList();
@@ -107,6 +116,7 @@ namespace SmartOffice.Hub.Services
             contact.IsGroup = true;
             contact.MemberCount = members.Length;
             contact.MemberSmtpAddresses = members.ToList();
+            contact.MemberGroupSmtpAddresses = members.Where(member => member.EndsWith("-approvers@example.test") || member.EndsWith("-launch@example.test")).ToList();
             return contact;
         }
     }

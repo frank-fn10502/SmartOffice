@@ -257,6 +257,8 @@ namespace SmartOffice.Hub.Contracts
         public List<string> RelationKinds { get; set; } = new List<string>();
         public List<string> Sources { get; set; } = new List<string>();
         public List<string> MemberSmtpAddresses { get; set; } = new List<string>();
+        public List<string> MemberGroupSmtpAddresses { get; set; } = new List<string>();
+        public List<string> MemberOfGroupSmtpAddresses { get; set; } = new List<string>();
         public List<string> FolderPaths { get; set; } = new List<string>();
         public List<string> RecentMailIds { get; set; } = new List<string>();
         public List<string> SampleSubjects { get; set; } = new List<string>();
@@ -268,6 +270,8 @@ namespace SmartOffice.Hub.Contracts
         public bool IncludeAddressLists { get; set; } = true;
         public int MaxContacts { get; set; } = 1000;
         public int MaxAddressEntriesPerList { get; set; } = 500;
+        public int MaxGroupMembers { get; set; } = 50;
+        public int MaxGroupDepth { get; set; } = 1;
     }
 
     public class AddinLogEntry

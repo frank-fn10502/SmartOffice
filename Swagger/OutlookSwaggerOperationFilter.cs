@@ -299,6 +299,11 @@ namespace SmartOffice.Hub.Swagger
                 "查詢單一 email 的通訊錄線索",
                 "輕量查詢 endpoint，用於依 email 檢查目前已知的 mail 或 calendar 關係。需要完整通訊錄資料時，請使用 `request-address-book` 建立 request，再輪詢 `fetch-result-address-book`。",
                 typeof(AddressBookLookupResponse)),
+            ["POST api/outlook/address-book/merge-suggestions"] = new(
+                HelperTag,
+                "查詢通訊錄 group 合併提示",
+                "輸入目前選取的 recipients，回傳哪些個人或 group 已被另一個 selected group 包含，供會議邀請或 draft UI 提示合併。",
+                typeof(AddressBookMergeSuggestionResponse)),
             ["GET api/outlook/chat"] = new(
                 ChatTag,
                 "取得 chat messages",
@@ -492,6 +497,16 @@ namespace SmartOffice.Hub.Swagger
             ["location"] = new OpenApiString("Teams"),
             ["body"] = new OpenApiString("Created by SmartOffice."),
             ["busyStatus"] = new OpenApiString("busy"),
+            ["requiredAttendees"] = new OpenApiArray
+            {
+                new OpenApiObject
+                {
+                    ["recipientKind"] = new OpenApiString("required"),
+                    ["displayName"] = new OpenApiString("Ada Chen"),
+                    ["smtpAddress"] = new OpenApiString("ada.chen@example.test"),
+                    ["rawAddress"] = new OpenApiString("ada.chen@example.test"),
+                },
+            },
             ["resources"] = new OpenApiArray
             {
                 new OpenApiObject

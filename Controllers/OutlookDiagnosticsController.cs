@@ -60,6 +60,16 @@ namespace SmartOffice.Hub.Controllers
             });
         }
 
+        [HttpPost("address-book/merge-suggestions")]
+        public IActionResult AddressBookMergeSuggestions([FromBody] AddressBookMergeSuggestionRequest? req)
+        {
+            var suggestions = _mailStore.GetAddressBookMergeSuggestions(req?.Recipients ?? new List<string>());
+            return Ok(new AddressBookMergeSuggestionResponse
+            {
+                Suggestions = suggestions,
+            });
+        }
+
         /// <summary>
         /// Web 或 Outlook 送出 chat message。
         /// </summary>

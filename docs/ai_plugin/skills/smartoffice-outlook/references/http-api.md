@@ -190,6 +190,7 @@ Request body 使用錯欄位名時：
 | `POST /api/outlook/request-update-calendar-event` | `POST /api/outlook/fetch-result-update-calendar-event` | `calendarEvents` | `organizing.md` |
 | `POST /api/outlook/request-delete-calendar-event` | `POST /api/outlook/fetch-result-delete-calendar-event` | `calendarEvents` | `organizing.md` |
 | `POST /api/outlook/request-address-book` | `POST /api/outlook/fetch-result-address-book` | `contacts` | `organizing.md` |
+| `POST /api/outlook/address-book/merge-suggestions` | immediate response | `suggestions` | `organizing.md` |
 | `POST /api/outlook/request-update-mail-properties` | `POST /api/outlook/fetch-result-update-mail-properties` | `mails` | `organizing.md` |
 | `POST /api/outlook/request-upsert-category` | `POST /api/outlook/fetch-result-upsert-category` | `categories` | `organizing.md` |
 | `POST /api/outlook/request-create-folder` | `POST /api/outlook/fetch-result-create-folder` | `stores`, `folders` | `organizing.md` |

@@ -257,6 +257,8 @@ namespace SmartOffice.Hub.Controllers
             req ??= new AddressBookSyncRequest();
             req.MaxContacts = Math.Clamp(req.MaxContacts <= 0 ? 1000 : req.MaxContacts, 1, 5000);
             req.MaxAddressEntriesPerList = Math.Clamp(req.MaxAddressEntriesPerList <= 0 ? 500 : req.MaxAddressEntriesPerList, 1, 2000);
+            req.MaxGroupMembers = Math.Clamp(req.MaxGroupMembers <= 0 ? 50 : req.MaxGroupMembers, 0, 500);
+            req.MaxGroupDepth = Math.Clamp(req.MaxGroupDepth < 0 ? 1 : req.MaxGroupDepth, 0, 3);
 
             var cmd = new PendingCommand
             {

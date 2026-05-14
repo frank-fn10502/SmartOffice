@@ -53,6 +53,35 @@ namespace SmartOffice.Hub.Services
             }
         }
 
+        public List<AddressBookMergeSuggestionDto> GetAddressBookMergeSuggestions(IEnumerable<string> recipients)
+        {
+            var keys = recipients
+                .Select(NormalizeEmail)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (keys.Count < 2) return new List<AddressBookMergeSuggestionDto>();
+
+            lock (_lock)
+            {
+                var contacts = BuildAddressBookContacts();
+                var contactsByKey = contacts
+                    .SelectMany(contact => ContactKeys(contact).Select(key => (Key: key, Contact: contact)))
+                    .GroupBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.First().Contact, StringComparer.OrdinalIgnoreCase);
+
+                var selected = keys
+                    .Where(contactsByKey.ContainsKey)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                return contacts
+                    .Where(contact => contact.IsGroup && selected.Contains(NormalizeEmail(contact.SmtpAddress)))
+                    .Select(group => BuildMergeSuggestion(group, selected, contactsByKey))
+                    .Where(suggestion => suggestion.CoveredContacts.Count > 0)
+                    .ToList();
+            }
+        }
+
         private List<AddressBookContactDto> BuildAddressBookContacts()
         {
             var contacts = new Dictionary<string, AddressBookAccumulator>(StringComparer.OrdinalIgnoreCase);
@@ -60,6 +89,8 @@ namespace SmartOffice.Hub.Services
 
             foreach (var contact in _addressBookContacts)
                 AddCachedAddressBookContact(contacts, contact);
+
+            AddCachedGroupMemberships(contacts, _addressBookContacts);
 
             var knownMails = _mails
                 .Concat(_mailSearchResults)
@@ -107,6 +138,40 @@ namespace SmartOffice.Hub.Services
             }
 
             contact.MergeAddressBookContact(source);
+        }
+
+        private static void AddCachedGroupMemberships(
+            Dictionary<string, AddressBookAccumulator> contacts,
+            IEnumerable<AddressBookContactDto> sources)
+        {
+            var groupsByEmail = sources
+                .Where(source => source.IsGroup && !string.IsNullOrWhiteSpace(source.SmtpAddress))
+                .GroupBy(source => NormalizeEmail(source.SmtpAddress), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var group in groupsByEmail.Values)
+            {
+                var groupEmail = NormalizeEmail(group.SmtpAddress);
+                if (string.IsNullOrWhiteSpace(groupEmail)) continue;
+
+                foreach (var memberEmail in group.MemberSmtpAddresses.Select(NormalizeEmail).Where(email => !string.IsNullOrWhiteSpace(email)))
+                {
+                    if (!contacts.TryGetValue(memberEmail, out var member))
+                    {
+                        member = new AddressBookAccumulator { SmtpAddress = memberEmail, RawAddress = memberEmail };
+                        contacts[memberEmail] = member;
+                    }
+
+                    member.AddMemberOfGroup(groupEmail);
+                    if (groupsByEmail.ContainsKey(memberEmail))
+                    {
+                        member.MarkAsGroup();
+                        member.AddMemberOfGroup(groupEmail);
+                        if (contacts.TryGetValue(groupEmail, out var groupContact))
+                            groupContact.AddMemberGroup(memberEmail);
+                    }
+                }
+            }
         }
 
         private HashSet<string> InferSelfAddresses()
@@ -206,6 +271,50 @@ namespace SmartOffice.Hub.Services
                 || Contains(contact.Domain, query);
         }
 
+        private static AddressBookMergeSuggestionDto BuildMergeSuggestion(
+            AddressBookContactDto group,
+            HashSet<string> selected,
+            Dictionary<string, AddressBookContactDto> contactsByKey)
+        {
+            var groupKey = NormalizeEmail(group.SmtpAddress);
+            var coveredKeys = group.MemberSmtpAddresses
+                .Concat(group.MemberGroupSmtpAddresses)
+                .Select(NormalizeEmail)
+                .Where(key => !string.IsNullOrWhiteSpace(key) && selected.Contains(key) && key != groupKey)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var coveredContacts = coveredKeys
+                .Select(key => contactsByKey.TryGetValue(key, out var contact) ? CloneAddressBookContact(contact) : null)
+                .Where(contact => contact is not null)
+                .Cast<AddressBookContactDto>()
+                .ToList();
+
+            return new AddressBookMergeSuggestionDto
+            {
+                GroupSmtpAddress = group.SmtpAddress,
+                GroupDisplayName = string.IsNullOrWhiteSpace(group.DisplayName) ? group.SmtpAddress : group.DisplayName,
+                CoveredContacts = coveredContacts,
+                CoveredRecipientKeys = coveredKeys,
+                Message = coveredContacts.Count == 0
+                    ? string.Empty
+                    : $"{(string.IsNullOrWhiteSpace(group.DisplayName) ? group.SmtpAddress : group.DisplayName)} 已包含 {string.Join(", ", coveredContacts.Select(ContactLabel))}",
+            };
+        }
+
+        private static string ContactLabel(AddressBookContactDto contact)
+        {
+            return string.IsNullOrWhiteSpace(contact.DisplayName) ? contact.SmtpAddress : contact.DisplayName;
+        }
+
+        private static IEnumerable<string> ContactKeys(AddressBookContactDto contact)
+        {
+            if (!string.IsNullOrWhiteSpace(contact.SmtpAddress)) yield return NormalizeEmail(contact.SmtpAddress);
+            if (!string.IsNullOrWhiteSpace(contact.RawAddress)) yield return NormalizeEmail(contact.RawAddress);
+            if (!string.IsNullOrWhiteSpace(contact.DisplayName)) yield return NormalizeEmail(contact.DisplayName);
+            if (!string.IsNullOrWhiteSpace(contact.Id)) yield return NormalizeEmail(contact.Id);
+        }
+
         private static bool Contains(string value, string query)
         {
             return value.Contains(query, StringComparison.OrdinalIgnoreCase);
@@ -266,6 +375,8 @@ namespace SmartOffice.Hub.Services
                 RelationKinds = new List<string>(contact.RelationKinds),
                 Sources = new List<string>(contact.Sources),
                 MemberSmtpAddresses = new List<string>(contact.MemberSmtpAddresses),
+                MemberGroupSmtpAddresses = new List<string>(contact.MemberGroupSmtpAddresses),
+                MemberOfGroupSmtpAddresses = new List<string>(contact.MemberOfGroupSmtpAddresses),
                 FolderPaths = new List<string>(contact.FolderPaths),
                 RecentMailIds = new List<string>(contact.RecentMailIds),
                 SampleSubjects = new List<string>(contact.SampleSubjects),
@@ -277,6 +388,8 @@ namespace SmartOffice.Hub.Services
             private readonly HashSet<string> _relationKinds = new(StringComparer.OrdinalIgnoreCase);
             private readonly HashSet<string> _sources = new(StringComparer.OrdinalIgnoreCase);
             private readonly HashSet<string> _memberSmtpAddresses = new(StringComparer.OrdinalIgnoreCase);
+            private readonly HashSet<string> _memberGroupSmtpAddresses = new(StringComparer.OrdinalIgnoreCase);
+            private readonly HashSet<string> _memberOfGroupSmtpAddresses = new(StringComparer.OrdinalIgnoreCase);
             private readonly HashSet<string> _folderPaths = new(StringComparer.OrdinalIgnoreCase);
             private readonly List<(string Id, DateTime SeenAt)> _recentMailIds = new();
             private readonly List<(string Subject, DateTime SeenAt)> _sampleSubjects = new();
@@ -347,8 +460,29 @@ namespace SmartOffice.Hub.Services
                 MemberCount = Math.Max(MemberCount, source.MemberCount);
                 foreach (var member in source.MemberSmtpAddresses.Where(member => !string.IsNullOrWhiteSpace(member)))
                     _memberSmtpAddresses.Add(member.Trim());
+                foreach (var group in source.MemberGroupSmtpAddresses.Where(group => !string.IsNullOrWhiteSpace(group)))
+                    _memberGroupSmtpAddresses.Add(group.Trim());
+                foreach (var group in source.MemberOfGroupSmtpAddresses.Where(group => !string.IsNullOrWhiteSpace(group)))
+                    _memberOfGroupSmtpAddresses.Add(group.Trim());
                 _sources.Add(string.IsNullOrWhiteSpace(source.Source) ? "address_book" : source.Source);
                 _relationKinds.Add("address_book");
+            }
+
+            public void AddMemberOfGroup(string groupSmtpAddress)
+            {
+                if (!string.IsNullOrWhiteSpace(groupSmtpAddress))
+                    _memberOfGroupSmtpAddresses.Add(groupSmtpAddress.Trim());
+            }
+
+            public void AddMemberGroup(string groupSmtpAddress)
+            {
+                if (!string.IsNullOrWhiteSpace(groupSmtpAddress))
+                    _memberGroupSmtpAddresses.Add(groupSmtpAddress.Trim());
+            }
+
+            public void MarkAsGroup()
+            {
+                IsGroup = true;
             }
 
             public AddressBookContactDto ToDto(HashSet<string> selfAddresses)
@@ -387,6 +521,8 @@ namespace SmartOffice.Hub.Services
                     RelationKinds = _relationKinds.OrderBy(item => item).ToList(),
                     Sources = _sources.OrderBy(item => item).ToList(),
                     MemberSmtpAddresses = _memberSmtpAddresses.OrderBy(item => item).Take(50).ToList(),
+                    MemberGroupSmtpAddresses = _memberGroupSmtpAddresses.OrderBy(item => item).Take(50).ToList(),
+                    MemberOfGroupSmtpAddresses = _memberOfGroupSmtpAddresses.OrderBy(item => item).Take(50).ToList(),
                     FolderPaths = _folderPaths.OrderBy(item => item).Take(10).ToList(),
                     RecentMailIds = _recentMailIds.OrderByDescending(item => item.SeenAt).Select(item => item.Id).Distinct().Take(5).ToList(),
                     SampleSubjects = _sampleSubjects.OrderByDescending(item => item.SeenAt).Select(item => item.Subject).Distinct().Take(3).ToList(),
