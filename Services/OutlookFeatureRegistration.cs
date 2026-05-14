@@ -24,6 +24,7 @@ namespace SmartOffice.Hub.Services
             services.AddSingleton<OutlookFolderCacheService>();
             services.AddSingleton<OutlookFetchResultService>();
             services.AddSingleton<MockOutlookService>();
+            services.AddHostedService<OutlookAddressBookBackgroundSyncService>();
             return services;
         }
 

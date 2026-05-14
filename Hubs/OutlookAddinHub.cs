@@ -408,6 +408,24 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
+        public async Task PushAddressBookRoots(AddressBookRootsBatchDto batch)
+        {
+            batch ??= new AddressBookRootsBatchDto();
+            _mailStore.SetAddressBookRoots(batch);
+            _addinStatus.RecordPush("address book roots", batch.Roots.Count);
+            await _notifications.Clients.All.SendAsync("AddressBookRootsUpdated", batch);
+            await BroadcastStatusAndLogsAsync();
+        }
+
+        public async Task PushAddressBookListEntriesPage(AddressBookListEntriesPageDto page)
+        {
+            page ??= new AddressBookListEntriesPageDto();
+            _mailStore.SetAddressBookListEntriesPage(page);
+            _addinStatus.RecordPush("address list entries", page.Contacts.Count);
+            await _notifications.Clients.All.SendAsync("AddressBookListEntriesUpdated", page);
+            await BroadcastStatusAndLogsAsync();
+        }
+
         public async Task PushAddressBookGroupMembersBatch(AddressBookGroupMembersBatchDto batch)
         {
             batch ??= new AddressBookGroupMembersBatchDto();

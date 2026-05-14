@@ -18,6 +18,7 @@ namespace SmartOffice.Hub.Services
                 StoreKind = store.StoreKind,
                 StoreFilePath = store.StoreFilePath,
                 RootFolderPath = store.RootFolderPath,
+                AccountSmtpAddress = store.AccountSmtpAddress,
             };
         }
 

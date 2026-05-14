@@ -16,6 +16,11 @@ namespace SmartOffice.Hub.Services
 
         public IActionResult FetchResult(FetchResultRequest req, params string[] expectedTypes)
         {
+            return FetchResult(req, null, expectedTypes);
+        }
+
+        public IActionResult FetchResult(FetchResultRequest req, string? requestNameOverride, params string[] expectedTypes)
+        {
             req ??= new FetchResultRequest();
             if (string.IsNullOrWhiteSpace(req.RequestId))
                 return new BadRequestObjectResult(new { requestId = "", request = "", state = "failed", message = "requestId is required.", next = new FetchResultNext(), data = new { } });
@@ -30,20 +35,34 @@ namespace SmartOffice.Hub.Services
             var take = Math.Clamp(req.Take <= 0 ? 100 : req.Take, 1, 500);
             var offset = int.TryParse(req.Cursor, out var parsed) && parsed > 0 ? parsed : 0;
             var command = _commandResults.GetRequestCommand(req.RequestId);
-            var (data, next) = GetFetchResultData(status.Type, command, offset, take);
+            var (data, next) = GetFetchResultData(status.CommandId, status.Type, command, offset, take);
 
             return new OkObjectResult(new FetchResultResponse
             {
                 RequestId = status.CommandId,
-                Request = RequestName(status.Type),
+                Request = string.IsNullOrWhiteSpace(requestNameOverride) ? RequestName(status.Type) : requestNameOverride,
                 State = ResultState(status.Status),
-                Message = status.Message,
+                Message = string.Equals(requestNameOverride, "request-address-book", StringComparison.OrdinalIgnoreCase)
+                    ? AddressBookMessage(status.Status)
+                    : status.Message,
                 Next = next,
                 Data = data,
             });
         }
 
-        private (object Data, FetchResultNext Next) GetFetchResultData(string requestType, PendingCommand? command, int offset, int take)
+        private static string AddressBookMessage(string status)
+        {
+            return ResultState(status) switch
+            {
+                "completed" => "Address book data is ready.",
+                "running" => "Address book data is loading.",
+                "unavailable" => "Address book is currently unavailable.",
+                "timeout" => "Address book request timed out.",
+                _ => "Address book request failed.",
+            };
+        }
+
+        private (object Data, FetchResultNext Next) GetFetchResultData(string requestId, string requestType, PendingCommand? command, int offset, int take)
         {
             switch (requestType)
             {
@@ -162,6 +181,26 @@ namespace SmartOffice.Hub.Services
                     var page = Page(_mailStore.GetAddressBookContacts(take: 0), offset, take);
                     return (new { contacts = page.Items }, page.Next);
                 }
+                case "fetch_address_book_roots":
+                {
+                    var page = Page(_mailStore.GetAddressBookRoots(), offset, take);
+                    return (new { roots = page.Items }, page.Next);
+                }
+                case "fetch_address_list_entries":
+                {
+                    var result = _mailStore.GetAddressBookListEntriesPage(requestId);
+                    var nextOffset = result.Offset + result.Contacts.Count;
+                    return (new
+                    {
+                        addressListId = result.AddressListId,
+                        addressListName = result.AddressListName,
+                        offset = result.Offset,
+                        pageSize = result.PageSize,
+                        totalCount = result.TotalCount,
+                        hasMore = result.HasMore,
+                        contacts = result.Contacts,
+                    }, new FetchResultNext { Cursor = result.HasMore ? nextOffset.ToString() : string.Empty, HasMore = result.HasMore });
+                }
                 case "fetch_address_book_group_members":
                 {
                     var result = _mailStore.GetAddressBookGroupMembers(command?.AddressBookGroupMembersRequest ?? new AddressBookGroupMembersRequest());
@@ -175,6 +214,11 @@ namespace SmartOffice.Hub.Services
                         updatedAt = result.UpdatedAt,
                         members = page.Items,
                     }, page.Next);
+                }
+                case "address_book_relation_lookup":
+                {
+                    var result = _mailStore.GetAddressBookRelationLookup(command?.AddressBookRelationLookupRequest ?? new AddressBookRelationLookupRequest());
+                    return (result, new FetchResultNext());
                 }
                 default:
                     return (new { }, new FetchResultNext());
@@ -266,7 +310,11 @@ namespace SmartOffice.Hub.Services
                 "create_calendar_event" => "request-create-calendar-event",
                 "update_calendar_event" => "request-update-calendar-event",
                 "delete_calendar_event" => "request-delete-calendar-event",
+                "fetch_address_book_roots" => "request-address-book-roots",
+                "fetch_address_list_entries" => "request-address-list-entries",
                 "fetch_address_book" => "request-address-book",
+                "fetch_address_book_group_members" => "request-address-book-group-members",
+                "address_book_relation_lookup" => "request-address-book-relation",
                 "update_mail_properties" => "request-update-mail-properties",
                 "upsert_category" => "request-upsert-category",
                 "create_folder" => "request-create-folder",

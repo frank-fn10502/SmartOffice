@@ -4,25 +4,27 @@ namespace SmartOffice.Hub.Controllers
 {
     public partial class OutlookController
     {
-        private static object OperationAccepted(PendingCommand command, object? data = null)
+        private static object OperationAccepted(PendingCommand command, object? data = null, string? requestNameOverride = null)
         {
             return ResultEnvelope(
                 command.Id,
                 command.Type,
                 "accepted",
                 "Request accepted. Poll the paired fetch-result-* endpoint for state and data.",
-                data);
+                data,
+                requestNameOverride);
         }
 
-        private static object ResultEnvelope(string requestId, string commandType, string state, string message, object? data = null)
+        private static object ResultEnvelope(string requestId, string commandType, string state, string message, object? data = null, string? requestNameOverride = null)
         {
+            var requestName = string.IsNullOrWhiteSpace(requestNameOverride) ? RequestName(commandType) : requestNameOverride;
             return new
             {
                 requestId,
-                request = RequestName(commandType),
+                request = requestName,
                 state,
                 message,
-                data = ResultDataWithFetchEndpoint(commandType, data),
+                data = ResultDataWithFetchEndpoint(commandType, data, requestName),
             };
         }
 
@@ -38,11 +40,12 @@ namespace SmartOffice.Hub.Controllers
             };
         }
 
-        private static Dictionary<string, object?> ResultDataWithFetchEndpoint(string commandType, object? data)
+        private static Dictionary<string, object?> ResultDataWithFetchEndpoint(string commandType, object? data, string? requestNameOverride = null)
         {
+            var requestName = string.IsNullOrWhiteSpace(requestNameOverride) ? RequestName(commandType) : requestNameOverride;
             var result = new Dictionary<string, object?>
             {
-                ["fetchResultEndpoint"] = $"/api/outlook/{RequestName(commandType).Replace("request-", "fetch-result-")}",
+                ["fetchResultEndpoint"] = $"/api/outlook/{requestName.Replace("request-", "fetch-result-")}",
             };
             if (data is null) return result;
             foreach (var property in data.GetType().GetProperties())
@@ -83,8 +86,11 @@ namespace SmartOffice.Hub.Controllers
                 "create_calendar_event" => "request-create-calendar-event",
                 "update_calendar_event" => "request-update-calendar-event",
                 "delete_calendar_event" => "request-delete-calendar-event",
+                "fetch_address_book_roots" => "request-address-book-roots",
+                "fetch_address_list_entries" => "request-address-list-entries",
                 "fetch_address_book" => "request-address-book",
                 "fetch_address_book_group_members" => "request-address-book-group-members",
+                "address_book_relation_lookup" => "request-address-book-relation",
                 "update_mail_properties" => "request-update-mail-properties",
                 "upsert_category" => "request-upsert-category",
                 "create_folder" => "request-create-folder",

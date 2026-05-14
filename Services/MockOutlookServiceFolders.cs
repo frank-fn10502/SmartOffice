@@ -84,6 +84,7 @@ namespace SmartOffice.Hub.Services
                     StoreKind = store.StoreKind,
                     StoreFilePath = store.StoreFilePath,
                     RootFolderPath = store.RootFolderPath,
+                    AccountSmtpAddress = "mock.user@example.test",
                 }).ToList(),
                 Folders = CloneFolders(_mockFolders.Where(folder => folder.IsStoreRoot).ToList()),
             };
@@ -105,6 +106,7 @@ namespace SmartOffice.Hub.Services
                     StoreKind = store.StoreKind,
                     StoreFilePath = store.StoreFilePath,
                     RootFolderPath = store.RootFolderPath,
+                    AccountSmtpAddress = "mock.user@example.test",
                 }).ToList(),
                 Folders = CloneFolders(_mockFolders),
             };

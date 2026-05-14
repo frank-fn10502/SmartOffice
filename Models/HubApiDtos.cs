@@ -127,6 +127,22 @@
         public List<AddressBookContactDto> Contacts { get; set; } = new();
     }
 
+    public class AddressBookRootsResponse
+    {
+        public List<AddressBookRootDto> Roots { get; set; } = new();
+    }
+
+    public class AddressBookListEntriesResponse
+    {
+        public string AddressListId { get; set; } = string.Empty;
+        public string AddressListName { get; set; } = string.Empty;
+        public int Offset { get; set; }
+        public int PageSize { get; set; }
+        public int TotalCount { get; set; }
+        public bool HasMore { get; set; }
+        public List<AddressBookContactDto> Contacts { get; set; } = new();
+    }
+
     public class AddressBookLookupResponse
     {
         public string Query { get; set; } = string.Empty;

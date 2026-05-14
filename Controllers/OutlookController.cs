@@ -248,51 +248,6 @@ namespace SmartOffice.Hub.Controllers
             return await DispatchCommandAsync(cmd, ct);
         }
 
-        /// <summary>
-        /// Web UI、AI 或 MCP client 要求同步 Outlook address book。
-        /// </summary>
-        [HttpPost("request-address-book")]
-        public async Task<IActionResult> RequestAddressBook([FromBody] AddressBookSyncRequest? req, CancellationToken ct)
-        {
-            req ??= new AddressBookSyncRequest();
-            req.MaxContacts = req.MaxContacts <= 0 ? 0 : Math.Clamp(req.MaxContacts, 1, 5000);
-            req.MaxAddressEntriesPerList = req.MaxAddressEntriesPerList <= 0 ? 0 : Math.Clamp(req.MaxAddressEntriesPerList, 1, 2000);
-            req.MaxGroupMembers = req.MaxGroupMembers < 0 ? 0 : Math.Min(req.MaxGroupMembers, 500);
-            req.MaxGroupDepth = Math.Clamp(req.MaxGroupDepth < 0 ? 1 : req.MaxGroupDepth, 0, 3);
-
-            var cmd = new PendingCommand
-            {
-                Type = "fetch_address_book",
-                AddressBookRequest = req
-            };
-            return await DispatchCommandAsync(cmd, ct);
-        }
-
-        [HttpPost("request-address-book-group-members")]
-        public async Task<IActionResult> RequestAddressBookGroupMembers([FromBody] AddressBookGroupMembersRequest? req, CancellationToken ct)
-        {
-            req ??= new AddressBookGroupMembersRequest();
-            req.GroupId = req.GroupId?.Trim() ?? string.Empty;
-            req.GroupSmtpAddress = req.GroupSmtpAddress?.Trim() ?? string.Empty;
-            req.MaxMembers = req.MaxMembers <= 0 ? 0 : Math.Clamp(req.MaxMembers, 1, 5000);
-            if (string.IsNullOrWhiteSpace(req.GroupId) && string.IsNullOrWhiteSpace(req.GroupSmtpAddress))
-                return BadRequest(ErrorEnvelope("fetch_address_book_group_members", "missing_required_fields", "Missing required request field(s): groupId or groupSmtpAddress."));
-
-            var cached = _mailStore.GetAddressBookGroupMembers(req);
-            if (!req.ForceRefresh && cached.State == "completed")
-                return Ok(ResultEnvelope(cached.RequestId, "fetch_address_book_group_members", "completed", "Group members loaded from Hub cache.", cached));
-            if (cached.State == "loading")
-                return Ok(ResultEnvelope(cached.RequestId, "fetch_address_book_group_members", "running", "Group members are already loading.", cached));
-
-            var cmd = new PendingCommand
-            {
-                Type = "fetch_address_book_group_members",
-                AddressBookGroupMembersRequest = req
-            };
-            _mailStore.BeginAddressBookGroupExpansion(req, cmd.Id);
-            return await DispatchCommandAsync(cmd, ct);
-        }
-
         [HttpPost("request-update-mail-properties")]
         public async Task<IActionResult> RequestUpdateMailProperties([FromBody] MailPropertiesCommandRequest req, CancellationToken ct)
         {
@@ -452,7 +407,7 @@ namespace SmartOffice.Hub.Controllers
             });
         }
 
-        private Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct)
+        private Task<IActionResult> DispatchCommandAsync(PendingCommand cmd, CancellationToken ct, string? requestNameOverride = null)
         {
             OutlookFolderPathMapper.NormalizeRequest(cmd);
 
@@ -489,7 +444,7 @@ namespace SmartOffice.Hub.Controllers
                 return true;
             }, CancellationToken.None));
 
-            return Task.FromResult<IActionResult>(Ok(OperationAccepted(cmd)));
+            return Task.FromResult<IActionResult>(Ok(OperationAccepted(cmd, requestNameOverride: requestNameOverride)));
         }
 
         private (FetchMailsRequest Request, IActionResult? Error) BuildFetchMailsRequest(RequestMailsApiRequest req)
@@ -665,7 +620,31 @@ namespace SmartOffice.Hub.Controllers
         [HttpPost("fetch-result-address-book")]
         public IActionResult FetchResultAddressBook([FromBody] FetchResultRequest req)
         {
-            return FetchResult(req, "fetch_address_book");
+            return _fetchResults.FetchResult(
+                req,
+                "request-address-book",
+                "fetch_address_book",
+                "fetch_address_book_roots",
+                "fetch_address_list_entries",
+                "fetch_address_book_group_members");
+        }
+
+        [HttpPost("fetch-result-address-book-relation")]
+        public IActionResult FetchResultAddressBookRelation([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "address_book_relation_lookup");
+        }
+
+        [HttpPost("fetch-result-address-book-roots")]
+        public IActionResult FetchResultAddressBookRoots([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_address_book_roots");
+        }
+
+        [HttpPost("fetch-result-address-list-entries")]
+        public IActionResult FetchResultAddressListEntries([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_address_list_entries");
         }
 
         [HttpPost("fetch-result-address-book-group-members")]
@@ -743,6 +722,7 @@ namespace SmartOffice.Hub.Controllers
             return cmd.Type switch
             {
                 "fetch_folder_roots" => () => _mailStore.CountStoreRoots() > 0,
+                "fetch_address_book_roots" => () => _mailStore.GetAddressBookRoots().Count > 0,
                 "fetch_folder_children" when cmd.FolderDiscoveryRequest is not null => () =>
                     _mailStore.IsFolderChildrenLoaded(
                         cmd.FolderDiscoveryRequest.StoreId,

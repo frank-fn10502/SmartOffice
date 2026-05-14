@@ -62,6 +62,123 @@ namespace SmartOffice.Hub.Services
             return true;
         }
 
+        private async Task<bool> TryDispatchAddressBookRootsAsync(PendingCommand command, CancellationToken ct)
+        {
+            List<AddressBookContactDto> contacts;
+            lock (_lock)
+            {
+                EnsureSeeded();
+                contacts = BuildMockAddressBook(new AddressBookSyncRequest());
+                _addinStatus.RecordMockDispatch(command.Type);
+            }
+
+            await DelayMockAddressBookAsync(ct);
+
+            var roots = MockAddressBookRoots()
+                .Select(root => new AddressBookRootDto
+                {
+                    Id = root.Id,
+                    Name = root.Name,
+                    AddressListType = root.AddressListType,
+                    Source = root.Source,
+                    EntryCount = contacts.Count(contact => contact.Source == root.Source),
+                    CanPageEntries = true,
+                })
+                .ToList();
+            var batch = new AddressBookRootsBatchDto { RequestId = command.Id, Roots = roots };
+            _mailStore.SetAddressBookRoots(batch);
+            _addinStatus.RecordPush("mock address book roots", roots.Count);
+            await _notifications.Clients.All.SendAsync("AddressBookRootsUpdated", batch, ct);
+            return true;
+        }
+
+        private static List<MockAddressBookRoot> MockAddressBookRoots()
+        {
+            return new List<MockAddressBookRoot>
+            {
+                new MockAddressBookRoot
+                {
+                    Id = "mock-global-address-list",
+                    Name = "Global Address List",
+                    AddressListType = "olExchangeGlobalAddressList",
+                    Source = "global_address_list",
+                },
+                new MockAddressBookRoot
+                {
+                    Id = "mock-offline-address-book",
+                    Name = "Offline Address Book",
+                    AddressListType = "olCustomAddressList",
+                    Source = "offline_address_book",
+                },
+                new MockAddressBookRoot
+                {
+                    Id = "mock-official-contacts",
+                    Name = "Contacts",
+                    AddressListType = "olOutlookAddressList",
+                    Source = "official_contacts",
+                },
+                new MockAddressBookRoot
+                {
+                    Id = "mock-project-directory",
+                    Name = "Project Directory",
+                    AddressListType = "olCustomAddressList",
+                    Source = "project_directory",
+                },
+                new MockAddressBookRoot
+                {
+                    Id = "mock-room-resources",
+                    Name = "Rooms and Resources",
+                    AddressListType = "olCustomAddressList",
+                    Source = "room_resources",
+                },
+            };
+        }
+
+        private async Task<bool> TryDispatchAddressListEntriesAsync(PendingCommand command, CancellationToken ct)
+        {
+            var request = command.AddressBookListEntriesRequest ?? new AddressBookListEntriesRequest();
+            List<AddressBookContactDto> contacts;
+            lock (_lock)
+            {
+                EnsureSeeded();
+                contacts = BuildMockAddressBook(new AddressBookSyncRequest());
+                _addinStatus.RecordMockDispatch(command.Type);
+            }
+
+            var source = string.Equals(request.AddressListId, "mock-offline-address-book", StringComparison.OrdinalIgnoreCase)
+                ? "offline_address_book"
+                : string.Equals(request.AddressListId, "mock-official-contacts", StringComparison.OrdinalIgnoreCase)
+                    ? "official_contacts"
+                : string.Equals(request.AddressListId, "mock-project-directory", StringComparison.OrdinalIgnoreCase)
+                    ? "project_directory"
+                : string.Equals(request.AddressListId, "mock-room-resources", StringComparison.OrdinalIgnoreCase)
+                    ? "room_resources"
+                : "global_address_list";
+            var all = contacts
+                .Where(contact => string.Equals(contact.Source, source, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(contact => contact.DisplayName)
+                .ThenBy(contact => contact.SmtpAddress)
+                .ToList();
+            var pageSize = Math.Clamp(request.PageSize <= 0 ? 100 : request.PageSize, 1, 500);
+            var offset = Math.Clamp(request.Offset, 0, all.Count);
+            var page = new AddressBookListEntriesPageDto
+            {
+                RequestId = command.Id,
+                AddressListId = request.AddressListId,
+                AddressListName = request.AddressListName,
+                Offset = offset,
+                PageSize = pageSize,
+                TotalCount = all.Count,
+                HasMore = offset + pageSize < all.Count,
+                Contacts = all.Skip(offset).Take(pageSize).ToList(),
+            };
+            await DelayMockAddressBookAsync(ct);
+            _mailStore.SetAddressBookListEntriesPage(page);
+            _addinStatus.RecordPush("mock address list entries", page.Contacts.Count);
+            await _notifications.Clients.All.SendAsync("AddressBookListEntriesUpdated", page, ct);
+            return true;
+        }
+
         private async Task<bool> TryDispatchAddressBookGroupMembersAsync(PendingCommand command, CancellationToken ct)
         {
             var request = command.AddressBookGroupMembersRequest ?? new AddressBookGroupMembersRequest();
@@ -89,23 +206,104 @@ namespace SmartOffice.Hub.Services
                     ?? MockContact("mock-member-" + key, key, key, "Unknown", "Member", "group_member"))
                 .ToList();
 
-            var batch = new AddressBookGroupMembersBatchDto
+            var batchSize = MockAddressBookGroupMemberBatchSize();
+            var delayMs = MockAddressBookDelayMs();
+            var batchId = Guid.NewGuid().ToString("N");
+            var chunks = members.Chunk(batchSize).Select(chunk => chunk.ToList()).ToList();
+            if (chunks.Count == 0) chunks.Add(new List<AddressBookContactDto>());
+            for (var index = 0; index < chunks.Count; index++)
             {
-                GroupId = request.GroupId,
-                GroupSmtpAddress = request.GroupSmtpAddress,
-                BatchId = Guid.NewGuid().ToString("N"),
-                Sequence = 1,
-                Reset = true,
-                IsFinal = true,
-                TotalCount = memberKeys.Count,
-                Members = members,
-            };
-            _mailStore.ApplyAddressBookGroupMembersBatch(batch);
-            _addinStatus.RecordPush("mock address book group members", batch.Members.Count);
-            await _notifications.Clients.All.SendAsync("AddressBookGroupMembersBatchUpdated", batch, ct);
+                if (delayMs > 0) await Task.Delay(delayMs, ct);
+                var batch = new AddressBookGroupMembersBatchDto
+                {
+                    GroupId = request.GroupId,
+                    GroupSmtpAddress = request.GroupSmtpAddress,
+                    BatchId = batchId,
+                    Sequence = index + 1,
+                    Reset = index == 0,
+                    IsFinal = index == chunks.Count - 1,
+                    TotalCount = memberKeys.Count,
+                    Members = chunks[index],
+                };
+                _mailStore.ApplyAddressBookGroupMembersBatch(batch);
+                _addinStatus.RecordPush("mock address book group members", batch.Members.Count);
+                await _notifications.Clients.All.SendAsync("AddressBookGroupMembersBatchUpdated", batch, ct);
+            }
             if (groupKey.Length > 0)
                 _addinStatus.AddLog("info", $"Mock expanded address book group: {groupKey}");
             return true;
+        }
+
+        private async Task<bool> TryDispatchAddressBookRelationLookupAsync(PendingCommand command, CancellationToken ct)
+        {
+            var request = command.AddressBookRelationLookupRequest ?? new AddressBookRelationLookupRequest();
+            List<AddressBookContactDto> contacts;
+            lock (_lock)
+            {
+                EnsureSeeded();
+                contacts = BuildMockAddressBook(new AddressBookSyncRequest());
+                _addinStatus.RecordMockDispatch(command.Type);
+            }
+
+            await DelayMockAddressBookAsync(ct);
+            var target = FindMockRelationTarget(contacts, request);
+            if (target == null) return true;
+
+            var related = new List<AddressBookContactDto> { target };
+            if (target.IsGroup)
+            {
+                related.AddRange(MockGroupMembers(contacts, target, request.Take));
+                related.AddRange(MockContainingGroups(contacts, target.SmtpAddress, request.Take));
+            }
+            else
+            {
+                related.AddRange(MockContainingGroups(contacts, target.SmtpAddress, request.Take));
+            }
+
+            var batch = new AddressBookBatchDto
+            {
+                BatchId = Guid.NewGuid().ToString("N"),
+                Sequence = 1,
+                Reset = false,
+                IsFinal = true,
+                TotalCount = related.Count,
+                Contacts = related
+                    .Where(contact => contact != null)
+                    .GroupBy(contact => NormalizeMockKey(contact.SmtpAddress, contact.Id, contact.DisplayName), StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .ToList(),
+            };
+            _mailStore.ApplyAddressBookBatch(batch);
+            _addinStatus.RecordPush("mock address book relation", batch.Contacts.Count);
+            await _notifications.Clients.All.SendAsync("AddressBookBatchUpdated", batch, ct);
+
+            if (target.IsGroup)
+            {
+                var members = MockGroupMembers(contacts, target, request.Take).ToList();
+                var memberBatch = new AddressBookGroupMembersBatchDto
+                {
+                    GroupId = target.Id,
+                    GroupSmtpAddress = target.SmtpAddress,
+                    BatchId = Guid.NewGuid().ToString("N"),
+                    Sequence = 1,
+                    Reset = true,
+                    IsFinal = true,
+                    TotalCount = members.Count,
+                    Members = members,
+                };
+                _mailStore.ApplyAddressBookGroupMembersBatch(memberBatch);
+                await _notifications.Clients.All.SendAsync("AddressBookGroupMembersBatchUpdated", memberBatch, ct);
+            }
+
+            await _notifications.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), ct);
+            await _notifications.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), ct);
+            return true;
+        }
+
+        private static Task DelayMockAddressBookAsync(CancellationToken ct)
+        {
+            var delayMs = MockAddressBookDelayMs();
+            return delayMs > 0 ? Task.Delay(delayMs, ct) : Task.CompletedTask;
         }
 
         private static int MockAddressBookDelayMs()
@@ -124,10 +322,86 @@ namespace SmartOffice.Hub.Services
                 : 25;
         }
 
+        private static int MockAddressBookGroupMemberBatchSize()
+        {
+            var raw = Environment.GetEnvironmentVariable("SMARTOFFICE_MOCK_ADDRESS_BOOK_GROUP_BATCH_SIZE");
+            return int.TryParse(raw, out var batchSize)
+                ? Math.Clamp(batchSize, 1, 100)
+                : 20;
+        }
+
+        private static AddressBookContactDto? FindMockRelationTarget(List<AddressBookContactDto> contacts, AddressBookRelationLookupRequest request)
+        {
+            var groupKey = NormalizeMockKey(request.GroupSmtpAddress);
+            if (!string.IsNullOrWhiteSpace(groupKey))
+            {
+                var group = contacts.FirstOrDefault(contact => contact.IsGroup && NormalizeMockKey(contact.SmtpAddress) == groupKey);
+                if (group != null) return group;
+            }
+
+            var id = NormalizeMockKey(request.GroupId, request.Id);
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                var byId = contacts.FirstOrDefault(contact => NormalizeMockKey(contact.Id) == id);
+                if (byId != null) return byId;
+            }
+
+            var email = NormalizeMockKey(request.SmtpAddress, request.Email);
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                var byEmail = contacts.FirstOrDefault(contact => NormalizeMockKey(contact.SmtpAddress) == email);
+                if (byEmail != null) return byEmail;
+            }
+
+            var query = NormalizeMockKey(request.Query, request.DisplayName);
+            if (string.IsNullOrWhiteSpace(query)) return null;
+            return contacts.FirstOrDefault(contact =>
+                NormalizeMockKey(contact.SmtpAddress) == query
+                || NormalizeMockKey(contact.DisplayName) == query)
+                ?? contacts.FirstOrDefault(contact =>
+                    NormalizeMockKey(contact.SmtpAddress).Contains(query)
+                    || NormalizeMockKey(contact.DisplayName).Contains(query));
+        }
+
+        private static IEnumerable<AddressBookContactDto> MockGroupMembers(List<AddressBookContactDto> contacts, AddressBookContactDto group, int take)
+        {
+            var limit = Math.Clamp(take <= 0 ? 50 : take, 1, 500);
+            return (group.MemberSmtpAddresses ?? new List<string>())
+                .Take(limit)
+                .Select(member => contacts.FirstOrDefault(contact => string.Equals(contact.SmtpAddress, member, StringComparison.OrdinalIgnoreCase))
+                    ?? MockContact("mock-member-" + member, member, member, "Unknown", "Member", "group_member"));
+        }
+
+        private static IEnumerable<AddressBookContactDto> MockContainingGroups(List<AddressBookContactDto> contacts, string smtpAddress, int take)
+        {
+            var key = NormalizeMockKey(smtpAddress);
+            if (string.IsNullOrWhiteSpace(key)) return Enumerable.Empty<AddressBookContactDto>();
+            var limit = Math.Clamp(take <= 0 ? 50 : take, 1, 500);
+            return contacts
+                .Where(contact => contact.IsGroup
+                    && (contact.MemberSmtpAddresses ?? new List<string>()).Any(member => NormalizeMockKey(member) == key))
+                .Take(limit);
+        }
+
+        private static string NormalizeMockKey(params string[] values)
+        {
+            return values
+                .Select(value => (value ?? string.Empty).Trim().Trim('<', '>').ToLowerInvariant())
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+        }
+
+        private static int MockAddressBookContactTarget()
+        {
+            var raw = Environment.GetEnvironmentVariable("SMARTOFFICE_MOCK_ADDRESS_BOOK_CONTACT_TARGET");
+            return int.TryParse(raw, out var target)
+                ? Math.Clamp(target, 50, 5000)
+                : 900;
+        }
+
         private List<AddressBookContactDto> BuildMockAddressBook(AddressBookSyncRequest? request)
         {
             request ??= new AddressBookSyncRequest();
-            var max = request.MaxContacts <= 0 ? 0 : Math.Clamp(request.MaxContacts, 1, 5000);
+            var max = Math.Clamp(request.MaxContacts <= 0 ? MockAddressBookContactTarget() : request.MaxContacts, 1, 5000);
             var contacts = new List<AddressBookContactDto>
             {
                 MockContact("mock-contact-001", "Ada Chen", "ada.chen@example.test", "Product", "Product Manager", "global_address_list"),
@@ -142,6 +416,7 @@ namespace SmartOffice.Hub.Services
                 MockContact("mock-contact-010", "Jacky Lee", "jacky.lee@example.test", "Security", "Security Analyst", "global_address_list"),
                 MockContact("mock-contact-011", "Finance Bot", "finance@example.test", "Finance", "Shared mailbox", "global_address_list"),
                 MockContact("mock-contact-012", "Helpdesk", "helpdesk@example.test", "IT", "Shared mailbox", "global_address_list"),
+                MockContact("mock-contact-self", "Mock User", "mock.user@example.test", "Operations", "Current user", "global_address_list"),
                 MockContact("mock-contact-013", "Vendor Team", "vendor@example.test", "Procurement", "Vendor contact", "official_contacts"),
                 MockContact("mock-contact-014", "Mina Park", "mina.park@vendor.example.test", "Partner", "Partner Manager", "official_contacts"),
                 MockContact("mock-contact-015", "Noah Sato", "noah.sato@vendor.example.test", "Partner Support", "Support Lead", "official_contacts"),
@@ -149,6 +424,46 @@ namespace SmartOffice.Hub.Services
                 MockContact("mock-contact-017", "Pierre Martin", "pierre.martin@customer.example.test", "Customer", "Technical Lead", "official_contacts"),
                 MockContact("mock-contact-018", "Sam Chen", "sam.chen@example.test", "Product", "Designer", "offline_address_book"),
                 MockContact("mock-contact-019", "Sam Chen", "sam.chen.contractor@partner.example.test", "Partner", "Contract Designer", "offline_address_book"),
+                MockContact("mock-contact-020", "North Conference Room", "room-north@example.test", "Facilities", "Room mailbox", "room_resources"),
+                MockContact("mock-contact-021", "South Conference Room", "room-south@example.test", "Facilities", "Room mailbox", "room_resources"),
+                MockContact("mock-contact-022", "War Room", "room-war@example.test", "Facilities", "Room mailbox", "room_resources"),
+                MockContact("mock-contact-023", "Release Calendar", "release.calendar@example.test", "Engineering", "Shared calendar", "project_directory"),
+                MockContact("mock-contact-024", "Launch Program Mailbox", "launch-program@example.test", "Product", "Shared mailbox", "project_directory"),
+                MockContact("mock-contact-025", "Support Queue", "support-queue@example.test", "Customer Success", "Shared mailbox", "project_directory"),
+            };
+
+            var departments = new[]
+            {
+                "Engineering",
+                "Product",
+                "Finance",
+                "Legal",
+                "Operations",
+                "Sales",
+                "Security",
+                "People",
+                "Customer Success",
+                "Facilities",
+            };
+            var sources = new[] { "global_address_list", "offline_address_book", "official_contacts", "project_directory", "room_resources" };
+            var target = Math.Min(max, MockAddressBookContactTarget());
+            var groupCount = 12;
+            var generatedContactTarget = Math.Max(contacts.Count, target - groupCount);
+            for (var index = contacts.Count + 1; contacts.Count < generatedContactTarget; index++)
+            {
+                var department = departments[index % departments.Length];
+                var source = sources[index % sources.Length];
+                contacts.Add(MockContact(
+                    $"mock-contact-{index:0000}",
+                    $"Mock User {index:0000}",
+                    $"mock.user.{index:0000}@example.test",
+                    department,
+                    $"{department} Specialist",
+                    source));
+            }
+
+            contacts.AddRange(new[]
+            {
                 MockGroup(
                     "mock-group-001",
                     "Product Launch Working Group",
@@ -157,7 +472,11 @@ namespace SmartOffice.Hub.Services
                     "global_address_list",
                     "ada.chen@example.test",
                     "chris.wang@example.test",
-                    "sam.chen@example.test"),
+                    "sam.chen@example.test",
+                    "launch-program@example.test",
+                    "mock.user.0036@example.test",
+                    "mock.user.0041@example.test",
+                    "mock.user.0046@example.test"),
                 MockGroup(
                     "mock-group-002",
                     "Finance Approvers",
@@ -189,7 +508,8 @@ namespace SmartOffice.Hub.Services
                     "grace.huang@example.test",
                     "henry.kao@example.test",
                     "ivy.lin@example.test",
-                    "jacky.lee@example.test"),
+                    "jacky.lee@example.test",
+                    "mock.user@example.test"),
                 MockGroup(
                     "mock-group-005",
                     "Executive Review Circle",
@@ -199,33 +519,80 @@ namespace SmartOffice.Hub.Services
                     "product-launch@example.test",
                     "finance-approvers@example.test",
                     "olivia.brown@customer.example.test"),
-            };
+                MockGroup(
+                    "mock-group-006",
+                    "Taipei Operations Inner Circle",
+                    "taipei-ops-inner@example.test",
+                    "Operations",
+                    "project_directory",
+                    "all-taipei@example.test",
+                    "release-command@example.test",
+                    "mock.user.0051@example.test",
+                    "mock.user.0056@example.test"),
+                MockGroup(
+                    "mock-group-007",
+                    "Release Command",
+                    "release-command@example.test",
+                    "Engineering",
+                    "project_directory",
+                    "mock.user@example.test",
+                    "mock.user.0061@example.test",
+                    "mock.user.0066@example.test",
+                    "mock.user.0071@example.test",
+                    "room-war@example.test"),
+                MockGroup(
+                    "mock-group-008",
+                    "Customer Escalation Bridge",
+                    "customer-escalation@example.test",
+                    "Customer Success",
+                    "global_address_list",
+                    "support-queue@example.test",
+                    "vendor-escalation@example.test",
+                    "mock.user.0076@example.test",
+                    "mock.user.0081@example.test"),
+                MockGroup(
+                    "mock-group-009",
+                    "Nested Loop Alpha",
+                    "nested-loop-alpha@example.test",
+                    "Engineering",
+                    "offline_address_book",
+                    "nested-loop-beta@example.test",
+                    "mock.user.0086@example.test"),
+                MockGroup(
+                    "mock-group-010",
+                    "Nested Loop Beta",
+                    "nested-loop-beta@example.test",
+                    "Engineering",
+                    "offline_address_book",
+                    "nested-loop-alpha@example.test",
+                    "mock.user.0091@example.test"),
+                MockGroup(
+                    "mock-group-011",
+                    "Facilities Booking Group",
+                    "facilities-booking@example.test",
+                    "Facilities",
+                    "room_resources",
+                    "room-north@example.test",
+                    "room-south@example.test",
+                    "room-war@example.test",
+                    "mock.user.0096@example.test"),
+                MockGroup(
+                    "mock-group-012",
+                    "All Mock Staff",
+                    "all-mock-staff@example.test",
+                    "Operations",
+                    "global_address_list",
+                    "all-taipei@example.test",
+                    "product-launch@example.test",
+                    "finance-approvers@example.test",
+                    "customer-escalation@example.test",
+                    "facilities-booking@example.test",
+                    "mock.user.0101@example.test",
+                    "mock.user.0106@example.test",
+                    "mock.user.0111@example.test"),
+            });
 
-            var departments = new[]
-            {
-                "Engineering",
-                "Product",
-                "Finance",
-                "Legal",
-                "Operations",
-                "Sales",
-                "Security",
-                "People",
-            };
-            var target = max > 0 ? Math.Min(max, 200) : 200;
-            for (var index = contacts.Count + 1; contacts.Count < target; index++)
-            {
-                var department = departments[index % departments.Length];
-                contacts.Add(MockContact(
-                    $"mock-contact-{index:000}",
-                    $"Mock User {index:000}",
-                    $"mock.user.{index:000}@example.test",
-                    department,
-                    $"{department} Specialist",
-                    index % 3 == 0 ? "offline_address_book" : "global_address_list"));
-            }
-
-            return max > 0 ? contacts.Take(max).ToList() : contacts;
+            return contacts.Take(max).ToList();
         }
 
         private static AddressBookContactDto MockContact(string id, string name, string email, string department, string jobTitle, string source)
@@ -262,8 +629,30 @@ namespace SmartOffice.Hub.Services
             contact.IsGroup = true;
             contact.MemberCount = members.Length;
             contact.MemberSmtpAddresses = members.ToList();
-            contact.MemberGroupSmtpAddresses = members.Where(member => member.EndsWith("-approvers@example.test") || member.EndsWith("-launch@example.test")).ToList();
+            contact.MemberGroupSmtpAddresses = members
+                .Where(member => member.Contains("-group", StringComparison.OrdinalIgnoreCase)
+                    || member.EndsWith("-approvers@example.test", StringComparison.OrdinalIgnoreCase)
+                    || member.EndsWith("-launch@example.test", StringComparison.OrdinalIgnoreCase)
+                    || member.EndsWith("-list@example.test", StringComparison.OrdinalIgnoreCase)
+                    || member.EndsWith("-staff@example.test", StringComparison.OrdinalIgnoreCase)
+                    || member.EndsWith("-circle@example.test", StringComparison.OrdinalIgnoreCase)
+                    || member.EndsWith("-command@example.test", StringComparison.OrdinalIgnoreCase)
+                    || member.EndsWith("-bridge@example.test", StringComparison.OrdinalIgnoreCase)
+                    || member.StartsWith("nested-loop-", StringComparison.OrdinalIgnoreCase)
+                    || member.StartsWith("all-", StringComparison.OrdinalIgnoreCase)
+                    || member.StartsWith("facilities-", StringComparison.OrdinalIgnoreCase)
+                    || member.StartsWith("vendor-escalation", StringComparison.OrdinalIgnoreCase)
+                    || member.StartsWith("customer-escalation", StringComparison.OrdinalIgnoreCase))
+                .ToList();
             return contact;
+        }
+
+        private sealed class MockAddressBookRoot
+        {
+            public string Id { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
+            public string AddressListType { get; set; } = string.Empty;
+            public string Source { get; set; } = string.Empty;
         }
     }
 }

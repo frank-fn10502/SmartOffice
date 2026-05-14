@@ -6,6 +6,8 @@ namespace SmartOffice.Hub.Services
     {
         private List<AddressBookContactDto> _addressBookContacts = new();
         private readonly Dictionary<string, AddressBookGroupExpansionState> _addressBookGroupExpansions = new(StringComparer.OrdinalIgnoreCase);
+        private List<AddressBookRootDto> _addressBookRoots = new();
+        private readonly Dictionary<string, AddressBookListEntriesPageDto> _addressBookListEntriesByRequestId = new(StringComparer.OrdinalIgnoreCase);
 
         public void SetAddressBookContacts(List<AddressBookContactDto> contacts)
         {
@@ -317,20 +319,6 @@ namespace SmartOffice.Hub.Services
             }
         }
 
-        private HashSet<string> InferSelfAddresses()
-        {
-            var sentFolders = _folders
-                .Where(folder => folder.FolderType == OutlookFolderType.Sent)
-                .Select(folder => folder.FolderPath)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            return _mails
-                .Where(mail => sentFolders.Contains(mail.FolderPath))
-                .Select(mail => NormalizeEmail(mail.Sender.SmtpAddress))
-                .Where(email => !string.IsNullOrWhiteSpace(email))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        }
-
         private static void AddMailRecipients(
             Dictionary<string, AddressBookAccumulator> contacts,
             IEnumerable<OutlookRecipientDto> recipients,
@@ -508,6 +496,7 @@ namespace SmartOffice.Hub.Services
                 Domain = contact.Domain,
                 IsKnown = contact.IsKnown,
                 IsLikelySelf = contact.IsLikelySelf,
+                IsRelatedToSelf = contact.IsRelatedToSelf,
                 IsGroup = contact.IsGroup,
                 MemberCount = contact.MemberCount,
                 GroupMembersLoaded = contact.GroupMembersLoaded,
@@ -570,6 +559,12 @@ namespace SmartOffice.Hub.Services
                 };
             }
 
+            var contactsByKey = BuildAddressBookContacts()
+                .SelectMany(contact => ContactKeys(contact).Select(key => (Key: key, Contact: contact)))
+                .Where(item => !string.IsNullOrWhiteSpace(item.Key))
+                .GroupBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().Contact, StringComparer.OrdinalIgnoreCase);
+
             return new AddressBookGroupMembersResponse
             {
                 State = state.State,
@@ -582,7 +577,7 @@ namespace SmartOffice.Hub.Services
                 Members = state.Members.Values
                     .OrderBy(member => member.DisplayName)
                     .ThenBy(member => member.SmtpAddress)
-                    .Select(CloneAddressBookContact)
+                    .Select(member => TryGetEnrichedAddressBookContact(member, contactsByKey))
                     .ToList(),
             };
         }
@@ -737,6 +732,9 @@ namespace SmartOffice.Hub.Services
                     Domain = EmailDomain(SmtpAddress),
                     IsKnown = MailCount > 0 || CalendarCount > 0 || _sources.Count > 0,
                     IsLikelySelf = !string.IsNullOrWhiteSpace(normalizedEmail) && selfAddresses.Contains(normalizedEmail),
+                    IsRelatedToSelf = IsGroup
+                        ? _memberSmtpAddresses.Select(NormalizeEmail).Any(email => !string.IsNullOrWhiteSpace(email) && selfAddresses.Contains(email))
+                        : !string.IsNullOrWhiteSpace(normalizedEmail) && selfAddresses.Contains(normalizedEmail),
                     IsGroup = IsGroup,
                     MemberCount = Math.Max(MemberCount, _memberSmtpAddresses.Count),
                     RelationScore = SenderCount * 4 + RecipientCount * 3 + OrganizerCount * 4 + AttendeeCount * 2 + GroupMemberCount + MailCount + CalendarCount + (_sources.Count > 0 ? 5 : 0),

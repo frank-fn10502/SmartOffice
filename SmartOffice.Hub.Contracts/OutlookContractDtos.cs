@@ -107,6 +107,7 @@ namespace SmartOffice.Hub.Contracts
         public string StoreKind { get; set; } = string.Empty;
         public string StoreFilePath { get; set; } = string.Empty;
         public string RootFolderPath { get; set; } = string.Empty;
+        public string AccountSmtpAddress { get; set; } = string.Empty;
     }
 
     public class FolderSnapshotDto
@@ -242,6 +243,7 @@ namespace SmartOffice.Hub.Contracts
         public string Domain { get; set; } = string.Empty;
         public bool IsKnown { get; set; }
         public bool IsLikelySelf { get; set; }
+        public bool IsRelatedToSelf { get; set; }
         public bool IsGroup { get; set; }
         public int MemberCount { get; set; }
         public bool GroupMembersLoaded { get; set; }
@@ -272,10 +274,17 @@ namespace SmartOffice.Hub.Contracts
     {
         public bool IncludeOutlookContacts { get; set; } = true;
         public bool IncludeAddressLists { get; set; } = true;
-        public int MaxContacts { get; set; } = 0;
-        public int MaxAddressEntriesPerList { get; set; } = 0;
+        public int MaxContacts { get; set; } = 5000;
+        public int MaxAddressEntriesPerList { get; set; } = 2000;
         public int MaxGroupMembers { get; set; } = 0;
         public int MaxGroupDepth { get; set; } = 1;
+        public string AddressListId { get; set; } = string.Empty;
+        public string AddressListName { get; set; } = string.Empty;
+        public int Offset { get; set; }
+        public int PageSize { get; set; } = 100;
+        public string GroupId { get; set; } = string.Empty;
+        public string GroupSmtpAddress { get; set; } = string.Empty;
+        public bool ForceRefresh { get; set; }
     }
 
     public class AddressBookBatchDto
@@ -285,6 +294,42 @@ namespace SmartOffice.Hub.Contracts
         public bool Reset { get; set; }
         public bool IsFinal { get; set; }
         public int TotalCount { get; set; }
+        public List<AddressBookContactDto> Contacts { get; set; } = new List<AddressBookContactDto>();
+    }
+
+    public class AddressBookRootDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string AddressListType { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+        public int EntryCount { get; set; }
+        public bool CanPageEntries { get; set; } = true;
+    }
+
+    public class AddressBookRootsBatchDto
+    {
+        public string RequestId { get; set; } = string.Empty;
+        public List<AddressBookRootDto> Roots { get; set; } = new List<AddressBookRootDto>();
+    }
+
+    public class AddressBookListEntriesRequest
+    {
+        public string AddressListId { get; set; } = string.Empty;
+        public string AddressListName { get; set; } = string.Empty;
+        public int Offset { get; set; }
+        public int PageSize { get; set; } = 100;
+    }
+
+    public class AddressBookListEntriesPageDto
+    {
+        public string RequestId { get; set; } = string.Empty;
+        public string AddressListId { get; set; } = string.Empty;
+        public string AddressListName { get; set; } = string.Empty;
+        public int Offset { get; set; }
+        public int PageSize { get; set; }
+        public int TotalCount { get; set; }
+        public bool HasMore { get; set; }
         public List<AddressBookContactDto> Contacts { get; set; } = new List<AddressBookContactDto>();
     }
 
@@ -306,6 +351,38 @@ namespace SmartOffice.Hub.Contracts
         public bool IsFinal { get; set; }
         public int TotalCount { get; set; }
         public List<AddressBookContactDto> Members { get; set; } = new List<AddressBookContactDto>();
+    }
+
+    public class AddressBookRelationLookupRequest
+    {
+        public string Query { get; set; } = string.Empty;
+        public string TargetKind { get; set; } = string.Empty;
+        public string Id { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string SmtpAddress { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string GroupId { get; set; } = string.Empty;
+        public string GroupSmtpAddress { get; set; } = string.Empty;
+        public int Take { get; set; } = 50;
+    }
+
+    public class AddressBookRelationLookupResponse
+    {
+        public string Query { get; set; } = string.Empty;
+        public string TargetKind { get; set; } = string.Empty;
+        public string State { get; set; } = "unknown";
+        public string Message { get; set; } = string.Empty;
+        public AddressBookContactDto Target { get; set; }
+        public List<AddressBookContactDto> Matches { get; set; } = new List<AddressBookContactDto>();
+        public List<AddressBookContactDto> Members { get; set; } = new List<AddressBookContactDto>();
+        public List<AddressBookContactDto> MemberGroups { get; set; } = new List<AddressBookContactDto>();
+        public List<AddressBookContactDto> MemberOfGroups { get; set; } = new List<AddressBookContactDto>();
+        public List<AddressBookContactDto> ContainingGroups { get; set; } = new List<AddressBookContactDto>();
+        public bool IsGroup { get; set; }
+        public bool IsLikelySelf { get; set; }
+        public bool IsRelatedToSelf { get; set; }
+        public bool GroupMembersLoaded { get; set; }
+        public bool GroupMembersLoading { get; set; }
     }
 
     public class AddinLogEntry
