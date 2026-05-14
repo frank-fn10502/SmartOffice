@@ -174,9 +174,9 @@ export function useOutlookCalendarController(options: CalendarControllerOptions)
     const response = await outlookApi.requestAddressBook({
       includeOutlookContacts: true,
       includeAddressLists: true,
-      maxContacts: 1000,
-      maxAddressEntriesPerList: 500,
-      maxGroupMembers: 50,
+      maxContacts: 0,
+      maxAddressEntriesPerList: 0,
+      maxGroupMembers: 0,
       maxGroupDepth: 1,
     })
     await waitForRequest(response, 120000)

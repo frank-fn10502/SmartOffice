@@ -62,6 +62,52 @@ namespace SmartOffice.Hub.Services
             return true;
         }
 
+        private async Task<bool> TryDispatchAddressBookGroupMembersAsync(PendingCommand command, CancellationToken ct)
+        {
+            var request = command.AddressBookGroupMembersRequest ?? new AddressBookGroupMembersRequest();
+            List<AddressBookContactDto> contacts;
+            lock (_lock)
+            {
+                EnsureSeeded();
+                contacts = BuildMockAddressBook(new AddressBookSyncRequest());
+            }
+
+            var groupKey = (request.GroupSmtpAddress ?? string.Empty).Trim().ToLowerInvariant();
+            var group = contacts.FirstOrDefault(contact =>
+                contact.IsGroup
+                && (string.Equals(contact.SmtpAddress, request.GroupSmtpAddress, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(contact.Id, request.GroupId, StringComparison.OrdinalIgnoreCase)));
+            var memberKeys = (group?.MemberSmtpAddresses ?? new List<string>())
+                .Select(key => key.Trim())
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var max = request.MaxMembers <= 0 ? memberKeys.Count : Math.Min(request.MaxMembers, memberKeys.Count);
+            var members = memberKeys
+                .Take(max)
+                .Select(key => contacts.FirstOrDefault(contact => string.Equals(contact.SmtpAddress, key, StringComparison.OrdinalIgnoreCase))
+                    ?? MockContact("mock-member-" + key, key, key, "Unknown", "Member", "group_member"))
+                .ToList();
+
+            var batch = new AddressBookGroupMembersBatchDto
+            {
+                GroupId = request.GroupId,
+                GroupSmtpAddress = request.GroupSmtpAddress,
+                BatchId = Guid.NewGuid().ToString("N"),
+                Sequence = 1,
+                Reset = true,
+                IsFinal = true,
+                TotalCount = memberKeys.Count,
+                Members = members,
+            };
+            _mailStore.ApplyAddressBookGroupMembersBatch(batch);
+            _addinStatus.RecordPush("mock address book group members", batch.Members.Count);
+            await _notifications.Clients.All.SendAsync("AddressBookGroupMembersBatchUpdated", batch, ct);
+            if (groupKey.Length > 0)
+                _addinStatus.AddLog("info", $"Mock expanded address book group: {groupKey}");
+            return true;
+        }
+
         private static int MockAddressBookDelayMs()
         {
             var raw = Environment.GetEnvironmentVariable("SMARTOFFICE_MOCK_ADDRESS_BOOK_DELAY_MS");
@@ -81,7 +127,7 @@ namespace SmartOffice.Hub.Services
         private List<AddressBookContactDto> BuildMockAddressBook(AddressBookSyncRequest? request)
         {
             request ??= new AddressBookSyncRequest();
-            var max = Math.Clamp(request.MaxContacts <= 0 ? 1000 : request.MaxContacts, 1, 5000);
+            var max = request.MaxContacts <= 0 ? 0 : Math.Clamp(request.MaxContacts, 1, 5000);
             var contacts = new List<AddressBookContactDto>
             {
                 MockContact("mock-contact-001", "Ada Chen", "ada.chen@example.test", "Product", "Product Manager", "global_address_list"),
@@ -166,7 +212,7 @@ namespace SmartOffice.Hub.Services
                 "Security",
                 "People",
             };
-            var target = Math.Min(max, 200);
+            var target = max > 0 ? Math.Min(max, 200) : 200;
             for (var index = contacts.Count + 1; contacts.Count < target; index++)
             {
                 var department = departments[index % departments.Length];
@@ -179,7 +225,7 @@ namespace SmartOffice.Hub.Services
                     index % 3 == 0 ? "offline_address_book" : "global_address_list"));
             }
 
-            return contacts.Take(max).ToList();
+            return max > 0 ? contacts.Take(max).ToList() : contacts;
         }
 
         private static AddressBookContactDto MockContact(string id, string name, string email, string department, string jobTitle, string source)

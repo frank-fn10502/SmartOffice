@@ -2,6 +2,7 @@
   AddinLogEntry,
   AddinStatusDto,
   AddressBookContactDto,
+  AddressBookGroupMembersResponse,
   AddressBookLookupResponse,
   AddressBookMergeSuggestionResponse,
   AddressBookResponse,
@@ -260,6 +261,10 @@ export function normalizeAddressBookContact(item: unknown): AddressBookContactDt
     isLikelySelf: readBoolean(source, 'isLikelySelf', 'IsLikelySelf'),
     isGroup: readBoolean(source, 'isGroup', 'IsGroup'),
     memberCount: readNumber(source, 'memberCount', 'MemberCount'),
+    groupMembersLoaded: readBoolean(source, 'groupMembersLoaded', 'GroupMembersLoaded'),
+    groupMembersLoading: readBoolean(source, 'groupMembersLoading', 'GroupMembersLoading'),
+    groupMembersRequestId: readString(source, 'groupMembersRequestId', 'GroupMembersRequestId'),
+    groupMembersUpdatedAt: readDate(source, 'groupMembersUpdatedAt', 'GroupMembersUpdatedAt'),
     relationScore: readNumber(source, 'relationScore', 'RelationScore'),
     mailCount: readNumber(source, 'mailCount', 'MailCount'),
     calendarCount: readNumber(source, 'calendarCount', 'CalendarCount'),
@@ -322,6 +327,21 @@ function normalizeAddressBookLookupResponse(item: unknown): AddressBookLookupRes
     message: readString(source, 'message', 'Message'),
     contact: contact ? normalizeAddressBookContact(contact) : null,
     suggestions: Array.isArray(suggestions) ? suggestions.map(normalizeAddressBookContact) : [],
+  }
+}
+
+function normalizeAddressBookGroupMembersResponse(item: unknown): AddressBookGroupMembersResponse {
+  const source = (item ?? {}) as LooseRecord
+  const members = source.members ?? source.Members
+  return {
+    state: readString(source, 'state', 'State'),
+    message: readString(source, 'message', 'Message'),
+    groupKey: readString(source, 'groupKey', 'GroupKey'),
+    groupSmtpAddress: readString(source, 'groupSmtpAddress', 'GroupSmtpAddress'),
+    requestId: readString(source, 'requestId', 'RequestId'),
+    totalCount: readNumber(source, 'totalCount', 'TotalCount'),
+    updatedAt: readDate(source, 'updatedAt', 'UpdatedAt'),
+    members: Array.isArray(members) ? members.map(normalizeAddressBookContact) : [],
   }
 }
 
@@ -421,6 +441,11 @@ export const outlookApi = {
     normalizeAddressBookLookupResponse(await getJson<unknown>(`/api/outlook/address-book/lookup?email=${encodeURIComponent(email)}`)),
   suggestAddressBookMerges: async (recipients: string[]) =>
     normalizeAddressBookMergeSuggestionResponse(await postJson<unknown>('/api/outlook/address-book/merge-suggestions', { recipients })),
+  requestAddressBookGroupMembers: async (body: { groupId?: string; groupSmtpAddress?: string; maxMembers?: number; forceRefresh?: boolean }) => {
+    const response = await postJson<OutlookRequestResponse<unknown>>('/api/outlook/request-address-book-group-members', body)
+    return { ...response, data: normalizeAddressBookGroupMembersResponse(response.data) }
+  },
+  normalizeAddressBookGroupMembersResponse,
   getChat: () => getJson<ChatMessageDto[]>('/api/outlook/chat'),
   getAdminStatus: () => getJson<AddinStatusDto>('/api/outlook/admin/status'),
   getAdminLogs: () => getJson<AddinLogEntry[]>('/api/outlook/admin/logs'),

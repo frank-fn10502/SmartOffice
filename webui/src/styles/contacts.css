@@ -199,6 +199,71 @@
   overflow-wrap: anywhere;
 }
 
+.group-members-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.group-members-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.group-members-header > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.group-members-list {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.group-member-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-member-row:hover {
+  border-color: var(--accent);
+  background: var(--surface-selected);
+}
+
+.group-member-row strong,
+.group-member-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-member-row span,
+.group-members-empty {
+  color: var(--text-muted);
+}
+
 @media (max-width: 860px) {
   .contacts-actions,
   .contacts-page {

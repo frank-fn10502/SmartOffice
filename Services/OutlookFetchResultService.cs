@@ -159,8 +159,22 @@ namespace SmartOffice.Hub.Services
                 }
                 case "fetch_address_book":
                 {
-                    var page = Page(_mailStore.GetAddressBookContacts(take: 5000), offset, take);
+                    var page = Page(_mailStore.GetAddressBookContacts(take: 0), offset, take);
                     return (new { contacts = page.Items }, page.Next);
+                }
+                case "fetch_address_book_group_members":
+                {
+                    var result = _mailStore.GetAddressBookGroupMembers(command?.AddressBookGroupMembersRequest ?? new AddressBookGroupMembersRequest());
+                    var page = Page(result.Members, offset, take);
+                    return (new
+                    {
+                        state = result.State,
+                        groupKey = result.GroupKey,
+                        groupSmtpAddress = result.GroupSmtpAddress,
+                        totalCount = result.TotalCount,
+                        updatedAt = result.UpdatedAt,
+                        members = page.Items,
+                    }, page.Next);
                 }
                 default:
                     return (new { }, new FetchResultNext());

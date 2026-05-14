@@ -136,6 +136,18 @@
         public List<AddressBookContactDto> Suggestions { get; set; } = new();
     }
 
+    public class AddressBookGroupMembersResponse
+    {
+        public string State { get; set; } = "not_loaded";
+        public string Message { get; set; } = string.Empty;
+        public string GroupKey { get; set; } = string.Empty;
+        public string GroupSmtpAddress { get; set; } = string.Empty;
+        public string RequestId { get; set; } = string.Empty;
+        public int TotalCount { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public List<AddressBookContactDto> Members { get; set; } = new();
+    }
+
     public class AddressBookMergeSuggestionRequest
     {
         public List<string> Recipients { get; set; } = new();

@@ -5,6 +5,7 @@ namespace SmartOffice.Hub.Services
     public partial class MailStore
     {
         private List<AddressBookContactDto> _addressBookContacts = new();
+        private readonly Dictionary<string, AddressBookGroupExpansionState> _addressBookGroupExpansions = new(StringComparer.OrdinalIgnoreCase);
 
         public void SetAddressBookContacts(List<AddressBookContactDto> contacts)
         {
@@ -22,7 +23,11 @@ namespace SmartOffice.Hub.Services
             batch ??= new AddressBookBatchDto();
             lock (_lock)
             {
-                if (batch.Reset) _addressBookContacts = new List<AddressBookContactDto>();
+                if (batch.Reset)
+                {
+                    _addressBookContacts = new List<AddressBookContactDto>();
+                    _addressBookGroupExpansions.Clear();
+                }
                 foreach (var contact in batch.Contacts.Where(contact =>
                     !string.IsNullOrWhiteSpace(contact.SmtpAddress) || !string.IsNullOrWhiteSpace(contact.DisplayName)))
                 {
@@ -34,6 +39,75 @@ namespace SmartOffice.Hub.Services
                     if (index >= 0) _addressBookContacts[index] = clone;
                     else _addressBookContacts.Add(clone);
                 }
+            }
+        }
+
+        public AddressBookGroupMembersResponse GetAddressBookGroupMembers(AddressBookGroupMembersRequest request)
+        {
+            lock (_lock)
+            {
+                return BuildGroupMembersResponse(GroupKey(request));
+            }
+        }
+
+        public AddressBookGroupMembersResponse BeginAddressBookGroupExpansion(AddressBookGroupMembersRequest request, string requestId)
+        {
+            lock (_lock)
+            {
+                var key = GroupKey(request);
+                if (string.IsNullOrWhiteSpace(key))
+                    return new AddressBookGroupMembersResponse { State = "failed", Message = "groupId or groupSmtpAddress is required." };
+
+                if (_addressBookGroupExpansions.TryGetValue(key, out var current))
+                {
+                    if (!request.ForceRefresh && current.State == "completed")
+                        return BuildGroupMembersResponse(key);
+                    if (current.State == "loading")
+                        return BuildGroupMembersResponse(key);
+                }
+
+                _addressBookGroupExpansions[key] = new AddressBookGroupExpansionState
+                {
+                    GroupKey = key,
+                    GroupSmtpAddress = request.GroupSmtpAddress,
+                    RequestId = requestId,
+                    State = "loading",
+                };
+                return BuildGroupMembersResponse(key);
+            }
+        }
+
+        public void ApplyAddressBookGroupMembersBatch(AddressBookGroupMembersBatchDto batch)
+        {
+            batch ??= new AddressBookGroupMembersBatchDto();
+            lock (_lock)
+            {
+                var key = GroupKey(batch.GroupSmtpAddress, batch.GroupId);
+                if (string.IsNullOrWhiteSpace(key)) return;
+
+                if (!_addressBookGroupExpansions.TryGetValue(key, out var state))
+                {
+                    state = new AddressBookGroupExpansionState { GroupKey = key };
+                    _addressBookGroupExpansions[key] = state;
+                }
+
+                state.GroupSmtpAddress = PreferNonEmpty(state.GroupSmtpAddress, batch.GroupSmtpAddress);
+                state.State = batch.IsFinal ? "completed" : "loading";
+                state.TotalCount = Math.Max(state.TotalCount, batch.TotalCount);
+                if (batch.Reset) state.Members.Clear();
+
+                foreach (var member in batch.Members.Where(contact =>
+                    !string.IsNullOrWhiteSpace(contact.SmtpAddress) || !string.IsNullOrWhiteSpace(contact.DisplayName)))
+                {
+                    var memberKey = AddressBookContactKey(member);
+                    if (string.IsNullOrWhiteSpace(memberKey)) continue;
+                    state.Members[memberKey] = CloneAddressBookContact(member);
+                    UpsertAddressBookContact(member);
+                }
+
+                state.TotalCount = Math.Max(state.TotalCount, state.Members.Count);
+                if (batch.IsFinal) state.UpdatedAt = DateTime.UtcNow;
+                MergeGroupExpansionIntoContact(key, state);
             }
         }
 
@@ -50,13 +124,24 @@ namespace SmartOffice.Hub.Services
                         .ToList();
                 }
 
+                var takeLimit = take <= 0 ? int.MaxValue : Math.Clamp(take, 1, 5000);
                 return contacts
                     .OrderByDescending(contact => contact.RelationScore)
                     .ThenByDescending(contact => contact.LastSeen ?? DateTime.MinValue)
                     .ThenBy(contact => contact.DisplayName)
-                    .Take(Math.Clamp(take <= 0 ? 200 : take, 1, 5000))
+                    .Take(takeLimit)
                     .Select(CloneAddressBookContact)
                     .ToList();
+            }
+        }
+
+        public bool IsAddressBookGroupExpansionCompleted(AddressBookGroupMembersRequest? request)
+        {
+            if (request is null) return false;
+            lock (_lock)
+            {
+                return _addressBookGroupExpansions.TryGetValue(GroupKey(request), out var state)
+                    && state.State == "completed";
             }
         }
 
@@ -138,8 +223,46 @@ namespace SmartOffice.Hub.Services
 
             return contacts.Values
                 .Select(item => item.ToDto(selfAddresses))
+                .Select(ApplyGroupExpansionStatus)
                 .Where(contact => !string.IsNullOrWhiteSpace(contact.SmtpAddress) || !string.IsNullOrWhiteSpace(contact.DisplayName))
                 .ToList();
+        }
+
+        private void UpsertAddressBookContact(AddressBookContactDto contact)
+        {
+            var key = AddressBookContactKey(contact);
+            if (string.IsNullOrWhiteSpace(key)) return;
+            var index = _addressBookContacts.FindIndex(existing =>
+                string.Equals(AddressBookContactKey(existing), key, StringComparison.OrdinalIgnoreCase));
+            var clone = CloneAddressBookContact(contact);
+            if (index >= 0) _addressBookContacts[index] = clone;
+            else _addressBookContacts.Add(clone);
+        }
+
+        private void MergeGroupExpansionIntoContact(string groupKey, AddressBookGroupExpansionState state)
+        {
+            var index = _addressBookContacts.FindIndex(existing =>
+                string.Equals(AddressBookContactKey(existing), groupKey, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(NormalizeEmail(existing.SmtpAddress), groupKey, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return;
+
+            var group = CloneAddressBookContact(_addressBookContacts[index]);
+            group.IsGroup = true;
+            group.MemberCount = Math.Max(group.MemberCount, state.TotalCount);
+            group.MemberSmtpAddresses = state.Members.Values
+                .Select(member => member.SmtpAddress)
+                .Where(email => !string.IsNullOrWhiteSpace(email))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(50)
+                .ToList();
+            group.MemberGroupSmtpAddresses = state.Members.Values
+                .Where(member => member.IsGroup)
+                .Select(member => member.SmtpAddress)
+                .Where(email => !string.IsNullOrWhiteSpace(email))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(50)
+                .ToList();
+            _addressBookContacts[index] = ApplyGroupExpansionStatus(group);
         }
 
         private static void AddCachedAddressBookContact(
@@ -387,6 +510,10 @@ namespace SmartOffice.Hub.Services
                 IsLikelySelf = contact.IsLikelySelf,
                 IsGroup = contact.IsGroup,
                 MemberCount = contact.MemberCount,
+                GroupMembersLoaded = contact.GroupMembersLoaded,
+                GroupMembersLoading = contact.GroupMembersLoading,
+                GroupMembersRequestId = contact.GroupMembersRequestId,
+                GroupMembersUpdatedAt = contact.GroupMembersUpdatedAt,
                 RelationScore = contact.RelationScore,
                 MailCount = contact.MailCount,
                 CalendarCount = contact.CalendarCount,
@@ -406,6 +533,85 @@ namespace SmartOffice.Hub.Services
                 RecentMailIds = new List<string>(contact.RecentMailIds),
                 SampleSubjects = new List<string>(contact.SampleSubjects),
             };
+        }
+
+        private AddressBookContactDto ApplyGroupExpansionStatus(AddressBookContactDto contact)
+        {
+            if (!contact.IsGroup) return contact;
+            var key = GroupKey(contact.SmtpAddress, contact.Id);
+            if (string.IsNullOrWhiteSpace(key) || !_addressBookGroupExpansions.TryGetValue(key, out var state))
+                return contact;
+
+            contact.GroupMembersLoaded = state.State == "completed";
+            contact.GroupMembersLoading = state.State == "loading";
+            contact.GroupMembersRequestId = state.RequestId;
+            contact.GroupMembersUpdatedAt = state.UpdatedAt;
+            contact.MemberCount = Math.Max(contact.MemberCount, state.TotalCount);
+            return contact;
+        }
+
+        private AddressBookGroupMembersResponse BuildGroupMembersResponse(string groupKey)
+        {
+            if (string.IsNullOrWhiteSpace(groupKey))
+                return new AddressBookGroupMembersResponse { State = "failed", Message = "groupId or groupSmtpAddress is required." };
+
+            if (!_addressBookGroupExpansions.TryGetValue(groupKey, out var state))
+            {
+                var group = _addressBookContacts.FirstOrDefault(contact =>
+                    string.Equals(AddressBookContactKey(contact), groupKey, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(NormalizeEmail(contact.SmtpAddress), groupKey, StringComparison.OrdinalIgnoreCase));
+                return new AddressBookGroupMembersResponse
+                {
+                    State = "not_loaded",
+                    Message = "Group members have not been expanded.",
+                    GroupKey = groupKey,
+                    GroupSmtpAddress = group?.SmtpAddress ?? groupKey,
+                    TotalCount = group?.MemberCount ?? 0,
+                };
+            }
+
+            return new AddressBookGroupMembersResponse
+            {
+                State = state.State,
+                Message = state.State == "completed" ? "Group members loaded from Hub cache." : "Group members are loading.",
+                GroupKey = state.GroupKey,
+                GroupSmtpAddress = state.GroupSmtpAddress,
+                RequestId = state.RequestId,
+                TotalCount = state.TotalCount,
+                UpdatedAt = state.UpdatedAt,
+                Members = state.Members.Values
+                    .OrderBy(member => member.DisplayName)
+                    .ThenBy(member => member.SmtpAddress)
+                    .Select(CloneAddressBookContact)
+                    .ToList(),
+            };
+        }
+
+        private static string GroupKey(AddressBookGroupMembersRequest request)
+        {
+            return request is null ? string.Empty : GroupKey(request.GroupSmtpAddress, request.GroupId);
+        }
+
+        private static string GroupKey(string groupSmtpAddress, string groupId)
+        {
+            var smtp = NormalizeEmail(groupSmtpAddress);
+            return !string.IsNullOrWhiteSpace(smtp) ? smtp : (groupId ?? string.Empty).Trim().ToLowerInvariant();
+        }
+
+        private static string PreferNonEmpty(string current, string candidate)
+        {
+            return string.IsNullOrWhiteSpace(current) ? candidate ?? string.Empty : current;
+        }
+
+        private sealed class AddressBookGroupExpansionState
+        {
+            public string GroupKey { get; set; } = string.Empty;
+            public string GroupSmtpAddress { get; set; } = string.Empty;
+            public string RequestId { get; set; } = string.Empty;
+            public string State { get; set; } = "not_loaded";
+            public int TotalCount { get; set; }
+            public DateTime? UpdatedAt { get; set; }
+            public Dictionary<string, AddressBookContactDto> Members { get; } = new(StringComparer.OrdinalIgnoreCase);
         }
 
         private sealed class AddressBookAccumulator

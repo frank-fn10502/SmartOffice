@@ -19,6 +19,7 @@
 - 想檢查一個收件者是否和使用者有已知互動：呼叫 `GET /api/outlook/address-book/lookup?email={email}`。
 - `state=known` 代表 SmartOffice 找到 mail 或 calendar 關聯；`state=unknown` 只代表目前未知，不代表 Outlook 裡一定沒有。
 - 若使用者要求同步真正 Outlook 通訊錄，呼叫 `POST /api/outlook/request-address-book`，再用 `POST /api/outlook/fetch-result-address-book` 讀 `data.contacts`。
+- 若需要查看 group 成員，呼叫 `POST /api/outlook/request-address-book-group-members` 展開單一 group，再用 `POST /api/outlook/fetch-result-address-book-group-members` 讀 `data.members`。Hub 會 cache 已展開 group；nested group 只會標示為 group，必須由使用者或 agent 明確指定後再展開。
 - 需要檢查收件者是否能用 group 合併時，呼叫 `POST /api/outlook/address-book/merge-suggestions`，body 為 `{ "recipients": ["frank@example.test", "group1@example.test"] }`。
 - `contact.relationKinds` 會指出 `sender`、`to`、`cc`、`bcc`、`organizer`、`attendee` 或 `group_member` 等關聯。
 - `contact.isGroup=true` 代表該 entry 是 distribution list 或 group；用 `memberCount`、`memberSmtpAddresses`、`memberGroupSmtpAddresses` 摘要成員與子群組。個人或 group 的 `memberOfGroupSmtpAddresses` 表示它被哪些 group 包含。
@@ -30,14 +31,14 @@
 {
   "includeOutlookContacts": true,
   "includeAddressLists": true,
-  "maxContacts": 1000,
-  "maxAddressEntriesPerList": 500,
-  "maxGroupMembers": 50,
+  "maxContacts": 0,
+  "maxAddressEntriesPerList": 0,
+  "maxGroupMembers": 0,
   "maxGroupDepth": 1
 }
 ```
 
-`maxContacts`、`maxAddressEntriesPerList`、`maxGroupMembers` 與 `maxGroupDepth` 是負載上限；不要要求無限制 GAL 枚舉或無限制展開 nested group。`maxGroupMembers=0` 表示只讀 group metadata，不展開成員。讀取結果一律透過 `fetch-result-address-book` 用 `cursor` / `take` 分頁取得。
+`maxContacts`、`maxAddressEntriesPerList`、`maxGroupMembers` 與 `maxGroupDepth` 是負載上限；`maxContacts=0` 與 `maxAddressEntriesPerList=0` 表示不限制筆數，預設應載入完整通訊錄。輕量同步靠 `maxGroupMembers=0` 與 AddIn 端只讀 metadata 來避免 Outlook/VSTO 在 UI 執行緒上大量解析 GAL。不要無限制展開 nested group。`maxGroupMembers=0` 表示只讀 group metadata，不展開成員。讀取結果一律透過 `fetch-result-address-book` 用 `cursor` / `take` 分頁取得。
 
 ## Calendar / Rules / Categories
 

@@ -244,6 +244,10 @@ namespace SmartOffice.Hub.Contracts
         public bool IsLikelySelf { get; set; }
         public bool IsGroup { get; set; }
         public int MemberCount { get; set; }
+        public bool GroupMembersLoaded { get; set; }
+        public bool GroupMembersLoading { get; set; }
+        public string GroupMembersRequestId { get; set; } = string.Empty;
+        public DateTime? GroupMembersUpdatedAt { get; set; }
         public int RelationScore { get; set; }
         public int MailCount { get; set; }
         public int CalendarCount { get; set; }
@@ -268,9 +272,9 @@ namespace SmartOffice.Hub.Contracts
     {
         public bool IncludeOutlookContacts { get; set; } = true;
         public bool IncludeAddressLists { get; set; } = true;
-        public int MaxContacts { get; set; } = 1000;
-        public int MaxAddressEntriesPerList { get; set; } = 500;
-        public int MaxGroupMembers { get; set; } = 50;
+        public int MaxContacts { get; set; } = 0;
+        public int MaxAddressEntriesPerList { get; set; } = 0;
+        public int MaxGroupMembers { get; set; } = 0;
         public int MaxGroupDepth { get; set; } = 1;
     }
 
@@ -282,6 +286,26 @@ namespace SmartOffice.Hub.Contracts
         public bool IsFinal { get; set; }
         public int TotalCount { get; set; }
         public List<AddressBookContactDto> Contacts { get; set; } = new List<AddressBookContactDto>();
+    }
+
+    public class AddressBookGroupMembersRequest
+    {
+        public string GroupId { get; set; } = string.Empty;
+        public string GroupSmtpAddress { get; set; } = string.Empty;
+        public int MaxMembers { get; set; } = 0;
+        public bool ForceRefresh { get; set; }
+    }
+
+    public class AddressBookGroupMembersBatchDto
+    {
+        public string GroupId { get; set; } = string.Empty;
+        public string GroupSmtpAddress { get; set; } = string.Empty;
+        public string BatchId { get; set; } = string.Empty;
+        public int Sequence { get; set; }
+        public bool Reset { get; set; }
+        public bool IsFinal { get; set; }
+        public int TotalCount { get; set; }
+        public List<AddressBookContactDto> Members { get; set; } = new List<AddressBookContactDto>();
     }
 
     public class AddinLogEntry

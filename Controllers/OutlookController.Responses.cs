@@ -84,6 +84,7 @@ namespace SmartOffice.Hub.Controllers
                 "update_calendar_event" => "request-update-calendar-event",
                 "delete_calendar_event" => "request-delete-calendar-event",
                 "fetch_address_book" => "request-address-book",
+                "fetch_address_book_group_members" => "request-address-book-group-members",
                 "update_mail_properties" => "request-update-mail-properties",
                 "upsert_category" => "request-upsert-category",
                 "create_folder" => "request-create-folder",

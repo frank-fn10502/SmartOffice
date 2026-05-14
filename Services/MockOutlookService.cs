@@ -59,6 +59,8 @@ namespace SmartOffice.Hub.Services
             if (!IsEnabled) return false;
             if (command.Type == "fetch_address_book")
                 return await TryDispatchAddressBookAsync(command, ct);
+            if (command.Type == "fetch_address_book_group_members")
+                return await TryDispatchAddressBookGroupMembersAsync(command, ct);
 
             FolderSyncBatchDto? folderBatch = null;
             List<MailSearchSliceResultDto>? mailSearchSliceResults = null;

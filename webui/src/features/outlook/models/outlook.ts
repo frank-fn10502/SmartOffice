@@ -396,6 +396,10 @@ export interface AddressBookContactDto {
   isLikelySelf: boolean
   isGroup: boolean
   memberCount: number
+  groupMembersLoaded: boolean
+  groupMembersLoading: boolean
+  groupMembersRequestId: string
+  groupMembersUpdatedAt?: string
   relationScore: number
   mailCount: number
   calendarCount: number
@@ -441,6 +445,17 @@ export interface AddressBookLookupResponse {
   message: string
   contact?: AddressBookContactDto | null
   suggestions: AddressBookContactDto[]
+}
+
+export interface AddressBookGroupMembersResponse {
+  state: string
+  message: string
+  groupKey: string
+  groupSmtpAddress: string
+  requestId: string
+  totalCount: number
+  updatedAt?: string
+  members: AddressBookContactDto[]
 }
 
 export interface ChatMessageDto {

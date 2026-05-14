@@ -255,9 +255,9 @@ namespace SmartOffice.Hub.Controllers
         public async Task<IActionResult> RequestAddressBook([FromBody] AddressBookSyncRequest? req, CancellationToken ct)
         {
             req ??= new AddressBookSyncRequest();
-            req.MaxContacts = Math.Clamp(req.MaxContacts <= 0 ? 1000 : req.MaxContacts, 1, 5000);
-            req.MaxAddressEntriesPerList = Math.Clamp(req.MaxAddressEntriesPerList <= 0 ? 500 : req.MaxAddressEntriesPerList, 1, 2000);
-            req.MaxGroupMembers = req.MaxGroupMembers < 0 ? 50 : Math.Min(req.MaxGroupMembers, 500);
+            req.MaxContacts = req.MaxContacts <= 0 ? 0 : Math.Clamp(req.MaxContacts, 1, 5000);
+            req.MaxAddressEntriesPerList = req.MaxAddressEntriesPerList <= 0 ? 0 : Math.Clamp(req.MaxAddressEntriesPerList, 1, 2000);
+            req.MaxGroupMembers = req.MaxGroupMembers < 0 ? 0 : Math.Min(req.MaxGroupMembers, 500);
             req.MaxGroupDepth = Math.Clamp(req.MaxGroupDepth < 0 ? 1 : req.MaxGroupDepth, 0, 3);
 
             var cmd = new PendingCommand
@@ -265,6 +265,31 @@ namespace SmartOffice.Hub.Controllers
                 Type = "fetch_address_book",
                 AddressBookRequest = req
             };
+            return await DispatchCommandAsync(cmd, ct);
+        }
+
+        [HttpPost("request-address-book-group-members")]
+        public async Task<IActionResult> RequestAddressBookGroupMembers([FromBody] AddressBookGroupMembersRequest? req, CancellationToken ct)
+        {
+            req ??= new AddressBookGroupMembersRequest();
+            req.GroupId = req.GroupId?.Trim() ?? string.Empty;
+            req.GroupSmtpAddress = req.GroupSmtpAddress?.Trim() ?? string.Empty;
+            req.MaxMembers = req.MaxMembers <= 0 ? 0 : Math.Clamp(req.MaxMembers, 1, 5000);
+            if (string.IsNullOrWhiteSpace(req.GroupId) && string.IsNullOrWhiteSpace(req.GroupSmtpAddress))
+                return BadRequest(ErrorEnvelope("fetch_address_book_group_members", "missing_required_fields", "Missing required request field(s): groupId or groupSmtpAddress."));
+
+            var cached = _mailStore.GetAddressBookGroupMembers(req);
+            if (!req.ForceRefresh && cached.State == "completed")
+                return Ok(ResultEnvelope(cached.RequestId, "fetch_address_book_group_members", "completed", "Group members loaded from Hub cache.", cached));
+            if (cached.State == "loading")
+                return Ok(ResultEnvelope(cached.RequestId, "fetch_address_book_group_members", "running", "Group members are already loading.", cached));
+
+            var cmd = new PendingCommand
+            {
+                Type = "fetch_address_book_group_members",
+                AddressBookGroupMembersRequest = req
+            };
+            _mailStore.BeginAddressBookGroupExpansion(req, cmd.Id);
             return await DispatchCommandAsync(cmd, ct);
         }
 
@@ -643,6 +668,12 @@ namespace SmartOffice.Hub.Controllers
             return FetchResult(req, "fetch_address_book");
         }
 
+        [HttpPost("fetch-result-address-book-group-members")]
+        public IActionResult FetchResultAddressBookGroupMembers([FromBody] FetchResultRequest req)
+        {
+            return FetchResult(req, "fetch_address_book_group_members");
+        }
+
         [HttpPost("fetch-result-update-mail-properties")]
         public IActionResult FetchResultUpdateMailProperties([FromBody] FetchResultRequest req)
         {
@@ -717,6 +748,8 @@ namespace SmartOffice.Hub.Controllers
                         cmd.FolderDiscoveryRequest.StoreId,
                         cmd.FolderDiscoveryRequest.ParentEntryId,
                         cmd.FolderDiscoveryRequest.ParentFolderPath),
+                "fetch_address_book_group_members" => () =>
+                    _mailStore.IsAddressBookGroupExpansionCompleted(cmd.AddressBookGroupMembersRequest),
                 _ => null,
             };
         }
