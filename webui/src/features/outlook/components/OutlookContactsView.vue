@@ -2,9 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { Refresh, Search, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { outlookApi } from '../api/outlook'
+import { normalizeAddressBookContact, outlookApi } from '../api/outlook'
 import type { AddressBookContactDto } from '../models/outlook'
-import { collectOutlookRequestData, waitForOutlookRequest } from '../composables/outlookRequests'
+import { fetchResultEndpoint, requestIdFromResponse } from '../composables/outlookRequests'
 import { formatDateTime } from '../utils/formatters'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
 
@@ -15,7 +15,8 @@ const props = defineProps<{
 const contacts = ref<AddressBookContactDto[]>([])
 const selectedContact = ref<AddressBookContactDto | null>(null)
 const query = ref('')
-const loading = ref(false)
+const loadingContacts = ref(false)
+const lookupLoading = ref(false)
 const syncing = ref(false)
 const lastUpdatedAt = ref<Date | null>(null)
 const loadMessage = ref('尚未載入通訊錄。')
@@ -49,8 +50,8 @@ function relationLabel(kind: string) {
 }
 
 async function loadContacts() {
-  if (loading.value) return
-  loading.value = true
+  if (loadingContacts.value) return
+  loadingContacts.value = true
   loadMessage.value = '正在建立 Outlook 通訊錄 request...'
   try {
     const response = await outlookApi.requestAddressBook({
@@ -61,17 +62,10 @@ async function loadContacts() {
       maxGroupMembers: 50,
       maxGroupDepth: 1,
     })
-    loadMessage.value = 'Outlook 正在讀取 Contacts / AddressLists / group metadata...'
-    await waitForOutlookRequest(response, { timeoutMs: 120000 })
-    loadMessage.value = '正在分段讀取 Hub fetch-result-address-book...'
-    const pages = await collectOutlookRequestData<{ contacts?: AddressBookContactDto[] }>(response)
-    const text = query.value.trim().toLowerCase()
-    contacts.value = pages
-      .flatMap((page) => page.data?.contacts ?? [])
-      .filter((contact) => !text
-        || contact.displayName.toLowerCase().includes(text)
-        || contact.smtpAddress.toLowerCase().includes(text)
-        || contact.domain.toLowerCase().includes(text))
+    contacts.value = []
+    selectedContact.value = null
+    loadMessage.value = 'Outlook 正在分段讀取 Contacts / AddressLists / group metadata...'
+    await streamContactsFromRequest(response)
     if (!selectedContact.value || !contacts.value.some((contact) => contact.smtpAddress === selectedContact.value?.smtpAddress)) {
       selectedContact.value = contacts.value[0] ?? null
     }
@@ -81,12 +75,82 @@ async function loadContacts() {
     loadMessage.value = error instanceof Error ? error.message : '通訊錄同步失敗。'
     throw error
   } finally {
-    loading.value = false
+    loadingContacts.value = false
   }
 }
 
+async function streamContactsFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
+  const requestId = requestIdFromResponse(response)
+  if (!requestId) return
+  const endpoint = fetchResultEndpoint(response)
+  const started = Date.now()
+  const timeoutMs = 120000
+  const seen = new Map<string, AddressBookContactDto>()
+  let cursor = ''
+  let fetchedCount = 0
+
+  while (Date.now() - started < timeoutMs) {
+    const state = await fetchAddressBookPage(endpoint, requestId, cursor)
+    if (!state) {
+      await new Promise((resolve) => window.setTimeout(resolve, 500))
+      continue
+    }
+    const rawContacts = Array.isArray(state.data?.contacts) ? state.data.contacts : []
+    const pageContacts = rawContacts.map(normalizeAddressBookContact)
+    fetchedCount += rawContacts.length
+    mergeContacts(seen, pageContacts)
+
+    if (pageContacts.length > 0) {
+      contacts.value = filterContacts(Array.from(seen.values()))
+      if (!selectedContact.value) selectedContact.value = contacts.value[0] ?? null
+    }
+
+    loadMessage.value = state.state === 'completed'
+      ? `通訊錄同步完成，共 ${seen.size} 筆。`
+      : `通訊錄載入中，已取得 ${seen.size} 筆...`
+
+    if (state.next.hasMore) {
+      cursor = state.next.cursor
+      continue
+    }
+    if (state.state === 'completed') return
+    if (state.state && !['accepted', 'running'].includes(state.state)) {
+      throw new Error(state.message || '通訊錄同步失敗。')
+    }
+
+    cursor = fetchedCount > 0 ? String(fetchedCount) : ''
+    await new Promise((resolve) => window.setTimeout(resolve, 500))
+  }
+
+  throw new Error('通訊錄同步逾時。')
+}
+
+async function fetchAddressBookPage(endpoint: string, requestId: string, cursor: string) {
+  try {
+    return await outlookApi.fetchResult<{ contacts?: unknown[] }>(endpoint, { requestId, cursor, take: 100 })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Request failed: 404') return null
+    throw error
+  }
+}
+
+function mergeContacts(target: Map<string, AddressBookContactDto>, nextContacts: AddressBookContactDto[]) {
+  for (const contact of nextContacts) {
+    const key = contact.smtpAddress || contact.rawAddress || contact.displayName || contact.id
+    if (key) target.set(key.toLowerCase(), contact)
+  }
+}
+
+function filterContacts(source: AddressBookContactDto[]) {
+  const text = query.value.trim().toLowerCase()
+  return source.filter((contact) => !text
+    || contact.displayName.toLowerCase().includes(text)
+    || contact.smtpAddress.toLowerCase().includes(text)
+    || contact.domain.toLowerCase().includes(text))
+}
+
 function requestInitialLoad(reason: 'active-view' | 'background') {
-  if (initialLoadRequested || loading.value || contacts.value.length > 0) return
+  if (initialLoadRequested || loadingContacts.value || contacts.value.length > 0) return
   if (reason === 'background' && !props.dashboard?.outlookFirstLoadCompleted.value) return
   if (reason === 'active-view' && props.dashboard?.activeView.value !== 'contacts') return
   initialLoadRequested = true
@@ -99,7 +163,7 @@ async function lookupContact() {
     return
   }
 
-  loading.value = true
+  lookupLoading.value = true
   try {
     const response = await outlookApi.lookupAddressBookContact(lookupEmail.value)
     lookupMessage.value = response.message
@@ -113,12 +177,12 @@ async function lookupContact() {
       ElMessage.warning('目前沒有這個 email 的關聯')
     }
   } finally {
-    loading.value = false
+    lookupLoading.value = false
   }
 }
 
 async function syncAddressBook() {
-  if (loading.value || syncing.value) return
+  if (loadingContacts.value || syncing.value) return
   syncing.value = true
   try {
     await loadContacts()
@@ -161,20 +225,20 @@ watch(
             v-model="query"
             class="contacts-query"
             clearable
-            :disabled="loading"
+            :disabled="loadingContacts"
             :prefix-icon="Search"
             placeholder="姓名、email 或 domain"
             @keyup.enter="loadContacts"
             @clear="loadContacts"
           />
-          <el-button :icon="Refresh" :loading="loading" :disabled="loading" @click="loadContacts">重新整理</el-button>
-          <el-button type="primary" :loading="syncing" :disabled="loading || syncing" @click="syncAddressBook">同步 Outlook 通訊錄</el-button>
+          <el-button :icon="Refresh" :loading="loadingContacts" :disabled="loadingContacts" @click="loadContacts">重新整理</el-button>
+          <el-button type="primary" :loading="syncing" :disabled="loadingContacts || syncing" @click="syncAddressBook">同步 Outlook 通訊錄</el-button>
         </div>
       </div>
 
-      <div class="contacts-sync-status" :class="{ loading }">
+      <div class="contacts-sync-status" :class="{ loading: loadingContacts }">
         <div>
-          <strong>{{ loading ? '通訊錄載入中...' : '通訊錄狀態' }}</strong>
+          <strong>{{ loadingContacts ? '通訊錄載入中...' : '通訊錄狀態' }}</strong>
           <span>{{ loadMessage }}</span>
         </div>
         <div class="contacts-sync-stats">
@@ -193,7 +257,7 @@ watch(
             <span>可能是自己 {{ selfCount }}</span>
           </div>
 
-          <div v-if="loading" class="pane-loading" role="status">
+          <div v-if="loadingContacts" class="contacts-loading" role="status">
             <span />
             <strong>正在載入通訊錄...</strong>
           </div>
@@ -211,7 +275,7 @@ watch(
             <small>{{ contact.mailCount }} mails / {{ contact.calendarCount }} calendar</small>
           </button>
 
-          <el-empty v-if="!loading && contacts.length === 0" description="目前沒有符合條件的聯絡人" />
+          <el-empty v-if="!loadingContacts && contacts.length === 0" description="目前沒有符合條件的聯絡人" />
         </div>
 
         <aside class="contact-detail">
@@ -223,7 +287,7 @@ watch(
               @keyup.enter="lookupContact"
             >
               <template #append>
-                <el-button :icon="Search" :loading="loading" @click="lookupContact" />
+                <el-button :icon="Search" :loading="lookupLoading" :disabled="lookupLoading" @click="lookupContact" />
               </template>
             </el-input>
             <span v-if="lookupMessage">{{ lookupMessage }}</span>
