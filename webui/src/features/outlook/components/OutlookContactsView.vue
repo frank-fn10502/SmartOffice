@@ -36,6 +36,14 @@ function contactTitle(contact: AddressBookContactDto) {
   return contact.displayName || contact.smtpAddress || '(unknown)'
 }
 
+function contactKey(contact: AddressBookContactDto) {
+  return (contact.smtpAddress || contact.rawAddress || contact.id || contact.displayName).trim().toLowerCase()
+}
+
+function isSelectedContact(contact: AddressBookContactDto) {
+  return Boolean(selectedContact.value && contactKey(selectedContact.value) === contactKey(contact))
+}
+
 function relationLabel(kind: string) {
   const labels: Record<string, string> = {
     attendee: '出席者',
@@ -66,7 +74,7 @@ async function loadContacts() {
     selectedContact.value = null
     loadMessage.value = 'Outlook 正在分段讀取 Contacts / AddressLists / group metadata...'
     await streamContactsFromRequest(response)
-    if (!selectedContact.value || !contacts.value.some((contact) => contact.smtpAddress === selectedContact.value?.smtpAddress)) {
+    if (!selectedContact.value || !contacts.value.some((contact) => isSelectedContact(contact))) {
       selectedContact.value = contacts.value[0] ?? null
     }
     lastUpdatedAt.value = new Date()
@@ -264,9 +272,9 @@ watch(
 
           <button
             v-for="contact in contacts"
-            :key="contact.smtpAddress || contact.displayName"
+            :key="contactKey(contact)"
             class="contact-row"
-            :class="{ active: selectedContact?.smtpAddress === contact.smtpAddress }"
+            :class="{ active: isSelectedContact(contact) }"
             type="button"
             @click="selectedContact = contact"
           >
