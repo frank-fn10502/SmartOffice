@@ -2,7 +2,7 @@
 import type { CSSProperties } from 'vue'
 import type { MailItemDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'
-import { formatMailSender } from '../utils/mailAddresses'
+import { formatGroupRecipientSummary, groupRecipientsForMail, formatMailSender } from '../utils/mailAddresses'
 import { canMoveOutlookItem, outlookItemTypeLabel } from '../utils/outlookItemTypes'
 
 defineProps<{
@@ -26,7 +26,7 @@ defineEmits<{
 </script>
 
 <template>
-  <article class="mail-card-row" :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead }">
+  <article class="mail-card-row" :class="{ selected: selectedMailIds.has(mail.id), unread: !mail.isRead, 'has-group-recipient': groupRecipientsForMail(mail).length > 0 }">
     <div class="mail-row-shell">
       <button
         class="mail-row"
@@ -41,12 +41,18 @@ defineEmits<{
             <strong>{{ mail.subject }}</strong>
             <span>{{ formatMailSender(mail) }} · {{ formatDateTime(mail.receivedTime) }}</span>
             <span v-if="sourceLabel" class="mail-source-label">{{ sourceLabel }}</span>
+            <span v-if="groupRecipientsForMail(mail).length > 0" class="mail-row-group-summary">
+              Group 收件者：{{ formatGroupRecipientSummary(mail) }}
+            </span>
           </span>
           <el-tag v-if="mail.attachmentCount > 0" class="mail-attachment-tag" type="info" effect="plain">
             {{ mail.attachmentCount }} 個附件
           </el-tag>
         </span>
         <span class="mail-row-tags">
+          <el-tag v-if="groupRecipientsForMail(mail).length > 0" type="info" effect="plain">
+            Group {{ groupRecipientsForMail(mail).length }}
+          </el-tag>
           <el-tag v-if="outlookItemTypeLabel(mail)" type="success" effect="plain">{{ outlookItemTypeLabel(mail) }}</el-tag>
           <el-tag v-if="!mail.isRead" type="warning" effect="plain">未讀</el-tag>
           <el-tag v-if="mail.isMarkedAsTask" :type="flagTagType(mail.flagInterval)" effect="plain">

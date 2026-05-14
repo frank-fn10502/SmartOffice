@@ -34,3 +34,16 @@ export function shouldShowRecipientSmtpAddress(recipient: OutlookRecipientDto) {
 
   return !recipient.displayName.includes(email) && formatRecipient(recipient) !== email
 }
+
+export function groupRecipientsForMail(mail: Pick<MailItemDto, 'toRecipients' | 'ccRecipients' | 'bccRecipients'>) {
+  return [...mail.toRecipients, ...mail.ccRecipients, ...mail.bccRecipients]
+    .filter((recipient) => recipient.isGroup)
+    .filter((recipient, index, recipients) => {
+      const key = (recipient.smtpAddress || recipient.rawAddress || recipient.displayName).trim().toLowerCase()
+      return recipients.findIndex((item) => (item.smtpAddress || item.rawAddress || item.displayName).trim().toLowerCase() === key) === index
+    })
+}
+
+export function formatGroupRecipientSummary(mail: Pick<MailItemDto, 'toRecipients' | 'ccRecipients' | 'bccRecipients'>) {
+  return formatRecipients(groupRecipientsForMail(mail))
+}

@@ -1,6 +1,10 @@
 ﻿<script setup lang="ts">
+import { computed, ref } from 'vue'
 import MailPropertyPane from './MailPropertyPane.vue'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
+import { collectOutlookRequestData, waitForOutlookRequest } from '../composables/outlookRequests'
+import { normalizeAddressBookContact, outlookApi } from '../api/outlook'
+import type { AddressBookContactDto, AddressBookRecipientRelevanceDto, OutlookRecipientDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'
 import { formatMailSender, formatRecipient, formatRecipients, shouldShowRecipientSmtpAddress } from '../utils/mailAddresses'
 import { outlookItemTypeLabel } from '../utils/outlookItemTypes'
@@ -8,6 +12,17 @@ import { outlookItemTypeLabel } from '../utils/outlookItemTypes'
 const props = defineProps<{
   dashboard: OutlookDashboardState
 }>()
+
+interface RecipientTreeNode {
+  key: string
+  label: string
+  email: string
+  isGroup: boolean
+  loaded: boolean
+  loading: boolean
+  children: RecipientTreeNode[]
+  recipientRelevance?: AddressBookRecipientRelevanceDto
+}
 
 function formatAttachmentSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`
@@ -23,6 +38,13 @@ function mailPreviewText(body: string, bodyHtml: string) {
   const text = body || bodyHtml.replace(/<[^>]+>/g, ' ')
   return text.replace(/\s+/g, ' ').trim()
 }
+
+const groupTreeVisible = ref(false)
+const groupTreeLoading = ref(false)
+const groupTreeMessage = ref('')
+const groupTreeRoot = ref<RecipientTreeNode | null>(null)
+const groupTreeProps = { label: 'label', children: 'children' }
+const groupTreeNodes = computed(() => groupTreeRoot.value ? [groupTreeRoot.value] : [])
 
 const {
   addMailCategoryDraft,
@@ -61,6 +83,101 @@ const {
   setMailFlagDraft,
   splitCategories,
 } = props.dashboard
+
+function groupRecipientKey(recipient: OutlookRecipientDto) {
+  return (recipient.smtpAddress || recipient.rawAddress || recipient.displayName).trim().toLowerCase()
+}
+
+function allGroupRecipients(mail: NonNullable<typeof dialogMail.value>) {
+  return [...mail.toRecipients, ...mail.ccRecipients, ...mail.bccRecipients]
+    .filter((recipient) => recipient.isGroup)
+    .filter((recipient, index, items) => items.findIndex((item) => groupRecipientKey(item) === groupRecipientKey(recipient)) === index)
+}
+
+function recipientToTreeNode(recipient: OutlookRecipientDto): RecipientTreeNode {
+  const label = formatRecipient(recipient)
+  return {
+    key: groupRecipientKey(recipient) || label,
+    label,
+    email: recipient.smtpAddress || recipient.rawAddress,
+    isGroup: recipient.isGroup,
+    loaded: false,
+    loading: false,
+    children: recipient.members.map((member) => recipientToTreeNode(member)),
+  }
+}
+
+function contactToTreeNode(contact: AddressBookContactDto): RecipientTreeNode {
+  const label = contact.displayName || contact.smtpAddress || contact.rawAddress || '(unknown)'
+  return {
+    key: (contact.smtpAddress || contact.rawAddress || contact.id || label).trim().toLowerCase(),
+    label,
+    email: contact.smtpAddress || contact.rawAddress,
+    isGroup: contact.isGroup,
+    loaded: false,
+    loading: false,
+    children: [],
+  }
+}
+
+function normalizeRecipientRelevance(value: unknown): AddressBookRecipientRelevanceDto | undefined {
+  const source = value as Partial<AddressBookRecipientRelevanceDto> | undefined
+  if (!source || typeof source !== 'object') return undefined
+  return {
+    score: typeof source.score === 'number' ? source.score : 0,
+    level: typeof source.level === 'string' ? source.level : 'unknown',
+    summary: typeof source.summary === 'string' ? source.summary : '',
+    routeDepth: typeof source.routeDepth === 'number' ? source.routeDepth : -1,
+    directPersonCount: typeof source.directPersonCount === 'number' ? source.directPersonCount : 0,
+    directGroupCount: typeof source.directGroupCount === 'number' ? source.directGroupCount : 0,
+    audienceSize: typeof source.audienceSize === 'number' ? source.audienceSize : 0,
+    includesSelf: Boolean(source.includesSelf),
+    includesSelfDirectly: Boolean(source.includesSelfDirectly),
+    reasons: Array.isArray(source.reasons) ? source.reasons.map((item) => String(item)) : [],
+  }
+}
+
+function relevanceLabel(relevance?: AddressBookRecipientRelevanceDto) {
+  if (!relevance) return ''
+  return `${relevance.score} · ${relevance.level} · depth ${relevance.routeDepth}`
+}
+
+async function openGroupTree(recipient: OutlookRecipientDto) {
+  const root = recipientToTreeNode(recipient)
+  groupTreeRoot.value = root
+  groupTreeVisible.value = true
+  await expandGroupTreeNode(root)
+}
+
+async function expandGroupTreeNode(node: RecipientTreeNode) {
+  if (!node.isGroup || node.loading || node.loaded) return
+  node.loading = true
+  groupTreeLoading.value = true
+  groupTreeMessage.value = `查詢 ${node.label}...`
+  try {
+    const response = await outlookApi.requestAddressBookRelation({
+      targetKind: 'group',
+      groupSmtpAddress: node.email,
+      groupId: node.email ? '' : node.key,
+      take: 100,
+    })
+    await waitForOutlookRequest(response)
+    const pages = await collectOutlookRequestData<Record<string, unknown>>(response, { take: 100 })
+    const data = pages[0]?.data ?? {}
+    const members = Array.isArray(data.members) ? data.members.map(normalizeAddressBookContact) : []
+    node.recipientRelevance = normalizeRecipientRelevance(data.recipientRelevance)
+    node.children = members.map(contactToTreeNode)
+    node.loaded = true
+    groupTreeMessage.value = node.children.length > 0
+      ? `${node.label} 有 ${node.children.length} 個 direct members。`
+      : `${node.label} 沒有可顯示的 direct members。`
+  } catch (error) {
+    groupTreeMessage.value = error instanceof Error ? error.message : 'Group 查詢失敗。'
+  } finally {
+    node.loading = false
+    groupTreeLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -95,16 +212,21 @@ const {
           <div class="dialog-mail-meta">
             <span>收件者</span>
             <strong>{{ formatRecipients(dialogMail.toRecipients) || '-' }}</strong>
-            <small v-for="recipient in dialogMail.toRecipients.filter((item) => item.isGroup)" :key="recipient.displayName || recipient.smtpAddress">
-              {{ formatRecipient(recipient) }} group<span v-if="recipient.members.length > 0">：{{ formatRecipients(recipient.members) }}</span>
-            </small>
+            <span v-if="allGroupRecipients(dialogMail).length > 0" class="recipient-group-actions">
+              <el-button
+                v-for="recipient in allGroupRecipients(dialogMail)"
+                :key="recipient.displayName || recipient.smtpAddress"
+                size="small"
+                plain
+                @click="openGroupTree(recipient)"
+              >
+                {{ formatRecipient(recipient) }} group
+              </el-button>
+            </span>
           </div>
           <div v-if="dialogMail.ccRecipients.length > 0" class="dialog-mail-meta">
             <span>副本</span>
             <strong>{{ formatRecipients(dialogMail.ccRecipients) }}</strong>
-            <small v-for="recipient in dialogMail.ccRecipients.filter((item) => item.isGroup)" :key="recipient.displayName || recipient.smtpAddress">
-              {{ formatRecipient(recipient) }} group<span v-if="recipient.members.length > 0">：{{ formatRecipients(recipient.members) }}</span>
-            </small>
           </div>
           <div class="dialog-mail-meta">
             <span>Folder</span>
@@ -236,5 +358,50 @@ const {
         @set-flag="setMailFlagDraft"
       />
     </div>
+
+    <el-dialog
+      v-model="groupTreeVisible"
+      class="recipient-tree-dialog"
+      width="min(620px, calc(100vw - 36px))"
+      append-to-body
+      destroy-on-close
+      title="Group 收件者"
+    >
+      <div class="recipient-tree-summary">
+        <strong>{{ groupTreeRoot?.label || 'Group' }}</strong>
+        <span v-if="groupTreeRoot?.recipientRelevance">{{ groupTreeRoot.recipientRelevance.summary }}</span>
+        <el-tag v-if="groupTreeRoot?.recipientRelevance" effect="plain">
+          {{ relevanceLabel(groupTreeRoot.recipientRelevance) }}
+        </el-tag>
+        <small v-if="groupTreeMessage">{{ groupTreeMessage }}</small>
+      </div>
+      <el-tree
+        class="recipient-tree"
+        :data="groupTreeNodes"
+        :props="groupTreeProps"
+        node-key="key"
+        default-expand-all
+      >
+        <template #default="{ data }">
+          <div class="recipient-tree-node">
+            <span>
+              <strong>{{ data.label }}</strong>
+              <small v-if="data.email">{{ data.email }}</small>
+            </span>
+            <el-tag v-if="data.isGroup" size="small" effect="plain">Group</el-tag>
+            <el-button
+              v-if="data.isGroup && !data.loaded"
+              size="small"
+              text
+              :loading="data.loading"
+              :disabled="groupTreeLoading"
+              @click.stop="expandGroupTreeNode(data)"
+            >
+              展開
+            </el-button>
+          </div>
+        </template>
+      </el-tree>
+    </el-dialog>
   </el-dialog>
 </template>

@@ -138,6 +138,14 @@ body.mail-dragging * {
   box-shadow: inset 4px 0 0 var(--accent);
 }
 
+.mail-card-row.has-group-recipient {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 56%, var(--warning));
+}
+
+.mail-card-row.has-group-recipient.selected {
+  box-shadow: inset 4px 0 0 var(--accent), inset 8px 0 0 color-mix(in srgb, var(--accent) 56%, var(--warning));
+}
+
 .mail-card-row.selected .mail-row-main strong {
   color: var(--accent-strong);
 }
@@ -181,6 +189,15 @@ body.mail-dragging * {
   overflow: hidden;
   color: var(--text-normal);
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-row-group-summary {
+  max-width: 100%;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-main));
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
