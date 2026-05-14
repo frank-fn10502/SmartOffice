@@ -477,6 +477,23 @@
   overflow-wrap: anywhere;
 }
 
+.calendar-dialog-actions,
+.calendar-editor-time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.calendar-editor-form {
+  display: grid;
+  gap: 2px;
+}
+
+.calendar-room-option {
+  margin-left: 8px;
+  color: var(--text-muted);
+}
+
 .workspace-item {
   display: grid;
   gap: 8px;

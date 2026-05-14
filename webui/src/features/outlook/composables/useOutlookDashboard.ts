@@ -1,5 +1,6 @@
 ﻿import { computed } from 'vue'
 import {
+  normalizeCalendarRooms,
   normalizeMailAttachments,
   normalizeMailItems,
   outlookApi,
@@ -119,18 +120,28 @@ export function useOutlookDashboard() {
     selectedFolderPath,
   })
   const {
+    beginCreateCalendarEvent,
+    beginEditCalendarEvent,
+    calendarDraft,
+    calendarEditorMode,
+    calendarEditorVisible,
     calendarEventDialogVisible,
     calendarEvents,
     calendarMonthLabel,
+    calendarRooms,
     calendarWeekdays,
     calendarWeeks,
     changeCalendarMonth,
+    deleteCalendarEvent,
     goToCurrentCalendarMonth,
     requestCalendar,
+    saveCalendarEvent,
     selectCalendarEvent,
     selectedCalendarEvent,
+    setCalendarRoom,
   } = useOutlookCalendarController({
     loadCalendarFromRequest,
+    loadCalendarRoomsFromRequest,
     loadingCalendar,
     outlookBusy,
     waitForRequest,
@@ -292,6 +303,11 @@ export function useOutlookDashboard() {
   async function loadCalendarFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
     const pages = await collectOutlookRequestData<{ calendarEvents?: CalendarEventDto[] }>(response, { isUnmounted: () => unmounted })
     calendarEvents.value = pages.flatMap((page) => page.data?.calendarEvents ?? [])
+  }
+
+  async function loadCalendarRoomsFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
+    const pages = await collectOutlookRequestData<{ rooms?: unknown[] }>(response, { isUnmounted: () => unmounted })
+    return normalizeCalendarRooms(pages.flatMap((page) => page.data?.rooms ?? []))
   }
 
   const {
@@ -713,12 +729,15 @@ export function useOutlookDashboard() {
   return {
     activeView, activeMailPropertySections, addCategoryToMasterList, addinLogs, addinStatus,
     attachmentExportRootDraft, attachmentExportSettings, addMailCategoryDraft, applyMailProperties,
-    calendarEventDialogVisible, calendarEvents, calendarMonthLabel, calendarWeekdays, calendarWeeks, cancelCreateFolder,
+    beginCreateCalendarEvent, beginEditCalendarEvent, calendarDraft, calendarEditorMode,
+    calendarEditorVisible, calendarEventDialogVisible, calendarEvents, calendarMonthLabel,
+    calendarRooms,
+    calendarWeekdays, calendarWeeks, cancelCreateFolder,
     categories, categoryManagerVisible, categoryColorOptions, categoryColorStyle, categoryTagStyle,
     categoryCreateColor, categoryCreateDraft, changeCalendarMonth, chatMessages, chatPanelRef,
     chatText, clearMailDrag, clearSelectedMails, contextFolderName, createFolder,
     createFolderFromContext, creatingFolderName, creatingFolderParentPath, deleteFolderFromContext,
-    deleteMail, deleteSelectedMails, dragOverFolderPath, draggedMailId, expandedFolders, exportMailAttachment,
+    deleteCalendarEvent, deleteMail, deleteSelectedMails, dragOverFolderPath, draggedMailId, expandedFolders, exportMailAttachment,
     fetchMailsFromContext, flagDisplayLabel, flagIntervalOptions, flagTagType, folderContextMenu,
     folderStores, loadingCalendar, loadingCategories, loadAttachmentExportSettings, loadingFolders,
     loadingMails, loadingMailSearch, loadingSignalRPing, mailCount, mailHtmlSandbox, mailListMode,
@@ -738,7 +757,8 @@ export function useOutlookDashboard() {
     fetchedMailFolderName, mailListNeedsFetch, mailFetchCountdownText, showMailFetchWarning,
     mailFetchStatusText, selectedFolderName, selectedCalendarEvent, selectedFolderPath,
     selectedMail, selectedMailCategories, selectedMailIndex, selectedMailIds, selectedRule,
-    selectedRuleIndex, selectFolder, selectCalendarEvent, selectMail, sendChat, saveRule,
+    selectedRuleIndex, selectFolder, selectCalendarEvent, selectMail, sendChat, saveCalendarEvent, saveRule,
+    setCalendarRoom,
     deleteRule, editRule, showFolderMails, goToCurrentCalendarMonth, setDragOverFolder,
     setMailFlagDraft, signalRState, splitCategories, startMailPointerDrag, switchView, toggleFolder,
     toggleSearchResultFolder, toggleSearchResultStore, updateCategoryColor, toggleRuleEnabled,

@@ -365,6 +365,16 @@ export interface CalendarEventDto {
   requiredAttendees: OutlookRecipientDto[]
   isRecurring: boolean
   busyStatus: string
+  smartOfficeOwned: boolean
+  smartOfficeEventId: string
+}
+
+export interface CalendarRoomDto {
+  id: string
+  displayName: string
+  smtpAddress: string
+  rawAddress: string
+  source: string
 }
 
 export interface AddressBookContactDto {

@@ -6,6 +6,7 @@
   AddressBookResponse,
   AttachmentExportSettingsDto,
   CalendarEventDto,
+  CalendarRoomDto,
   CategoryCommandRequest,
   ChatMessageDto,
   FolderSnapshotDto,
@@ -213,11 +214,28 @@ export function normalizeCalendarEvent(item: unknown): CalendarEventDto {
     requiredAttendees: normalizeRecipients(source.requiredAttendees ?? source.RequiredAttendees, 'required'),
     isRecurring: readBoolean(source, 'isRecurring', 'IsRecurring'),
     busyStatus: readString(source, 'busyStatus', 'BusyStatus'),
+    smartOfficeOwned: readBoolean(source, 'smartOfficeOwned', 'SmartOfficeOwned'),
+    smartOfficeEventId: readString(source, 'smartOfficeEventId', 'SmartOfficeEventId'),
   }
 }
 
 export function normalizeCalendarEvents(items: unknown): CalendarEventDto[] {
   return Array.isArray(items) ? items.map(normalizeCalendarEvent) : []
+}
+
+export function normalizeCalendarRoom(item: unknown): CalendarRoomDto {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    id: readString(source, 'id', 'Id'),
+    displayName: readString(source, 'displayName', 'DisplayName'),
+    smtpAddress: readString(source, 'smtpAddress', 'SmtpAddress'),
+    rawAddress: readString(source, 'rawAddress', 'RawAddress'),
+    source: readString(source, 'source', 'Source'),
+  }
+}
+
+export function normalizeCalendarRooms(items: unknown): CalendarRoomDto[] {
+  return Array.isArray(items) ? items.map(normalizeCalendarRoom).filter((room) => room.displayName.trim()) : []
 }
 
 export function normalizeAddressBookContact(item: unknown): AddressBookContactDto {
@@ -425,6 +443,29 @@ export const outlookApi = {
   requestSignalRPing: () => postJson<OutlookRequestResponse>('/api/outlook/request-signalr-ping'),
   requestCalendar: (body: { daysForward: number; startDate?: string; endDate?: string }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-calendar', body),
+  requestCalendarRooms: () => postJson<OutlookRequestResponse>('/api/outlook/request-calendar-rooms'),
+  requestCreateCalendarEvent: (body: {
+    subject: string
+    start: string
+    end: string
+    location: string
+    body: string
+    busyStatus: string
+    resources?: OutlookRecipientDto[]
+  }) => postJson<OutlookRequestResponse>('/api/outlook/request-create-calendar-event', body),
+  requestUpdateCalendarEvent: (body: {
+    eventId: string
+    smartOfficeEventId: string
+    subject: string
+    start: string
+    end: string
+    location: string
+    body: string
+    busyStatus: string
+    resources?: OutlookRecipientDto[]
+  }) => postJson<OutlookRequestResponse>('/api/outlook/request-update-calendar-event', body),
+  requestDeleteCalendarEvent: (body: { eventId: string }) =>
+    postJson<OutlookRequestResponse>('/api/outlook/request-delete-calendar-event', body),
   requestAddressBook: (body: { includeOutlookContacts: boolean; includeAddressLists: boolean; maxContacts: number; maxAddressEntriesPerList: number }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-address-book', body),
   sendChat: (body: { source: 'web'; text: string }) => postJson('/api/outlook/chat', body),
