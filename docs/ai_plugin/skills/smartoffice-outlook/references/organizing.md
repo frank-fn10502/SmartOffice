@@ -39,6 +39,10 @@
 ## Calendar / Rules / Categories
 
 - `POST /api/outlook/request-calendar` with `{ "daysForward": 31, "startDate": null, "endDate": null }` -> `POST /api/outlook/fetch-result-calendar`
+- `POST /api/outlook/request-calendar-rooms` -> `POST /api/outlook/fetch-result-calendar-rooms`
+- `POST /api/outlook/request-create-calendar-event` with calendar event fields -> `POST /api/outlook/fetch-result-create-calendar-event`
+- `POST /api/outlook/request-update-calendar-event` with `eventId` and calendar event fields -> `POST /api/outlook/fetch-result-update-calendar-event`
+- `POST /api/outlook/request-delete-calendar-event` with `eventId` -> `POST /api/outlook/fetch-result-delete-calendar-event`
 - `POST /api/outlook/request-rules` -> `POST /api/outlook/fetch-result-rules`
 - `POST /api/outlook/request-manage-rule` with `OutlookRuleCommandRequest` -> `POST /api/outlook/fetch-result-manage-rule`
 - `POST /api/outlook/request-categories` -> `POST /api/outlook/fetch-result-categories`
@@ -220,4 +224,8 @@ Chat text 可能含敏感 business data。
 
 ## `CalendarEventDto`
 
-`id`, `subject`, `start`, `end`, `location`, `organizer`, `requiredAttendees`, `isRecurring`, `busyStatus`。`organizer` 是 `OutlookRecipientDto`，`requiredAttendees` 是 `OutlookRecipientDto[]`。
+`id`, `subject`, `start`, `end`, `location`, `organizer`, `requiredAttendees`, `isRecurring`, `busyStatus`, `smartOfficeOwned`, `smartOfficeEventId`。`organizer` 是 `OutlookRecipientDto`，`requiredAttendees` 是 `OutlookRecipientDto[]`。
+
+Calendar update / delete 只適用 `smartOfficeOwned=true` 的 event。若 API 回 `not_smartoffice_owned`，停止操作並告知使用者 SmartOffice 只能更新或刪除 SmartOffice 建立的 calendar event。
+
+建立或更新 calendar event 時先用 `request-calendar-rooms` 取得 `data.rooms`，讓使用者從下拉選單選會議室或設備 resource。送出 create/update 時把選取項目放進 `resources[]`；SmartOffice 會交由 Outlook 解析。UI 上的「會議室 / Resource」不是地點文字，而是 Outlook resource recipient。

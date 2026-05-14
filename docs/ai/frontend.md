@@ -92,12 +92,13 @@ webui/src/features/office/
 - Repo-level 規則由 `./scripts/check-source-lines.sh` 檢查，`./scripts/build-in-container.sh` 會先執行這個 gate。
 - `webui/src/` 內 `.ts` 與 `.vue` 另由 `webui/scripts/check-file-lines.mjs` 檢查，`npm run build` 會先執行 `npm run check:file-lines`。
 - 600 行以上視為預警區。繼續新增功能前，請先找自然切分點；接近 800 行時不得再把新功能塞進同一檔案。
+- 800 行上限代表需要檢查 UI、state、API adapter、formatter、mock data 或樣式是否混在同一責任裡。切分必須基於使用者流程或程式責任，不可只把內容搬到沒有語意的 companion file。
 - 先抽出純資料與 pure helper，例如 enum mapping、formatting、normalizer、date helper、color helper。
 - UI 很自然成為獨立區塊時，再拆成 component；例如 folder tree、mail row、category editor、calendar grid。
 - CSS 可依畫面區塊或 feature 拆分，但不要把每個 selector 拆成獨立檔案；以「能一次理解一個 UI 區塊」為準。
 - 不要為了追求短檔案而建立大量只有 trivial function 的檔案。偏好少量、穩定、命名清楚的模組。
 
-若當次任務會讓檔案明顯變長，應同時安排小幅切分。超過 800 行時不能以 change summary 說明原因代替切分；必須先修到 gate 通過。完成 Web UI 變更時，回報中需列出 line-count gate 或 container build 結果。
+若當次任務會讓檔案明顯變長，應同時安排小幅切分。超過 800 行時不能以 change summary 說明原因代替切分；必須先依責任邊界修到 gate 通過。完成 Web UI 變更時，回報中需列出 line-count gate 或 container build 結果。
 
 ## Dependency 原則
 
