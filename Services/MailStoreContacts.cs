@@ -17,6 +17,26 @@ namespace SmartOffice.Hub.Services
             }
         }
 
+        public void ApplyAddressBookBatch(AddressBookBatchDto batch)
+        {
+            batch ??= new AddressBookBatchDto();
+            lock (_lock)
+            {
+                if (batch.Reset) _addressBookContacts = new List<AddressBookContactDto>();
+                foreach (var contact in batch.Contacts.Where(contact =>
+                    !string.IsNullOrWhiteSpace(contact.SmtpAddress) || !string.IsNullOrWhiteSpace(contact.DisplayName)))
+                {
+                    var key = AddressBookContactKey(contact);
+                    if (string.IsNullOrWhiteSpace(key)) continue;
+                    var index = _addressBookContacts.FindIndex(existing =>
+                        string.Equals(AddressBookContactKey(existing), key, StringComparison.OrdinalIgnoreCase));
+                    var clone = CloneAddressBookContact(contact);
+                    if (index >= 0) _addressBookContacts[index] = clone;
+                    else _addressBookContacts.Add(clone);
+                }
+            }
+        }
+
         public List<AddressBookContactDto> GetAddressBookContacts(string query = "", int take = 200)
         {
             lock (_lock)
@@ -313,6 +333,11 @@ namespace SmartOffice.Hub.Services
             if (!string.IsNullOrWhiteSpace(contact.RawAddress)) yield return NormalizeEmail(contact.RawAddress);
             if (!string.IsNullOrWhiteSpace(contact.DisplayName)) yield return NormalizeEmail(contact.DisplayName);
             if (!string.IsNullOrWhiteSpace(contact.Id)) yield return NormalizeEmail(contact.Id);
+        }
+
+        private static string AddressBookContactKey(AddressBookContactDto contact)
+        {
+            return ContactKeys(contact).FirstOrDefault(key => !string.IsNullOrWhiteSpace(key)) ?? string.Empty;
         }
 
         private static bool Contains(string value, string query)

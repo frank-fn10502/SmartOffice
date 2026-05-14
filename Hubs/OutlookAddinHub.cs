@@ -399,6 +399,15 @@ namespace SmartOffice.Hub.Hubs
             await BroadcastStatusAndLogsAsync();
         }
 
+        public async Task PushAddressBookBatch(AddressBookBatchDto batch)
+        {
+            batch ??= new AddressBookBatchDto();
+            _mailStore.ApplyAddressBookBatch(batch);
+            _addinStatus.RecordPush("address book batch", batch.Contacts.Count);
+            await _notifications.Clients.All.SendAsync("AddressBookBatchUpdated", batch);
+            await BroadcastStatusAndLogsAsync();
+        }
+
         public async Task ReportAddinLog(AddinLogEntry entry)
         {
             _addinStatus.AddLog(entry.Level, entry.Message);

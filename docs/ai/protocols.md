@@ -154,7 +154,8 @@ AddIn 連到 `/hub/outlook-addin` 後可以 invoke：
 - `PushRules(rules)`：取代目前 Outlook rules 並 broadcast update。
 - `PushCategories(categories)`：取代目前 Outlook master category list 並 broadcast update。
 - `PushCalendar(events)`：取代目前 Outlook calendar events 並 broadcast update。
-- `PushAddressBook(contacts)`：更新目前 Outlook address book view；Hub 仍會和 mail/calendar derived contact view 合併。
+- `PushAddressBookBatch(batch)`：分批 merge Outlook address book metadata；大量通訊錄必須使用固定大小 batch，不得把累積 snapshot 塞進單一 SignalR payload。
+- `PushAddressBook(contacts)`：更新目前 Outlook address book view；只適合小型 snapshot，Hub 仍會和 mail/calendar derived contact view 合併。
 - `SendChatMessage(message)`：AddIn 透過 SignalR 送出 chat message，Hub 會 broadcast `NewChatMessage`。
 - `ReportAddinLog(entry)`：回報 AddIn log。
 - `ReportCommandResult(result)`：回報 command 執行結果。

@@ -274,6 +274,16 @@ namespace SmartOffice.Hub.Contracts
         public int MaxGroupDepth { get; set; } = 1;
     }
 
+    public class AddressBookBatchDto
+    {
+        public string BatchId { get; set; } = string.Empty;
+        public int Sequence { get; set; }
+        public bool Reset { get; set; }
+        public bool IsFinal { get; set; }
+        public int TotalCount { get; set; }
+        public List<AddressBookContactDto> Contacts { get; set; } = new List<AddressBookContactDto>();
+    }
+
     public class AddinLogEntry
     {
         public string Level { get; set; } = "info";

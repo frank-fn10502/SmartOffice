@@ -57,6 +57,8 @@ namespace SmartOffice.Hub.Services
         public async Task<bool> TryDispatchAsync(PendingCommand command, CancellationToken ct = default)
         {
             if (!IsEnabled) return false;
+            if (command.Type == "fetch_address_book")
+                return await TryDispatchAddressBookAsync(command, ct);
 
             FolderSyncBatchDto? folderBatch = null;
             List<MailSearchSliceResultDto>? mailSearchSliceResults = null;
@@ -73,7 +75,6 @@ namespace SmartOffice.Hub.Services
             List<OutlookRuleDto>? rules = null;
             List<CalendarEventDto>? calendar = null;
             List<CalendarRoomDto>? calendarRooms = null;
-            List<AddressBookContactDto>? addressBook = null;
             var commandSuccess = true;
             var resultMessage = string.Empty;
 
@@ -193,10 +194,6 @@ namespace SmartOffice.Hub.Services
                         else _mailStore.SetCalendarEvents(calendar);
                         resultMessage = calendar is null ? "not_smartoffice_owned" : string.Empty;
                         break;
-                    case "fetch_address_book":
-                        addressBook = BuildMockAddressBook(command.AddressBookRequest);
-                        _mailStore.SetAddressBookContacts(addressBook);
-                        break;
                     case "upsert_category":
                         UpsertCategory(command.CategoryRequest);
                         categories = new List<OutlookCategoryDto>(_mockCategories);
@@ -310,7 +307,6 @@ namespace SmartOffice.Hub.Services
             if (rules is not null) await _notifications.Clients.All.SendAsync("RulesUpdated", rules, ct);
             if (calendar is not null) await _notifications.Clients.All.SendAsync("CalendarUpdated", calendar, ct);
             if (calendarRooms is not null) await _notifications.Clients.All.SendAsync("CalendarRoomsUpdated", calendarRooms, ct);
-            if (addressBook is not null) await _notifications.Clients.All.SendAsync("AddressBookUpdated", addressBook, ct);
             await _notifications.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), ct);
             await _notifications.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), ct);
             await _notifications.Clients.All.SendAsync("CommandResult", new OutlookCommandResult

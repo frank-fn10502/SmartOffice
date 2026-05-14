@@ -1,7 +1,83 @@
+using Microsoft.AspNetCore.SignalR;
+
 namespace SmartOffice.Hub.Services
 {
     public partial class MockOutlookService
     {
+        private async Task<bool> TryDispatchAddressBookAsync(PendingCommand command, CancellationToken ct)
+        {
+            List<AddressBookContactDto> contacts;
+            lock (_lock)
+            {
+                EnsureSeeded();
+                contacts = BuildMockAddressBook(command.AddressBookRequest);
+                _addinStatus.RecordMockDispatch(command.Type);
+            }
+
+            var batchSize = MockAddressBookBatchSize();
+            var delayMs = MockAddressBookDelayMs();
+            var batchId = Guid.NewGuid().ToString("N");
+            var sequence = 1;
+            var chunks = contacts.Chunk(batchSize).Select(chunk => chunk.ToList()).ToList();
+            if (chunks.Count == 0) chunks.Add(new List<AddressBookContactDto>());
+
+            var resetBatch = new AddressBookBatchDto
+            {
+                BatchId = batchId,
+                Sequence = 0,
+                Reset = true,
+                IsFinal = false,
+                TotalCount = contacts.Count,
+                Contacts = new List<AddressBookContactDto>(),
+            };
+            _mailStore.ApplyAddressBookBatch(resetBatch);
+            await _notifications.Clients.All.SendAsync("AddressBookBatchUpdated", resetBatch, ct);
+
+            foreach (var chunk in chunks)
+            {
+                if (delayMs > 0) await Task.Delay(delayMs, ct);
+                var batch = new AddressBookBatchDto
+                {
+                    BatchId = batchId,
+                    Sequence = sequence++,
+                    Reset = false,
+                    IsFinal = sequence > chunks.Count,
+                    TotalCount = contacts.Count,
+                    Contacts = chunk,
+                };
+                _mailStore.ApplyAddressBookBatch(batch);
+                _addinStatus.RecordPush("mock address book batch", batch.Contacts.Count);
+                await _notifications.Clients.All.SendAsync("AddressBookBatchUpdated", batch, ct);
+                await _notifications.Clients.All.SendAsync("AddinStatus", _addinStatus.GetStatus(), ct);
+                await _notifications.Clients.All.SendAsync("AddinLog", _addinStatus.GetLogs(), ct);
+            }
+
+            await _notifications.Clients.All.SendAsync("CommandResult", new OutlookCommandResult
+            {
+                CommandId = command.Id,
+                Success = true,
+                Message = $"{command.Type} completed by mock backend",
+                Timestamp = DateTime.Now,
+            }, ct);
+            return true;
+        }
+
+        private static int MockAddressBookDelayMs()
+        {
+            var raw = Environment.GetEnvironmentVariable("SMARTOFFICE_MOCK_ADDRESS_BOOK_DELAY_MS");
+            return int.TryParse(raw, out var delayMs)
+                ? Math.Clamp(delayMs, 0, 120000)
+                : 750;
+        }
+
+        private static int MockAddressBookBatchSize()
+        {
+            var raw = Environment.GetEnvironmentVariable("SMARTOFFICE_MOCK_ADDRESS_BOOK_BATCH_SIZE");
+            return int.TryParse(raw, out var batchSize)
+                ? Math.Clamp(batchSize, 1, 100)
+                : 25;
+        }
+
         private List<AddressBookContactDto> BuildMockAddressBook(AddressBookSyncRequest? request)
         {
             request ??= new AddressBookSyncRequest();
@@ -78,6 +154,30 @@ namespace SmartOffice.Hub.Services
                     "finance-approvers@example.test",
                     "olivia.brown@customer.example.test"),
             };
+
+            var departments = new[]
+            {
+                "Engineering",
+                "Product",
+                "Finance",
+                "Legal",
+                "Operations",
+                "Sales",
+                "Security",
+                "People",
+            };
+            var target = Math.Min(max, 200);
+            for (var index = contacts.Count + 1; contacts.Count < target; index++)
+            {
+                var department = departments[index % departments.Length];
+                contacts.Add(MockContact(
+                    $"mock-contact-{index:000}",
+                    $"Mock User {index:000}",
+                    $"mock.user.{index:000}@example.test",
+                    department,
+                    $"{department} Specialist",
+                    index % 3 == 0 ? "offline_address_book" : "global_address_list"));
+            }
 
             return contacts.Take(max).ToList();
         }
