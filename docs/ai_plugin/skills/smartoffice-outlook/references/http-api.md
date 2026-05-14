@@ -182,8 +182,10 @@ Request body 使用錯欄位名時：
 | `POST /api/outlook/request-mail-attachments` | `POST /api/outlook/fetch-result-mail-attachments` | `mailId`, `folderPath`, `attachments` | `mail.md` |
 | `POST /api/outlook/request-mail-conversation` | `POST /api/outlook/fetch-result-mail-conversation` | `mailId`, `folderPath`, `conversationId`, `conversationTopic`, `mails` | `mail.md` |
 | `POST /api/outlook/request-export-mail-attachment` | `POST /api/outlook/fetch-result-export-mail-attachment` | `{}` | `mail.md` |
-| `POST /api/outlook/request-address-book` | `POST /api/outlook/fetch-result-address-book` | `roots`, `contacts`, group relation data | `organizing.md` |
-| `POST /api/outlook/request-address-book-relation` | `POST /api/outlook/fetch-result-address-book-relation` | `target`, `matches`, `members`, `memberOfGroups`, `containingGroups` | `organizing.md` |
+| `POST /api/outlook/request-address-book-roots` | `POST /api/outlook/fetch-result-address-book-roots` | `roots` | `organizing.md` |
+| `POST /api/outlook/request-address-list-entries` | `POST /api/outlook/fetch-result-address-list-entries` | `addressListId`, `addressListName`, `contacts` | `organizing.md` |
+| `POST /api/outlook/request-address-book-group-members` | `POST /api/outlook/fetch-result-address-book-group-members` | `groupKey`, `groupSmtpAddress`, `members` | `organizing.md` |
+| `POST /api/outlook/request-address-book-relation` | `POST /api/outlook/fetch-result-address-book-relation` | `target`, `matches`, `members`, `memberGroups`, `memberOfGroups`, `containingGroups`, `recipientRelevance` | `organizing.md` |
 | `POST /api/outlook/request-rules` | `POST /api/outlook/fetch-result-rules` | `rules` | `organizing.md` |
 | `POST /api/outlook/request-categories` | `POST /api/outlook/fetch-result-categories` | `categories` | `organizing.md` |
 | `POST /api/outlook/request-calendar` | `POST /api/outlook/fetch-result-calendar` | `calendarEvents` | `organizing.md` |

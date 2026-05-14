@@ -101,15 +101,19 @@ Agent 處理 category 時應先用 `request-categories` / `fetch-result-categori
 
 ## Address Book / Group Relations
 
-反查 group 與個人關聯時，優先使用：
+AI、MCP client 或人類用 HTTP API 完成一般任務時，優先使用高階查詢：
 
 - `POST /api/outlook/request-address-book-relation`
 - `POST /api/outlook/fetch-result-address-book-relation`
 
-只有需要瀏覽通訊錄來源、分頁列出 entries 或手動展開特定 group members 時，才使用：
+Web UI 或需要瀏覽通訊錄目錄的 caller 才使用瀏覽型 endpoint：
 
-- `POST /api/outlook/request-address-book`
-- `POST /api/outlook/fetch-result-address-book`
+- `POST /api/outlook/request-address-book-roots`
+- `POST /api/outlook/fetch-result-address-book-roots`
+- `POST /api/outlook/request-address-list-entries`
+- `POST /api/outlook/fetch-result-address-list-entries`
+- `POST /api/outlook/request-address-book-group-members`
+- `POST /api/outlook/fetch-result-address-book-group-members`
 
 ### 反查 group 或個人關聯
 
@@ -146,17 +150,41 @@ Agent 處理 category 時應先用 `request-categories` / `fetch-result-categori
 - `memberGroups`: group 直接包含的 nested groups。
 - `memberOfGroups`: 個人所屬 groups，或目標 entry 目前已知的上層 groups。
 - `containingGroups`: 直接包含目標 entry 的 groups。
-- `isLikelySelf`, `isRelatedToSelf`, `groupMembersLoaded`, `groupMembersLoading`: 可直接判讀的關聯狀態。
+- `isLikelySelf`, `isRelatedToSelf`: 可直接判讀的關聯狀態。
+- `recipientRelevance`: 只根據收件者路徑計算的參考關聯度。
 
 判讀規則：
 
 - `state=found` 才能回覆確定關聯。
 - `state=ambiguous` 時列出必要候選，請使用者確認目標。
-- `state=not_found` 只代表目前資料找不到目標，不代表 Outlook 裡一定不存在。
-- group 的 `isRelatedToSelf=true` 代表目前資料顯示該 group 與自己有關。
+- `state=not_found` 代表本次查詢找不到目標。
+- group 的 `isRelatedToSelf=true` 代表該 group 與自己有關。
 - `members[]` 裡有 `isLikelySelf=true` 的 entry 時，可回覆自己在該 group 中。
-- 個人的 `memberOfGroups[]` 表示目前資料顯示該個人屬於哪些 groups。
-- `groupMembersLoading=true` 時，先回報仍在讀取或稍後再 fetch result；不要判定為沒有關聯。
+- 個人的 `memberOfGroups[]` 表示該個人屬於哪些 groups。
+- 若 `state=running`，稍後用同一個 `requestId` 再呼叫 paired fetch result；不要判定為沒有關聯。
+
+### Group 收件者路徑關聯度
+
+當使用者問「這封 mail 是寄給 groupD1，跟我有多相關」時，用 `request-address-book-relation` 查該 group。Fetch result 的 `data.recipientRelevance` 會提供：
+
+- `score`: 0-100，分數越高代表收件者路徑越直接；本人直接收件為 100，往上一到兩層 group 仍維持高分，第三層後用指數衰減快速下降。
+- `level`: `direct`、`strong`、`broad`、`weak`、`unknown`。
+- `summary`: 可直接摘要給使用者的解釋。
+- `routeDepth`: 收件者路徑深度；`0` 代表本人，`1` 代表 direct group，`2` 代表 direct nested group，`3` 代表更間接的已知路徑，`-1` 代表沒有已知路徑。
+- `directPersonCount`: 該 group 的 direct person 數量。
+- `directGroupCount`: 該 group 的 direct nested group 數量。
+- `audienceSize`: direct person + group 的估計受眾大小。
+- `includesSelf`: group 是否與自己有關。
+- `includesSelfDirectly`: 自己是否為 direct member。
+- `reasons[]`: 分數依據，例如 direct membership、受眾大小、過往 mail/calendar 互動。
+
+這個分數只衡量「收件者路徑與受眾範圍」對自己的關聯度，是其中一個排序參考，不判斷 mail 內容本身重要與否。內容點名、任務語氣、deadline、sender 角色等內容訊號可能比收件者路徑更重要；若 `level=broad` 且 `audienceSize` 很大，回覆使用者時可說明「這封信與你有關，但可能是部門/大群組通知；除非內容點名你的工作，否則不一定是高優先個人行動」。
+
+計分模型：
+
+- 先依 `routeDepth` 算基礎分數：`0 -> 100`、`1 -> 95`、`2 -> 90`。
+- `routeDepth >= 3` 時使用 `round(90 * exp(-0.4 * (routeDepth - 2)))`，讓第三層後快速遞減。
+- `audienceSize` 只作為次要 breadth factor，不用線性扣分；大群組會降低一部分分數並寫入 `reasons[]`，但不取代路徑深度。
 
 ### 取得通訊錄來源
 
@@ -166,7 +194,7 @@ Request:
 {}
 ```
 
-Fetch result 的 `data.roots[]` 會列出可讀取來源。每個 root 常用欄位：
+呼叫 `POST /api/outlook/request-address-book-roots`，再讀 `POST /api/outlook/fetch-result-address-book-roots`。Fetch result 的 `data.roots[]` 會列出可讀取來源。每個 root 常用欄位：
 
 - `id`
 - `name`
@@ -188,6 +216,8 @@ Request:
 
 `addressListId` 優先取自 `data.roots[].id`。Fetch result 的 `data.contacts[]` 會回傳人員、group、shared mailbox、resource 等 entries；若 `next.hasMore=true` 或 `data.hasMore=true`，用下一個 `offset` 繼續分頁，不要把第一頁當成全部資料。
 
+呼叫 `POST /api/outlook/request-address-list-entries`，再讀 `POST /api/outlook/fetch-result-address-list-entries`。
+
 ### 展開 group members
 
 已知 group 的 `smtpAddress` 或 `id` 後：
@@ -196,14 +226,14 @@ Request:
 {
   "groupSmtpAddress": "group@example.com",
   "groupId": "",
-  "maxGroupMembers": 5000,
+  "maxMembers": 5000,
   "forceRefresh": false
 }
 ```
 
-Fetch result 的 `data.members[]` 是該 group 目前可取得的 members。若 member 本身也是 group，會以 `isGroup=true` 表示；需要查看下一層時，再對該 member 的 `smtpAddress` 或 `id` 發起一次 `request-address-book`。不要在沒有任務需求時遞迴展開所有 nested groups。
+呼叫 `POST /api/outlook/request-address-book-group-members`，再讀 `POST /api/outlook/fetch-result-address-book-group-members`。Fetch result 的 `data.members[]` 是該 group 可取得的 members。若 member 本身也是 group，會以 `isGroup=true` 表示；需要查看下一層時，再對該 member 的 `smtpAddress` 或 `id` 發起一次 `request-address-book-group-members`。不要在沒有任務需求時遞迴展開所有 nested groups。
 
-### Entries 內的關聯欄位
+### Entries 內的顯示欄位
 
 `AddressBookContactDto` 常用欄位：
 
@@ -213,8 +243,6 @@ Fetch result 的 `data.members[]` 是該 group 目前可取得的 members。若 
 - `isLikelySelf`
 - `isRelatedToSelf`
 - `memberCount`
-- `groupMembersLoaded`
-- `groupMembersLoading`
 - `memberSmtpAddresses`
 - `memberGroupSmtpAddresses`
 - `memberOfGroupSmtpAddresses`
@@ -222,12 +250,11 @@ Fetch result 的 `data.members[]` 是該 group 目前可取得的 members。若 
 判讀規則：
 
 - `isLikelySelf=true`：此 entry 代表目前使用者自己。
-- group 的 `isRelatedToSelf=true`：目前資料顯示該 group 與自己有關，通常表示自己是該 group 的 member，或 group 展開後能判定與自己相關。
-- 個人的 `memberOfGroupSmtpAddresses[]`：目前資料顯示該個人屬於哪些 group。
-- group 的 `memberSmtpAddresses[]`：目前資料顯示該 group 包含哪些 member SMTP。
-- group 的 `memberGroupSmtpAddresses[]`：目前資料顯示該 group 包含哪些 nested groups。
-- `groupMembersLoading=true` 時，先回報仍在讀取或稍後再 fetch result；不要判定為沒有關聯。
-- `groupMembersLoaded=false` 且 `isRelatedToSelf=false` 只代表目前資料尚未顯示關聯，不代表一定沒有關聯。
+- group 的 `isRelatedToSelf=true`：該 group 與自己有關，通常表示自己是該 group 的 member，或 group 展開後能判定與自己相關。
+- 個人的 `memberOfGroupSmtpAddresses[]`：該個人屬於哪些 group。
+- group 的 `memberSmtpAddresses[]`：該 group 包含哪些 member SMTP。
+- group 的 `memberGroupSmtpAddresses[]`：該 group 包含哪些 nested groups。
+- 需要確認完整 direct members 時，呼叫 `request-address-book-group-members`，不要只依賴 entry 摘要欄位。
 
 ### 備用任務流程
 
@@ -241,7 +268,7 @@ Fetch result 的 `data.members[]` 是該 group 目前可取得的 members。若 
 
 1. 優先用 `request-address-book-relation`，body 放 `email`、`smtpAddress`、`displayName` 或 `id`。
 2. 若 `state=found`，讀 `memberOfGroups[]` 與 `containingGroups[]`。
-3. 若 `state=not_found` 或 `memberOfGroups[]` 為空，只能回報目前資料未顯示所屬 group。
+3. 若 `state=not_found` 或 `memberOfGroups[]` 為空，只能回報本次查詢未顯示所屬 group。
 
 ## Mail / Folder Mutations
 
@@ -285,7 +312,7 @@ Request:
 }
 ```
 
-語意是將 folder 移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不接受目的 folder；SmartOffice 必須用 Outlook default folder identity 定位 Deleted Items，不得依賴 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱。完成後告知使用者 folder 已移到刪除資料夾。若目標 folder 已經位於 default Deleted Items folder 或其子層，paired fetch result 會回 `state=failed` / `message=manual_delete_required`；agent 必須停止，並請使用者自行到 Outlook 操作。
+語意是將 folder 移到 Outlook default Deleted Items folder，不是永久刪除。HTTP request 不接受目的 folder；Deleted Items 由 SmartOffice API 以 Outlook default folder identity 定位，不依賴 `Deleted Items`、`刪除的郵件` 或其他本地化顯示名稱。完成後告知使用者 folder 已移到刪除資料夾。若目標 folder 已經位於 default Deleted Items folder 或其子層，paired fetch result 會回 `state=failed` / `message=manual_delete_required`；agent 必須停止，並請使用者自行到 Outlook 操作。
 
 ### `POST /api/outlook/request-move-mail`
 

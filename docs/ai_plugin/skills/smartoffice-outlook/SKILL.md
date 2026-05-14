@@ -45,7 +45,7 @@ Skill 內附兩類 script。`scripts/outlook-api.sh` 與 `scripts/outlook-api.ps
 - 最近郵件: `./scripts/recipes/recent-mails.sh --lookback-hours 168 --max-count 30`
 - 通用 request/fetch: `./scripts/outlook-api.sh request-fetch /api/outlook/request-calendar '{"daysForward":31,"startDate":null,"endDate":null}'`
 
-PowerShell recipe 對應為 `pwsh ./scripts/recipes/inbox.ps1` 與 `pwsh ./scripts/recipes/recent-mails.ps1 -LookbackHours 168 -MaxCount 30`。只有當流程已經有實際案例、包含多步驟或容易做錯時，才新增 recipe；單一步驟或仍在探索中的呼叫請用底層 helper。
+PowerShell recipe 對應為 `pwsh ./scripts/recipes/inbox.ps1` 與 `pwsh ./scripts/recipes/recent-mails.ps1 -LookbackHours 168 -MaxCount 30`。沒有對應 recipe 的操作請用底層 helper。
 
 使用 helper 或 recipe 時仍需遵守本文件規則：修改前先確認唯一 `mailId` / `folderPath`，只摘要必要資料，並在回覆使用者時說明 folder 範圍。
 
