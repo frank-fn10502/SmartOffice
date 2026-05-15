@@ -128,7 +128,8 @@ namespace SmartOffice.Hub.Services
 
                 var takeLimit = take <= 0 ? int.MaxValue : Math.Clamp(take, 1, 5000);
                 return contacts
-                    .OrderByDescending(contact => contact.RelationScore)
+                    .OrderByDescending(AddressBookContactPriority)
+                    .ThenByDescending(contact => contact.RelationScore)
                     .ThenByDescending(contact => contact.LastSeen ?? DateTime.MinValue)
                     .ThenBy(contact => contact.DisplayName)
                     .Take(takeLimit)
