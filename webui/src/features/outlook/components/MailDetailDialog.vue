@@ -6,7 +6,7 @@ import { collectOutlookRequestData, waitForOutlookRequest } from '../composables
 import { normalizeAddressBookContact, outlookApi } from '../api/outlook'
 import type { AddressBookContactDto, AddressBookRecipientRelevanceDto, OutlookRecipientDto } from '../models/outlook'
 import { formatDateTime } from '../utils/formatters'
-import { formatMailSender, formatRecipient, formatRecipients, shouldShowRecipientSmtpAddress } from '../utils/mailAddresses'
+import { formatMailSender, formatRecipient, shouldShowRecipientSmtpAddress } from '../utils/mailAddresses'
 import { outlookItemTypeLabel } from '../utils/outlookItemTypes'
 
 const props = defineProps<{
@@ -22,6 +22,12 @@ interface RecipientTreeNode {
   loading: boolean
   children: RecipientTreeNode[]
   recipientRelevance?: AddressBookRecipientRelevanceDto
+}
+
+type RecipientTreeNodeHandle = {
+  expanded?: boolean
+  expand?: () => void
+  collapse?: () => void
 }
 
 function formatAttachmentSize(size: number) {
@@ -45,7 +51,7 @@ const groupTreeMessage = ref('')
 const groupTreeRoot = ref<RecipientTreeNode | null>(null)
 const groupTreeRef = ref<{
   updateKeyChildren?: (key: string, children: RecipientTreeNode[]) => void
-  getNode?: (key: string) => { expanded?: boolean; expand?: () => void } | undefined
+  getNode?: (key: string) => RecipientTreeNodeHandle | undefined
 } | null>(null)
 const groupTreeProps = { label: 'label', children: 'children' }
 const groupTreeNodes = computed(() => groupTreeRoot.value ? [groupTreeRoot.value] : [])
@@ -93,9 +99,8 @@ function groupRecipientKey(recipient: OutlookRecipientDto) {
   return (recipient.smtpAddress || recipient.rawAddress || recipient.displayName).trim().toLowerCase()
 }
 
-function allGroupRecipients(mail: NonNullable<typeof dialogMail.value>) {
-  return [...mail.toRecipients, ...mail.ccRecipients, ...mail.bccRecipients]
-    .filter((recipient) => recipient.isGroup)
+function uniqueRecipients(recipients: OutlookRecipientDto[]) {
+  return recipients
     .filter((recipient, index, items) => items.findIndex((item) => groupRecipientKey(item) === groupRecipientKey(recipient)) === index)
 }
 
@@ -152,6 +157,23 @@ async function openGroupTree(recipient: OutlookRecipientDto) {
   groupTreeRoot.value = root
   groupTreeVisible.value = true
   await expandGroupTreeNode(root)
+}
+
+async function toggleGroupTreeNode(data: RecipientTreeNode, treeNode: RecipientTreeNodeHandle) {
+  if (!data.isGroup) return
+  if (!data.loaded) {
+    await expandGroupTreeNode(data)
+    return
+  }
+
+  if (treeNode.expanded) {
+    if (typeof treeNode.collapse === 'function') treeNode.collapse()
+    else treeNode.expanded = false
+    return
+  }
+
+  if (typeof treeNode.expand === 'function') treeNode.expand()
+  else treeNode.expanded = true
 }
 
 async function expandGroupTreeNode(node: RecipientTreeNode) {
@@ -223,22 +245,36 @@ async function expandGroupTreeNode(node: RecipientTreeNode) {
           </div>
           <div class="dialog-mail-meta">
             <span>收件者</span>
-            <strong>{{ formatRecipients(dialogMail.toRecipients) || '-' }}</strong>
-            <span v-if="allGroupRecipients(dialogMail).length > 0" class="recipient-group-actions">
-              <el-button
-                v-for="recipient in allGroupRecipients(dialogMail)"
-                :key="recipient.displayName || recipient.smtpAddress"
-                size="small"
-                plain
-                @click="openGroupTree(recipient)"
+            <span v-if="dialogMail.toRecipients.length > 0" class="recipient-chip-list">
+              <button
+                v-for="recipient in uniqueRecipients(dialogMail.toRecipients)"
+                :key="groupRecipientKey(recipient)"
+                class="recipient-chip"
+                :class="{ group: recipient.isGroup }"
+                type="button"
+                :disabled="!recipient.isGroup"
+                @click="recipient.isGroup && openGroupTree(recipient)"
               >
-                {{ formatRecipient(recipient) }} group
-              </el-button>
+                {{ formatRecipient(recipient) }}<span v-if="recipient.isGroup">Group</span>
+              </button>
             </span>
+            <strong v-else>-</strong>
           </div>
           <div v-if="dialogMail.ccRecipients.length > 0" class="dialog-mail-meta">
             <span>副本</span>
-            <strong>{{ formatRecipients(dialogMail.ccRecipients) }}</strong>
+            <span class="recipient-chip-list">
+              <button
+                v-for="recipient in uniqueRecipients(dialogMail.ccRecipients)"
+                :key="groupRecipientKey(recipient)"
+                class="recipient-chip"
+                :class="{ group: recipient.isGroup }"
+                type="button"
+                :disabled="!recipient.isGroup"
+                @click="recipient.isGroup && openGroupTree(recipient)"
+              >
+                {{ formatRecipient(recipient) }}<span v-if="recipient.isGroup">Group</span>
+              </button>
+            </span>
           </div>
           <div class="dialog-mail-meta">
             <span>Folder</span>
@@ -395,23 +431,25 @@ async function expandGroupTreeNode(node: RecipientTreeNode) {
         node-key="key"
         :default-expanded-keys="groupTreeExpandedKeys"
       >
-        <template #default="{ data }">
+        <template #default="{ data, node }">
           <div class="recipient-tree-node">
+            <button
+              v-if="data.isGroup"
+              class="recipient-tree-toggle"
+              :class="{ expanded: node.expanded }"
+              type="button"
+              :aria-label="node.expanded ? '收合 group' : '展開 group'"
+              :disabled="data.loading || (!data.loaded && groupTreeLoading)"
+              @click.stop="toggleGroupTreeNode(data, node)"
+            >
+              <span />
+            </button>
+            <span v-else class="recipient-tree-toggle-placeholder" />
             <span>
               <strong>{{ data.label }}</strong>
               <small v-if="data.email">{{ data.email }}</small>
             </span>
             <el-tag v-if="data.isGroup" size="small" effect="plain">Group</el-tag>
-            <el-button
-              v-if="data.isGroup && !data.loaded"
-              size="small"
-              text
-              :loading="data.loading"
-              :disabled="groupTreeLoading"
-              @click.stop="expandGroupTreeNode(data)"
-            >
-              展開
-            </el-button>
           </div>
         </template>
       </el-tree>

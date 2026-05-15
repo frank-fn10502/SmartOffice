@@ -101,11 +101,47 @@
   background: #fff;
 }
 
-.recipient-group-actions {
+.recipient-chip-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
+}
+
+.recipient-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 2px 7px;
+  border: 1px solid #d0d7e2;
+  border-radius: 5px;
+  background: #fff;
+  color: #344054;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.recipient-chip.group {
+  border-color: #4e79a6;
+  background: #eef7ff;
+  color: #24527d;
+  cursor: pointer;
+}
+
+.recipient-chip:disabled {
+  cursor: default;
+}
+
+.recipient-chip span {
+  flex: 0 0 auto;
+  color: inherit;
+  font-size: 0.68rem;
+  opacity: 0.78;
 }
 
 .recipient-tree-dialog.el-dialog {
@@ -163,13 +199,12 @@
 }
 
 .recipient-tree .el-tree-node__expand-icon {
-  align-self: center;
-  flex: 0 0 auto;
+  display: none;
 }
 
 .recipient-tree-node {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: start;
   gap: 8px;
   min-width: 0;
@@ -177,6 +212,43 @@
   min-height: 46px;
   padding: 5px 8px;
   box-sizing: border-box;
+}
+
+.recipient-tree-toggle,
+.recipient-tree-toggle-placeholder {
+  width: 22px;
+  height: 24px;
+}
+
+.recipient-tree-toggle {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #c9d7e8;
+  cursor: pointer;
+}
+
+.recipient-tree-toggle span {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid currentColor;
+  transition: transform 0.15s ease;
+}
+
+.recipient-tree-toggle.expanded span {
+  transform: rotate(90deg);
+}
+
+.recipient-tree-toggle:disabled {
+  color: #7c8ba1;
+  cursor: wait;
+}
+
+.recipient-tree-toggle-placeholder {
+  display: block;
 }
 
 .recipient-tree-node > span {
@@ -200,8 +272,7 @@
   line-height: 1.25;
 }
 
-.recipient-tree-node .el-tag,
-.recipient-tree-node .el-button {
+.recipient-tree-node .el-tag {
   align-self: start;
   justify-self: end;
   max-width: 96px;

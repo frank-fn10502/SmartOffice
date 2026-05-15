@@ -210,6 +210,18 @@
   box-shadow: var(--shadow-popover);
 }
 
+:root[data-theme="dark"] .recipient-chip {
+  border-color: var(--border-default);
+  background: var(--surface-2);
+  color: var(--text-main);
+}
+
+:root[data-theme="dark"] .recipient-chip.group {
+  border-color: rgb(103 157 209 / 68%);
+  background: rgb(42 74 107 / 58%);
+  color: var(--accent-strong);
+}
+
 :root[data-theme="dark"] .mail-row:hover,
 :root[data-theme="dark"] .search-result-row:hover,
 :root[data-theme="dark"] .folder-row:hover {
