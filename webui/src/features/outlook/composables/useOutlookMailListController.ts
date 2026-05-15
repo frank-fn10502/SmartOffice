@@ -10,6 +10,7 @@ type MailListControllerOptions = {
   folders: Ref<FolderTreeNode[]>
   mailSearchResults: Ref<MailItemDto[]>
   mailListMode: Ref<'folder' | 'search'>
+  mailDragPreview: Ref<{ visible: boolean; x: number; y: number; subject: string; count: number }>
   selectedMailIds: Ref<Set<string>>
   selectedMailIndex: Ref<number | null>
   draggedMailId: Ref<string>
@@ -33,6 +34,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     folderOptions,
     isInDeletedFolder,
     mailListMode,
+    mailDragPreview,
     mailSearchResults,
     mails,
     manualOutlookDeleteMessage,
@@ -321,6 +323,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
   function clearMailDrag() {
     draggedMailId.value = ''
     dragOverFolderPath.value = ''
+    mailDragPreview.value = { visible: false, x: 0, y: 0, subject: '', count: 0 }
     document.body.classList.remove('mail-dragging')
   }
 
@@ -334,6 +337,14 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     pointerDrag.active = true
     if (!selectedMailIds.value.has(pointerDrag.mail.id)) selectOnlyMail(pointerDrag.index)
     draggedMailId.value = pointerDrag.mail.id
+    const dragCount = Math.max(1, selectedMailIds.value.size)
+    mailDragPreview.value = {
+      visible: true,
+      x: pointerDrag.startX,
+      y: pointerDrag.startY,
+      subject: dragCount > 1 ? `移動 ${dragCount} 封郵件` : pointerDrag.mail.subject || '(No subject)',
+      count: dragCount,
+    }
     document.body.classList.add('mail-dragging')
   }
 
@@ -343,6 +354,7 @@ export function useOutlookMailListController(options: MailListControllerOptions)
     if (!pointerDrag.active && moved < 6) return
     beginPointerMailDrag()
     event.preventDefault()
+    mailDragPreview.value = { ...mailDragPreview.value, visible: true, x: event.clientX, y: event.clientY }
     setDragOverFolder(folderPathAtPoint(event.clientX, event.clientY))
   }
 

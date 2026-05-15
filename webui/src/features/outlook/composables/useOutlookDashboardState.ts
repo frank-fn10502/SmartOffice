@@ -101,6 +101,13 @@ export function useOutlookDashboardState() {
     creatingFolderName: ref(''),
     draggedMailId: ref(''),
     dragOverFolderPath: ref(''),
+    mailDragPreview: ref({
+      visible: false,
+      x: 0,
+      y: 0,
+      subject: '',
+      count: 0,
+    }),
     folderContextMenu: ref({
       visible: false,
       x: 0,

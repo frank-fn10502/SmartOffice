@@ -245,3 +245,38 @@ body.mail-dragging * {
 .mail-context-menu button:disabled:hover {
   background: transparent;
 }
+
+.mail-drag-preview {
+  position: fixed;
+  z-index: 3200;
+  display: grid;
+  gap: 3px;
+  width: min(280px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--border-default));
+  border-radius: 7px;
+  background: var(--surface-1);
+  color: var(--text-main);
+  box-shadow: var(--shadow-popover);
+  opacity: 0.94;
+  pointer-events: none;
+  transform: translate(14px, 14px);
+}
+
+.mail-drag-preview strong,
+.mail-drag-preview span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-drag-preview strong {
+  font-size: 0.86rem;
+}
+
+.mail-drag-preview span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}

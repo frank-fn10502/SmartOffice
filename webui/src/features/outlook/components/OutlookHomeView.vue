@@ -17,6 +17,7 @@ const {
   flagTagType,
   loadingMails,
   mailCount,
+  mailDragPreview,
   mailFetchCountdownText,
   mailFetchStatusText,
   mailListMode,
@@ -67,5 +68,16 @@ const {
       @show-folder-mails="showFolderMails"
       @start-mail-pointer-drag="startMailPointerDrag"
     />
+
+    <teleport to="body">
+      <div
+        v-if="mailDragPreview.visible"
+        class="mail-drag-preview"
+        :style="{ left: `${mailDragPreview.x}px`, top: `${mailDragPreview.y}px` }"
+      >
+        <strong>{{ mailDragPreview.subject }}</strong>
+        <span>{{ mailDragPreview.count > 1 ? '多選拖曳' : '移動郵件' }}</span>
+      </div>
+    </teleport>
   </main>
 </template>
