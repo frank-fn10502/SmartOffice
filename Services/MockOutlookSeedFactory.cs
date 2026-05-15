@@ -52,6 +52,7 @@ namespace SmartOffice.Hub.Services
                 Mail("mock-010", "供應商票據差異表", "Vendor Team", "vendor@example.test", now.AddDays(-5), MockOutlookPaths.LegacyVendors, true, "待辦", true, "this_week", "本週"),
                 Mail("mock-011", "票據入口：待補發票掃描", "Finance Bot", "finance@example.test", now.AddDays(-12), MockOutlookPaths.LegacyInbox, false, "", false, "none", ""),
                 Mail("mock-012", "營運升級：夜間批次異常", "NOC", "noc@example.test", now.AddMinutes(-75), MockOutlookPaths.OpsEscalations, false, "測試,追蹤", true, "today", "今天"),
+                Mail("mock-015", "深層群組測試：公司廣播鏈路", "Ops Robot", "ops@example.test", now.AddMinutes(-18), MockOutlookPaths.Inbox, false, "測試", true, "today", "今天"),
             };
             mails.AddRange(BuildInboxStressMails(now));
             RefreshFolderCounts(folders, mails);
@@ -391,6 +392,14 @@ namespace SmartOffice.Hub.Services
                 {
                     Recipient("to", "Mock User", "mock.user@example.test"),
                     Group("to", "All Taipei Office", "all-taipei@example.test", "Ada Chen", "Ben Lin", "Dana Hsu", "Evan Wu"),
+                };
+            }
+
+            if (id == "mock-015")
+            {
+                return new List<OutlookRecipientDto>
+                {
+                    Group("to", "Executive Broadcast D7", "executive-broadcast-d7@example.test", "Company Broadcast D6", "Executive Review Circle"),
                 };
             }
 

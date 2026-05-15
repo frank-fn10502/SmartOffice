@@ -447,7 +447,7 @@ namespace SmartOffice.Hub.Services
             };
             var sources = new[] { "global_address_list", "offline_address_book", "official_contacts", "project_directory", "room_resources" };
             var target = Math.Min(max, MockAddressBookContactTarget());
-            var groupCount = 12;
+            var groupCount = 20;
             var generatedContactTarget = Math.Max(contacts.Count, target - groupCount);
             for (var index = contacts.Count + 1; contacts.Count < generatedContactTarget; index++)
             {
@@ -578,6 +578,69 @@ namespace SmartOffice.Hub.Services
                     "mock.user.0096@example.test"),
                 MockGroup(
                     "mock-group-012",
+                    "Release Squad D1",
+                    "release-squad-d1@example.test",
+                    "Engineering",
+                    "project_directory",
+                    "mock.user@example.test",
+                    "mock.user.0121@example.test",
+                    "mock.user.0126@example.test"),
+                MockGroup(
+                    "mock-group-013",
+                    "Operations Team D2",
+                    "ops-team-d2@example.test",
+                    "Operations",
+                    "project_directory",
+                    "release-squad-d1@example.test",
+                    "mock.user.0131@example.test",
+                    "mock.user.0136@example.test"),
+                MockGroup(
+                    "mock-group-014",
+                    "Taipei Department D3",
+                    "taipei-department-d3@example.test",
+                    "Operations",
+                    "global_address_list",
+                    "ops-team-d2@example.test",
+                    "mock.user.0141@example.test",
+                    "mock.user.0146@example.test"),
+                MockGroup(
+                    "mock-group-015",
+                    "APAC Division D4",
+                    "apac-division-d4@example.test",
+                    "Operations",
+                    "global_address_list",
+                    "taipei-department-d3@example.test",
+                    "mock.user.0151@example.test",
+                    "mock.user.0156@example.test"),
+                MockGroup(
+                    "mock-group-016",
+                    "Global Announcements D5",
+                    "global-announcements-d5@example.test",
+                    "Operations",
+                    "global_address_list",
+                    "apac-division-d4@example.test",
+                    "mock.user.0161@example.test",
+                    "mock.user.0166@example.test"),
+                MockGroup(
+                    "mock-group-017",
+                    "Company Broadcast D6",
+                    "company-broadcast-d6@example.test",
+                    "Operations",
+                    "global_address_list",
+                    "global-announcements-d5@example.test",
+                    "mock.user.0171@example.test",
+                    "mock.user.0176@example.test"),
+                MockGroup(
+                    "mock-group-018",
+                    "Executive Broadcast D7",
+                    "executive-broadcast-d7@example.test",
+                    "Leadership",
+                    "global_address_list",
+                    "company-broadcast-d6@example.test",
+                    "exec-review@example.test",
+                    "mock.user.0181@example.test"),
+                MockGroup(
+                    "mock-group-019",
                     "All Mock Staff",
                     "all-mock-staff@example.test",
                     "Operations",
@@ -587,6 +650,7 @@ namespace SmartOffice.Hub.Services
                     "finance-approvers@example.test",
                     "customer-escalation@example.test",
                     "facilities-booking@example.test",
+                    "executive-broadcast-d7@example.test",
                     "mock.user.0101@example.test",
                     "mock.user.0106@example.test",
                     "mock.user.0111@example.test"),
