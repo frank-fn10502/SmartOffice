@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import MailPropertyPane from './MailPropertyPane.vue'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
 import { collectOutlookRequestData, waitForOutlookRequest } from '../composables/outlookRequests'
@@ -43,6 +43,10 @@ const groupTreeVisible = ref(false)
 const groupTreeLoading = ref(false)
 const groupTreeMessage = ref('')
 const groupTreeRoot = ref<RecipientTreeNode | null>(null)
+const groupTreeRef = ref<{
+  updateKeyChildren?: (key: string, children: RecipientTreeNode[]) => void
+  getNode?: (key: string) => { expanded?: boolean; expand?: () => void } | undefined
+} | null>(null)
 const groupTreeProps = { label: 'label', children: 'children' }
 const groupTreeNodes = computed(() => groupTreeRoot.value ? [groupTreeRoot.value] : [])
 const groupTreeExpandedKeys = computed(() => groupTreeRoot.value ? [groupTreeRoot.value.key] : [])
@@ -169,6 +173,13 @@ async function expandGroupTreeNode(node: RecipientTreeNode) {
     node.recipientRelevance = normalizeRecipientRelevance(data.recipientRelevance)
     node.children = members.map(contactToTreeNode)
     node.loaded = true
+    groupTreeRef.value?.updateKeyChildren?.(node.key, node.children)
+    await nextTick()
+    const treeNode = groupTreeRef.value?.getNode?.(node.key)
+    if (treeNode) {
+      if (typeof treeNode.expand === 'function') treeNode.expand()
+      else treeNode.expanded = true
+    }
     groupTreeMessage.value = node.children.length > 0
       ? `${node.label} 有 ${node.children.length} 個 direct members。`
       : `${node.label} 沒有可顯示的 direct members。`
@@ -377,6 +388,7 @@ async function expandGroupTreeNode(node: RecipientTreeNode) {
         <small v-if="groupTreeMessage">{{ groupTreeMessage }}</small>
       </div>
       <el-tree
+        ref="groupTreeRef"
         class="recipient-tree"
         :data="groupTreeNodes"
         :props="groupTreeProps"
