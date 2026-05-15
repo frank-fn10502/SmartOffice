@@ -25,6 +25,8 @@
   MailItemDto,
   OutlookRecipientDto,
   OutlookCategoryDto,
+  OutlookProfileDto,
+  OutlookProfileGroupNodeDto,
   OutlookRuleDto,
   OutlookRuleCommandRequest,
   FetchResultRequest,
@@ -84,6 +86,18 @@ function normalizeRecipient(item: unknown, kind = ''): OutlookRecipientDto {
 
 function normalizeRecipients(items: unknown, kind: string): OutlookRecipientDto[] {
   return Array.isArray(items) ? items.map((item) => normalizeRecipient(item, kind)) : []
+}
+
+function normalizeOutlookStore(item: unknown) {
+  const source = (item ?? {}) as LooseRecord
+  return {
+    storeId: readString(source, 'storeId', 'StoreId'),
+    displayName: readString(source, 'displayName', 'DisplayName'),
+    storeKind: readString(source, 'storeKind', 'StoreKind'),
+    storeFilePath: readString(source, 'storeFilePath', 'StoreFilePath'),
+    rootFolderPath: readString(source, 'rootFolderPath', 'RootFolderPath'),
+    accountSmtpAddress: readString(source, 'accountSmtpAddress', 'AccountSmtpAddress'),
+  }
 }
 
 export function normalizeMailItem(item: unknown): MailItemDto {
@@ -370,6 +384,48 @@ function normalizeAddressBookGroupMembersResponse(item: unknown): AddressBookGro
   }
 }
 
+function normalizeOutlookProfile(item: unknown): OutlookProfileDto {
+  const source = (item ?? {}) as LooseRecord
+  const mailStats = (source.mailStats ?? source.MailStats ?? {}) as LooseRecord
+  const groupTree = source.groupTree ?? source.GroupTree
+  const groups = source.groups ?? source.Groups
+  const sameGroupPeople = source.sameGroupPeople ?? source.SameGroupPeople
+  const stores = source.stores ?? source.Stores
+  const ostStores = source.ostStores ?? source.OstStores
+  const pstStores = source.pstStores ?? source.PstStores
+  const otherStores = source.otherStores ?? source.OtherStores
+  const selfContact = source.selfContact ?? source.SelfContact
+  return {
+    state: readString(source, 'state', 'State'),
+    message: readString(source, 'message', 'Message'),
+    mailboxName: readString(source, 'mailboxName', 'MailboxName'),
+    smtpAddress: readString(source, 'smtpAddress', 'SmtpAddress'),
+    selfContact: selfContact ? normalizeAddressBookContact(selfContact) : null,
+    groupTree: Array.isArray(groupTree) ? groupTree.map(normalizeOutlookProfileGroupNode) : [],
+    groups: Array.isArray(groups) ? groups.map(normalizeAddressBookContact) : [],
+    sameGroupPeople: Array.isArray(sameGroupPeople) ? sameGroupPeople.map(normalizeAddressBookContact) : [],
+    ostStores: Array.isArray(ostStores) ? ostStores.map(normalizeOutlookStore) : [],
+    pstStores: Array.isArray(pstStores) ? pstStores.map(normalizeOutlookStore) : [],
+    otherStores: Array.isArray(otherStores) ? otherStores.map(normalizeOutlookStore) : [],
+    stores: Array.isArray(stores) ? stores.map(normalizeOutlookStore) : [],
+    mailStats: {
+      loadedCount: readNumber(mailStats, 'loadedCount', 'LoadedCount'),
+      unreadCount: readNumber(mailStats, 'unreadCount', 'UnreadCount'),
+      attachmentMailCount: readNumber(mailStats, 'attachmentMailCount', 'AttachmentMailCount'),
+    },
+  }
+}
+
+function normalizeOutlookProfileGroupNode(item: unknown): OutlookProfileGroupNodeDto {
+  const source = (item ?? {}) as LooseRecord
+  const contact = source.contact ?? source.Contact
+  const children = source.children ?? source.Children
+  return {
+    contact: normalizeAddressBookContact(contact),
+    children: Array.isArray(children) ? children.map(normalizeOutlookProfileGroupNode) : [],
+  }
+}
+
 export function normalizeExportedMailAttachment(item: unknown): ExportedMailAttachmentDto {
   const source = (item ?? {}) as LooseRecord
   const attachmentId = readString(source, 'attachmentId', 'AttachmentId') || readString(source, 'id', 'Id') || readString(source, 'index', 'Index')
@@ -482,6 +538,10 @@ export const outlookApi = {
     const response = await postJson<OutlookRequestResponse<unknown>>('/api/outlook/request-address-book-group-members', body)
     return { ...response, data: normalizeAddressBookGroupMembersResponse(response.data) }
   },
+  requestAddressBook: () => postJson<OutlookRequestResponse>('/api/outlook/request-address-book', {}),
+  getAddressBookContacts: async (query = '', take = 5000) =>
+    normalizeAddressListEntriesData(await getJson<unknown>(`/api/outlook/address-book/contacts?query=${encodeURIComponent(query)}&take=${take}`)),
+  getProfile: async () => normalizeOutlookProfile(await getJson<unknown>('/api/outlook/profile')),
   requestAddressBookRoots: () => postJson<OutlookRequestResponse>('/api/outlook/request-address-book-roots'),
   requestAddressListEntries: (body: { addressListId?: string; addressListName?: string; offset?: number; pageSize?: number }) =>
     postJson<OutlookRequestResponse>('/api/outlook/request-address-list-entries', body),

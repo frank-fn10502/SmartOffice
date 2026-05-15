@@ -1,12 +1,14 @@
 ﻿import { computed } from 'vue'
 import {
   normalizeCalendarRooms,
+  normalizeMailBody,
   normalizeMailAttachments,
   normalizeMailItems,
   outlookApi,
 } from '../api/outlook'
 import type {
   CalendarEventDto,
+  MailBodyDto,
   MailAttachmentsDto,
   MailConversationDto,
   MailItemDto,
@@ -99,6 +101,7 @@ export function useOutlookDashboard() {
     { label: 'Chat', value: 'chat', disabled: outlookDependentViewsLocked.value },
     { label: 'Calendar', value: 'calendar', disabled: outlookDependentViewsLocked.value },
     { label: 'Contacts', value: 'contacts', disabled: outlookDependentViewsLocked.value },
+    { label: 'Profile', value: 'profile', disabled: outlookDependentViewsLocked.value },
     { label: 'Admin', value: 'admin' },
   ])
 
@@ -275,6 +278,16 @@ export function useOutlookDashboard() {
     if (items.length === 0) return
     folderMails.value = patchMailSnapshotList(folderMails.value, items)
     mailSearchResults.value = patchMailSnapshotList(mailSearchResults.value, items)
+  }
+
+  function patchMailBody(payload: MailBodyDto) {
+    if (!payload.mailId) return
+    const applyBody = (mail: MailItemDto) => mail.id === payload.mailId
+      ? { ...mail, body: payload.body || mail.body, bodyHtml: payload.bodyHtml || mail.bodyHtml }
+      : mail
+    folderMails.value = folderMails.value.map(applyBody)
+    mailSearchResults.value = mailSearchResults.value.map(applyBody)
+    completeMailBodyLoad(payload.mailId)
   }
 
   function markInitialFoldersComplete() {
@@ -720,6 +733,7 @@ export function useOutlookDashboard() {
     mailListNeedsFetch,
     outlookBusy,
     outlookDependentViewsLocked,
+    patchMailBody: (payload: unknown) => patchMailBody(normalizeMailBody(payload)),
     requestCalendar,
     requestRules,
     runStartupOutlookSync,

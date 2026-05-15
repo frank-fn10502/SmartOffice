@@ -10,6 +10,7 @@ import OutlookCalendarView from '../features/outlook/components/OutlookCalendarV
 import OutlookChatView from '../features/outlook/components/OutlookChatView.vue'
 import OutlookContactsView from '../features/outlook/components/OutlookContactsView.vue'
 import OutlookHomeView from '../features/outlook/components/OutlookHomeView.vue'
+import OutlookProfileView from '../features/outlook/components/OutlookProfileView.vue'
 import OutlookRulesView from '../features/outlook/components/OutlookRulesView.vue'
 import OutlookSearchView from '../features/outlook/components/OutlookSearchView.vue'
 import AdminPage from './AdminPage.vue'
@@ -68,6 +69,7 @@ const {
       <OutlookCalendarView v-else-if="activeView === 'calendar'" :dashboard="dashboard" />
     </KeepAlive>
     <OutlookContactsView v-show="activeView === 'contacts'" :dashboard="dashboard" />
+    <OutlookProfileView v-show="activeView === 'profile'" :dashboard="dashboard" />
 
     <MeetingInvitationDialog v-if="dialogMail && isMeetingMessage(dialogMail)" :dashboard="dashboard" />
     <MailDetailDialog v-else :dashboard="dashboard" />

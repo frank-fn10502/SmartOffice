@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ArrowDown, Refresh, Search, UserFilled } from '@element-plus/icons-vue'
+import { ArrowRight, Refresh, Search, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { normalizeAddressBookContact, outlookApi } from '../api/outlook'
 import type { AddressBookContactDto, AddressBookRootDto } from '../models/outlook'
@@ -21,6 +21,7 @@ const addressListTotal = ref(0)
 const selectedContact = ref<AddressBookContactDto | null>(null)
 const query = ref('')
 const loadingContacts = ref(false)
+const searchLoading = ref(false)
 const lookupLoading = ref(false)
 const lastUpdatedAt = ref<Date | null>(null)
 const loadMessage = ref('尚未查詢通訊錄。')
@@ -29,6 +30,8 @@ const lookupMessage = ref('')
 const groupMembersByKey = ref<Record<string, AddressBookContactDto[]>>({})
 const expandingGroups = ref<Record<string, boolean>>({})
 let initialLoadRequested = false
+let searchTimer: number | undefined
+let searchRunId = 0
 const pollDelayMs = 500
 const pollTimeoutMs = 120000
 
@@ -37,7 +40,7 @@ const selfCount = computed(() => contacts.value.filter((contact) => contact.isLi
 const groupCount = computed(() => contacts.value.filter((contact) => contact.isGroup).length)
 const personCount = computed(() => contacts.value.filter((contact) => !contact.isGroup).length)
 const selectedRootKey = computed(() => selectedRoot.value ? rootKey(selectedRoot.value) : '')
-const visibleContacts = computed(() => filterContacts(contacts.value))
+const visibleContacts = computed(() => sortContacts(filterContacts(contacts.value)))
 const lastUpdatedText = computed(() => lastUpdatedAt.value
   ? lastUpdatedAt.value.toLocaleString('zh-TW', { hour12: false })
   : '尚未完成同步')
@@ -59,8 +62,27 @@ function rootKey(root: AddressBookRootDto) {
   return (root.id || root.name || root.source).trim().toLowerCase()
 }
 
+function rootIdentity(root: AddressBookRootDto) {
+  return [
+    rootTitle(root),
+    root.addressListType.trim(),
+    String(root.entryCount),
+  ].join('|').toLowerCase()
+}
+
 function contactKey(contact: AddressBookContactDto) {
   return (contact.smtpAddress || contact.rawAddress || contact.id || contact.displayName).trim().toLowerCase()
+}
+
+function uniqueText(values: string[]) {
+  return values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, source) => source.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index)
+}
+
+function contactSources(contact: AddressBookContactDto) {
+  return uniqueText([...contact.sources, contact.source]).join(', ') || '-'
 }
 
 function isSelectedRoot(root: AddressBookRootDto) {
@@ -85,6 +107,15 @@ function groupExpanded(contact: AddressBookContactDto) {
 
 function groupLoading(contact: AddressBookContactDto) {
   return Boolean(contact.groupMembersLoading || expandingGroups.value[contactKey(contact)])
+}
+
+function normalizeRoots(roots: AddressBookRootDto[]) {
+  const seen = new Map<string, AddressBookRootDto>()
+  for (const root of roots) {
+    const key = rootIdentity(root)
+    if (key && !seen.has(key)) seen.set(key, root)
+  }
+  return Array.from(seen.values())
 }
 
 function relationLabel(kind: string) {
@@ -161,6 +192,7 @@ async function loadContacts() {
     if (firstRoot) {
       await loadAddressListEntriesPage(firstRoot, 0)
     }
+    await loadKnownContacts()
     lastUpdatedAt.value = new Date()
     if (!firstRoot) loadMessage.value = `通訊錄來源載入完成，共 ${addressBookRoots.value.length} 個來源。`
   } catch (error) {
@@ -176,7 +208,14 @@ async function streamAddressBookRootsFromRequest(response: { requestId?: string;
   if (!requestId) return
   const endpoint = fetchResultEndpoint(response)
   const state = await pollFetchResult<{ roots?: unknown[] }>(endpoint, requestId, '', 500, '通訊錄來源載入失敗。')
-  addressBookRoots.value = outlookApi.normalizeAddressBookRootsData(state.data).roots
+  addressBookRoots.value = normalizeRoots(outlookApi.normalizeAddressBookRootsData(state.data).roots)
+}
+
+async function loadKnownContacts() {
+  loadMessage.value = '正在載入已知郵件收件者...'
+  const page = await outlookApi.getAddressBookContacts('', 5000)
+  upsertContacts(page.contacts)
+  loadMessage.value = `通訊錄查詢完成，已合併 ${page.contacts.length} 筆已知聯絡人。`
 }
 
 async function loadAddressListEntries(root: AddressBookRootDto, offset = 0) {
@@ -234,13 +273,13 @@ async function streamContactsFromRequest(response: { requestId?: string; request
     mergeContacts(seen, pageContacts)
 
     if (pageContacts.length > 0) {
-      contacts.value = filterContacts(Array.from(seen.values()))
+      upsertContacts(Array.from(seen.values()))
       if (!selectedContact.value) selectedContact.value = contacts.value[0] ?? null
     }
 
     loadMessage.value = state.state === 'completed'
-      ? `通訊錄查詢完成，共 ${seen.size} 筆。`
-      : `通訊錄查詢中，已取得 ${seen.size} 筆...`
+      ? `通訊錄查詢完成，已合併 ${seen.size} 筆已知聯絡人。`
+      : `通訊錄查詢中，已取得 ${seen.size} 筆已知聯絡人...`
 
     if (state.next.hasMore) {
       cursor = state.next.cursor
@@ -352,6 +391,20 @@ async function expandGroupFromList(contact: AddressBookContactDto, forceRefresh 
   await expandSelectedGroup(forceRefresh)
 }
 
+async function toggleGroupFromList(contact: AddressBookContactDto) {
+  if (groupLoading(contact)) return
+  if (groupExpanded(contact)) {
+    const next = { ...groupMembersByKey.value }
+    delete next[contactKey(contact)]
+    groupMembersByKey.value = next
+    const collapsed = { ...contact, groupMembersLoaded: false, groupMembersLoading: false }
+    selectedContact.value = collapsed
+    upsertContacts([collapsed])
+    return
+  }
+  await expandGroupFromList(contact)
+}
+
 async function streamGroupMembersFromRequest(response: { requestId?: string; request?: string; data?: unknown }) {
   const requestId = requestIdFromResponse(response)
   if (!requestId) return []
@@ -390,6 +443,69 @@ function filterContacts(source: AddressBookContactDto[]) {
     || contact.displayName.toLowerCase().includes(text)
     || contact.smtpAddress.toLowerCase().includes(text)
     || contact.domain.toLowerCase().includes(text))
+}
+
+function contactSortScore(contact: AddressBookContactDto) {
+  return (contact.isLikelySelf ? 100000 : 0)
+    + (contact.isRelatedToSelf ? 50000 : 0)
+    + (contact.memberOfGroupSmtpAddresses.length > 0 ? 10000 : 0)
+    + contact.relationScore * 10
+    + (contact.lastSeen ? Date.parse(contact.lastSeen) / 100000000 : 0)
+}
+
+function sortContacts(source: AddressBookContactDto[]) {
+  return [...source].sort((a, b) => contactSortScore(b) - contactSortScore(a)
+    || contactTitle(a).localeCompare(contactTitle(b), 'zh-Hant'))
+}
+
+function relationContacts(data: unknown) {
+  const source = (data ?? {}) as Record<string, unknown>
+  const arrays = ['matches', 'Matches', 'members', 'Members', 'memberGroups', 'MemberGroups', 'memberOfGroups', 'MemberOfGroups', 'containingGroups', 'ContainingGroups']
+  const result: AddressBookContactDto[] = []
+  const target = source.target ?? source.Target
+  if (target) result.push(normalizeAddressBookContact(target))
+  for (const key of arrays) {
+    const items = source[key]
+    if (Array.isArray(items)) result.push(...items.map(normalizeAddressBookContact))
+  }
+  return result
+}
+
+async function requestHubContactSearch(text: string, runId: number) {
+  searchLoading.value = true
+  try {
+    const response = await outlookApi.requestAddressBookRelation({ query: text, take: 100 })
+    const requestId = requestIdFromResponse(response)
+    if (!requestId) return
+    const state = await pollFetchResult<Record<string, unknown>>(fetchResultEndpoint(response), requestId, '', 100, '通訊錄搜尋失敗。')
+    if (runId !== searchRunId) return
+    const matches = relationContacts(state.data)
+    if (matches.length > 0) {
+      upsertContacts(matches)
+      if (!selectedContact.value || visibleContacts.value.length === 0) selectedContact.value = matches[0]
+    }
+  } finally {
+    if (runId === searchRunId) searchLoading.value = false
+  }
+}
+
+function scheduleHubContactSearch() {
+  window.clearTimeout(searchTimer)
+  const text = query.value.trim()
+  if (text.length < 2) {
+    searchRunId += 1
+    searchLoading.value = false
+    return
+  }
+  const runId = ++searchRunId
+  searchTimer = window.setTimeout(() => {
+    void requestHubContactSearch(text, runId).catch((error) => {
+      if (runId === searchRunId) {
+        searchLoading.value = false
+        loadMessage.value = error instanceof Error ? error.message : '通訊錄搜尋失敗。'
+      }
+    })
+  }, 350)
 }
 
 function requestInitialLoad(reason: 'active-view' | 'background') {
@@ -441,6 +557,8 @@ watch(
   },
   { immediate: true },
 )
+
+watch(query, scheduleHubContactSearch)
 </script>
 
 <template>
@@ -522,14 +640,22 @@ watch(
             載入下一頁
           </el-button>
 
-          <div v-if="loadingContacts" class="contacts-loading" role="status">
+          <div v-if="loadingContacts || searchLoading" class="contacts-loading" role="status">
             <span />
-            <strong>正在載入通訊錄...</strong>
+            <strong>{{ searchLoading ? '正在搜尋通訊錄...' : '正在載入通訊錄...' }}</strong>
           </div>
 
           <template v-for="contact in visibleContacts" :key="contactKey(contact)">
             <div class="contact-tree-node">
-              <span class="tree-connector" />
+              <button
+                class="contact-expand-toggle"
+                :class="{ expanded: groupExpanded(contact), empty: !contact.isGroup }"
+                type="button"
+                :disabled="!contact.isGroup || groupLoading(contact)"
+                @click.stop="contact.isGroup && toggleGroupFromList(contact)"
+              >
+                <el-icon v-if="contact.isGroup"><ArrowRight /></el-icon>
+              </button>
               <button
                 class="contact-row"
                 :class="{ active: isSelectedContact(contact), group: contact.isGroup }"
@@ -542,20 +668,11 @@ watch(
                 </span>
                 <span class="contact-row-meta">
                   <el-tag v-if="contact.isGroup" size="small" effect="plain">Group</el-tag>
+                  <el-tag v-if="!contact.isGroup && contact.isRelatedToSelf" size="small" type="success" effect="plain">同 group</el-tag>
                   <el-tag v-if="contact.isGroup && contact.isRelatedToSelf" size="small" type="success" effect="plain">包含自己</el-tag>
                   <small>{{ contact.mailCount }} mails / {{ contact.calendarCount }} calendar</small>
                 </span>
               </button>
-              <el-button
-                v-if="contact.isGroup"
-                class="group-row-action"
-                :icon="ArrowDown"
-                :loading="groupLoading(contact)"
-                :disabled="groupLoading(contact)"
-                @click.stop="expandGroupFromList(contact)"
-              >
-                {{ groupExpanded(contact) ? '已展開' : '展開' }}
-              </el-button>
             </div>
 
             <div
@@ -609,7 +726,7 @@ watch(
             <div class="rule-detail">
               <span>Email：{{ selectedContact.smtpAddress || '-' }}</span>
               <span>Domain：{{ selectedContact.domain || '-' }}</span>
-              <span>來源：{{ selectedContact.sources.join(', ') || selectedContact.source || '-' }}</span>
+              <span>來源：{{ contactSources(selectedContact) }}</span>
               <span>公司 / 部門：{{ selectedContact.companyName || '-' }} / {{ selectedContact.department || '-' }}</span>
               <span>職稱：{{ selectedContact.jobTitle || '-' }}</span>
               <span v-if="selectedContact.isGroup">
@@ -630,12 +747,6 @@ watch(
             <div v-if="selectedContact.isGroup" class="group-members-panel">
               <div class="group-members-header">
                 <strong>Group members</strong>
-                <div>
-                  <el-button :icon="ArrowDown" :loading="selectedGroupLoading" :disabled="selectedGroupLoading" @click="expandSelectedGroup(false)">
-                    {{ selectedGroupExpanded ? '已展開' : '展開成員' }}
-                  </el-button>
-                  <el-button :loading="selectedGroupLoading" :disabled="selectedGroupLoading" @click="expandSelectedGroup(true)">重新展開</el-button>
-                </div>
               </div>
               <div v-if="selectedGroupMembers.length > 0" class="group-members-list">
                 <button
@@ -650,7 +761,7 @@ watch(
                   <el-tag v-if="member.isGroup" size="small" effect="plain">子群組</el-tag>
                 </button>
               </div>
-              <span v-else class="group-members-empty">尚未展開；點「展開成員」後會查詢 direct members。</span>
+              <span v-else class="group-members-empty">尚未載入 direct members。</span>
             </div>
 
             <div class="marker-tags">

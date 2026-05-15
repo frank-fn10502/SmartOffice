@@ -7,6 +7,7 @@ import type {
   AppView,
   AttachmentExportSettingsDto,
   ChatMessageDto,
+  MailBodyDto,
   SignalRState,
 } from '../models/outlook'
 
@@ -29,6 +30,7 @@ type ShellControllerOptions = {
   mailListNeedsFetch: Ref<boolean>
   outlookBusy: Ref<boolean>
   outlookDependentViewsLocked: Ref<boolean>
+  patchMailBody: (payload: MailBodyDto | unknown) => void
   requestCalendar: () => Promise<void>
   requestRules: () => Promise<void>
   runStartupOutlookSync: () => Promise<void>
@@ -58,6 +60,7 @@ export function useOutlookShellController(options: ShellControllerOptions) {
     mailListNeedsFetch,
     outlookBusy,
     outlookDependentViewsLocked,
+    patchMailBody,
     requestCalendar,
     requestRules,
     runStartupOutlookSync,
@@ -122,7 +125,7 @@ export function useOutlookShellController(options: ShellControllerOptions) {
   }
 
   async function switchView(view: AppView) {
-    if (outlookDependentViewsLocked.value && ['search', 'rules', 'chat', 'calendar', 'contacts'].includes(view)) return
+    if (outlookDependentViewsLocked.value && ['search', 'rules', 'chat', 'calendar', 'contacts', 'profile'].includes(view)) return
     activeView.value = view
     if (view === 'admin') {
       cancelScheduledMailFetch()
@@ -191,6 +194,7 @@ export function useOutlookShellController(options: ShellControllerOptions) {
     connection.onclose(() => { signalRState.value = 'disconnected' })
     connection.on('AddinStatus', (status: AddinStatusDto) => { addinStatus.value = status })
     connection.on('AddinLog', (logs: AddinLogEntry[]) => { addinLogs.value = logs })
+    connection.on('MailBodyUpdated', (body: MailBodyDto | unknown) => { patchMailBody(body) })
 
     try {
       await connection.start()

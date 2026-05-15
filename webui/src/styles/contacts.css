@@ -201,24 +201,49 @@
 .contact-tree-node {
   position: relative;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  grid-template-columns: 26px minmax(0, 1fr);
   align-items: stretch;
   gap: 8px;
   min-width: 0;
 }
 
-.tree-connector {
-  width: 18px;
-  margin-bottom: 16px;
-  border-left: 2px solid var(--border-default);
-  border-bottom: 2px solid var(--border-default);
-  border-bottom-left-radius: 6px;
+.contact-expand-toggle {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  min-width: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.contact-expand-toggle:hover:not(.empty) {
+  background: var(--surface-selected);
+  color: var(--text-main);
+}
+
+.contact-expand-toggle.empty {
+  cursor: default;
+}
+
+.contact-expand-toggle .el-icon {
+  transition: transform 0.16s ease;
+}
+
+.contact-expand-toggle.expanded .el-icon {
+  transform: rotate(90deg);
 }
 
 .tree-connector.child {
   align-self: stretch;
+  width: 18px;
   min-height: 22px;
   margin-bottom: 10px;
+  border-left: 2px solid var(--border-default);
+  border-bottom: 2px solid var(--border-default);
+  border-bottom-left-radius: 6px;
 }
 
 .contact-row {
@@ -271,11 +296,6 @@
 .contact-row span,
 .contact-row small {
   color: var(--text-muted);
-}
-
-.group-row-action {
-  align-self: stretch;
-  min-width: 72px;
 }
 
 .contact-children {

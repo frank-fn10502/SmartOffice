@@ -47,6 +47,7 @@ export interface OutlookStoreDto {
   storeKind: string
   storeFilePath: string
   rootFolderPath: string
+  accountSmtpAddress: string
 }
 
 export interface FolderTreeNode extends FolderDto {
@@ -489,6 +490,31 @@ export interface AddressBookRecipientRelevanceDto {
   reasons: string[]
 }
 
+export interface OutlookProfileDto {
+  state: string
+  message: string
+  mailboxName: string
+  smtpAddress: string
+  selfContact?: AddressBookContactDto | null
+  groupTree: OutlookProfileGroupNodeDto[]
+  groups: AddressBookContactDto[]
+  sameGroupPeople: AddressBookContactDto[]
+  ostStores: OutlookStoreDto[]
+  pstStores: OutlookStoreDto[]
+  otherStores: OutlookStoreDto[]
+  stores: OutlookStoreDto[]
+  mailStats: {
+    loadedCount: number
+    unreadCount: number
+    attachmentMailCount: number
+  }
+}
+
+export interface OutlookProfileGroupNodeDto {
+  contact: AddressBookContactDto
+  children: OutlookProfileGroupNodeDto[]
+}
+
 export interface ChatMessageDto {
   id?: string
   source: string
@@ -509,5 +535,5 @@ export interface AddinLogEntry {
   timestamp: string
 }
 
-export type AppView = 'outlook' | 'admin' | 'search' | 'rules' | 'chat' | 'calendar' | 'contacts'
+export type AppView = 'outlook' | 'admin' | 'search' | 'rules' | 'chat' | 'calendar' | 'contacts' | 'profile'
 export type SignalRState = 'connected' | 'reconnecting' | 'disconnected'
