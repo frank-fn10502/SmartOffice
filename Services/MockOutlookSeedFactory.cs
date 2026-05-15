@@ -466,9 +466,33 @@ namespace SmartOffice.Hub.Services
                 IsGroup = true,
                 IsResolved = true,
                 Members = memberNames
-                    .Select(name => Recipient("member", name, $"{name.ToLowerInvariant().Replace(" ", ".")}@example.test"))
+                    .Select(GroupMember)
                     .ToList(),
             };
+        }
+
+        private static OutlookRecipientDto GroupMember(string displayName)
+        {
+            if (LooksLikeGroupName(displayName))
+            {
+                return Group("member", displayName, $"{displayName.ToLowerInvariant().Replace(" ", "-")}@example.test");
+            }
+
+            return Recipient("member", displayName, $"{displayName.ToLowerInvariant().Replace(" ", ".")}@example.test");
+        }
+
+        private static bool LooksLikeGroupName(string displayName)
+        {
+            return displayName.Contains("Team", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("Broadcast", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("Announcements", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("Division", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("Department", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("Circle", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("List", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("Command", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("Bridge", StringComparison.OrdinalIgnoreCase)
+                || displayName.Contains("Group", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void ApplyMockAttachmentSummary(MailItemDto mail)

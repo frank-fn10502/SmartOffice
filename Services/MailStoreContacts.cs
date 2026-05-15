@@ -223,11 +223,13 @@ namespace SmartOffice.Hub.Services
                 AddCalendarRecipients(contacts, calendarEvent.RequiredAttendees, "attendee", calendarEvent);
             }
 
-            return contacts.Values
+            var result = contacts.Values
                 .Select(item => item.ToDto(selfAddresses))
                 .Select(ApplyGroupExpansionStatus)
                 .Where(contact => !string.IsNullOrWhiteSpace(contact.SmtpAddress) || !string.IsNullOrWhiteSpace(contact.DisplayName))
                 .ToList();
+            ApplySelfGroupRelations(result);
+            return result;
         }
 
         private void UpsertAddressBookContact(AddressBookContactDto contact)
@@ -392,6 +394,18 @@ namespace SmartOffice.Hub.Services
 
             contact.DisplayName = PreferLonger(contact.DisplayName, recipient.DisplayName);
             contact.SmtpAddress = PreferEmail(contact.SmtpAddress, recipient.SmtpAddress, recipient.RawAddress);
+            if (recipient.IsGroup || recipient.Members.Count > 0)
+                contact.MergeAddressBookContact(new AddressBookContactDto
+                {
+                    DisplayName = recipient.DisplayName,
+                    SmtpAddress = contact.SmtpAddress,
+                    RawAddress = recipient.RawAddress,
+                    EntryUserType = recipient.EntryUserType,
+                    IsGroup = true,
+                    MemberSmtpAddresses = recipient.Members.Select(member => PreferEmail(member.SmtpAddress, member.RawAddress)).Where(email => !string.IsNullOrWhiteSpace(email)).ToList(),
+                    MemberGroupSmtpAddresses = recipient.Members.Where(member => member.IsGroup).Select(member => PreferEmail(member.SmtpAddress, member.RawAddress)).Where(email => !string.IsNullOrWhiteSpace(email)).ToList(),
+                    Source = "mail_recipient",
+                });
             return contact;
         }
 

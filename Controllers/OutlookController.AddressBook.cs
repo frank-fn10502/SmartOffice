@@ -25,7 +25,19 @@ namespace SmartOffice.Hub.Controllers
             if (!string.IsNullOrWhiteSpace(req.AddressListId) || !string.IsNullOrWhiteSpace(req.AddressListName))
                 return await DispatchAddressBookListEntries(req, ct);
 
-            return await DispatchCommandAsync(new PendingCommand { Type = "fetch_address_book_roots" }, ct, "request-address-book");
+            var command = new PendingCommand { Type = "fetch_address_book" };
+            _commandResults.RecordDispatched(command);
+            _commandResults.RecordResult(new OutlookCommandResult
+            {
+                CommandId = command.Id,
+                Success = true,
+                Message = "Address book data is ready.",
+                Timestamp = DateTime.Now,
+            });
+            return Ok(ResultEnvelope(command.Id, command.Type, "completed", "Address book data is ready.", new
+            {
+                contacts = _mailStore.GetAddressBookContacts(take: 0),
+            }, "request-address-book"));
         }
 
         [HttpPost("request-address-book-relation")]

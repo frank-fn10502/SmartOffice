@@ -60,6 +60,27 @@ namespace SmartOffice.Hub.Controllers
             });
         }
 
+        [HttpGet("address-book/contacts")]
+        public IActionResult AddressBookContacts([FromQuery] string query = "", [FromQuery] int take = 5000)
+        {
+            var contacts = _mailStore.GetAddressBookContacts(query, take);
+            return Ok(new AddressBookListEntriesResponse
+            {
+                AddressListName = "Known contacts",
+                Offset = 0,
+                PageSize = Math.Clamp(take <= 0 ? 5000 : take, 1, 5000),
+                TotalCount = contacts.Count,
+                HasMore = false,
+                Contacts = contacts,
+            });
+        }
+
+        [HttpGet("profile")]
+        public IActionResult GetProfile()
+        {
+            return Ok(_mailStore.GetOutlookProfile());
+        }
+
         [HttpPost("address-book/merge-suggestions")]
         public IActionResult AddressBookMergeSuggestions([FromBody] AddressBookMergeSuggestionRequest? req)
         {

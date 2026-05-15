@@ -400,6 +400,36 @@ namespace SmartOffice.Hub.Contracts
         public List<string> Reasons { get; set; } = new List<string>();
     }
 
+    public class OutlookProfileMailStatsDto
+    {
+        public int LoadedCount { get; set; }
+        public int UnreadCount { get; set; }
+        public int AttachmentMailCount { get; set; }
+    }
+
+    public class OutlookProfileDto
+    {
+        public string State { get; set; } = "ready";
+        public string Message { get; set; } = string.Empty;
+        public string MailboxName { get; set; } = string.Empty;
+        public string SmtpAddress { get; set; } = string.Empty;
+        public AddressBookContactDto SelfContact { get; set; }
+        public List<OutlookProfileGroupNodeDto> GroupTree { get; set; } = new List<OutlookProfileGroupNodeDto>();
+        public List<AddressBookContactDto> Groups { get; set; } = new List<AddressBookContactDto>();
+        public List<AddressBookContactDto> SameGroupPeople { get; set; } = new List<AddressBookContactDto>();
+        public List<OutlookStoreDto> OstStores { get; set; } = new List<OutlookStoreDto>();
+        public List<OutlookStoreDto> PstStores { get; set; } = new List<OutlookStoreDto>();
+        public List<OutlookStoreDto> OtherStores { get; set; } = new List<OutlookStoreDto>();
+        public List<OutlookStoreDto> Stores { get; set; } = new List<OutlookStoreDto>();
+        public OutlookProfileMailStatsDto MailStats { get; set; } = new OutlookProfileMailStatsDto();
+    }
+
+    public class OutlookProfileGroupNodeDto
+    {
+        public AddressBookContactDto Contact { get; set; }
+        public List<OutlookProfileGroupNodeDto> Children { get; set; } = new List<OutlookProfileGroupNodeDto>();
+    }
+
     public class AddinLogEntry
     {
         public string Level { get; set; } = "info";
