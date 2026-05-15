@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Refresh, UserFilled } from '@element-plus/icons-vue'
 import { outlookApi } from '../api/outlook'
 import type { OutlookDashboardState } from '../composables/useOutlookDashboard'
-import type { OutlookProfileDto, OutlookProfileGroupNodeDto, OutlookStoreDto } from '../models/outlook'
+import type { AddressBookContactDto, OutlookProfileDto, OutlookStoreDto } from '../models/outlook'
 
 const props = defineProps<{
   dashboard: OutlookDashboardState
@@ -14,19 +14,8 @@ const loadingProfile = ref(false)
 const profileMessage = ref('等待 Outlook 郵件載入完成。')
 
 const mailStats = computed(() => profile.value?.mailStats ?? { loadedCount: 0, unreadCount: 0, attachmentMailCount: 0 })
-
-type ProfileTreeNode = {
-  key: string
-  label: string
-  email: string
-  children: ProfileTreeNode[]
-}
-
-const profileGroupTreeProps = {
-  children: 'children',
-}
-
-const profileGroupTreeNodes = computed(() => (profile.value?.groupTree ?? []).map(toProfileTreeNode))
+const profileGroups = computed(() => profile.value?.groups ?? [])
+const groupPeople = computed(() => profile.value?.sameGroupPeople ?? [])
 
 function contactTitle(contact: { displayName: string; smtpAddress: string }) {
   return contact.displayName || contact.smtpAddress || '(unknown)'
@@ -36,14 +25,9 @@ function storeLabel(store: OutlookStoreDto) {
   return store.displayName || store.rootFolderPath || store.storeId || '(store)'
 }
 
-function toProfileTreeNode(node: OutlookProfileGroupNodeDto): ProfileTreeNode {
-  const contact = node.contact
-  return {
-    key: contact.smtpAddress || contact.id || contact.displayName,
-    label: contactTitle(contact),
-    email: contact.smtpAddress || '',
-    children: node.children.map(toProfileTreeNode),
-  }
+function isSelfContact(contact: AddressBookContactDto) {
+  const selfEmail = profile.value?.smtpAddress?.trim().toLowerCase() || ''
+  return contact.isLikelySelf || (!!selfEmail && contact.smtpAddress.trim().toLowerCase() === selfEmail)
 }
 
 async function loadProfile(force = false) {
@@ -102,11 +86,11 @@ watch(
         </article>
 
         <article class="profile-section">
-          <span class="profile-label">Mail snapshot</span>
+          <span class="profile-label">郵件概況</span>
           <div class="profile-metrics">
-            <span>{{ mailStats.loadedCount }} loaded</span>
-            <span>{{ mailStats.unreadCount }} unread</span>
-            <span>{{ mailStats.attachmentMailCount }} attachments</span>
+            <span>{{ mailStats.loadedCount }} 封郵件</span>
+            <span>{{ mailStats.unreadCount }} 封未讀</span>
+            <span>{{ mailStats.attachmentMailCount }} 封含附件</span>
           </div>
         </article>
 
@@ -123,42 +107,47 @@ watch(
         </article>
       </div>
 
-      <div class="profile-columns">
-        <section class="profile-section">
-          <span class="profile-label">所屬 group</span>
+      <div class="profile-columns member-focused">
+        <section class="profile-section profile-groups-card">
+          <span class="profile-label">所在 group</span>
           <div class="profile-scroll-list">
-            <el-tree
-              v-if="profileGroupTreeNodes.length"
-              class="profile-group-tree"
-              :data="profileGroupTreeNodes"
-              node-key="key"
-              default-expand-all
-              :props="profileGroupTreeProps"
+            <button
+              v-for="group in profileGroups"
+              :key="group.smtpAddress || group.id || group.displayName"
+              class="profile-row group-row"
+              type="button"
             >
-              <template #default="{ data }">
-                <span class="profile-tree-row">
-                  <strong>{{ data.label }}</strong>
-                  <small>{{ data.email || '-' }}</small>
-                </span>
-              </template>
-            </el-tree>
-            <span v-if="!profileGroupTreeNodes.length" class="profile-empty">尚未從 Hub 個人資訊取得 group 階層。</span>
+              <strong>{{ contactTitle(group) }}</strong>
+              <small>{{ group.smtpAddress || '-' }}</small>
+              <span>{{ group.memberCount || group.memberSmtpAddresses.length }} 位成員</span>
+            </button>
+            <span v-if="!profileGroups.length" class="profile-empty">尚未找到所在 group。</span>
           </div>
         </section>
 
-        <section class="profile-section">
+        <section class="profile-section profile-members-card">
           <span class="profile-label">同 group 人員</span>
           <div class="profile-scroll-list">
-            <button v-for="person in profile?.sameGroupPeople ?? []" :key="person.smtpAddress || person.id" class="profile-row" type="button">
-              <strong>{{ contactTitle(person) }}</strong>
+            <button
+              v-for="person in groupPeople"
+              :key="person.smtpAddress || person.id || person.displayName"
+              class="profile-row member-row"
+              :class="{ self: isSelfContact(person) }"
+              type="button"
+            >
+              <span>
+                <strong>{{ contactTitle(person) }}</strong>
+                <el-tag v-if="isSelfContact(person)" size="small" type="warning" effect="plain">使用者</el-tag>
+              </span>
               <small>{{ person.smtpAddress || '-' }}</small>
+              <small>{{ person.jobTitle || person.department || 'group member' }}</small>
             </button>
-            <span v-if="!profile?.sameGroupPeople.length" class="profile-empty">尚未從 Hub 個人資訊取得同 group 人員。</span>
+            <span v-if="!groupPeople.length" class="profile-empty">尚未找到同 group 人員。</span>
           </div>
         </section>
 
         <section class="profile-section">
-          <span class="profile-label">Stores</span>
+          <span class="profile-label">資料檔</span>
           <div class="profile-scroll-list">
             <button v-for="store in profile?.stores ?? []" :key="store.storeId" class="profile-row" type="button">
               <strong>{{ storeLabel(store) }}</strong>

@@ -16,40 +16,50 @@ namespace SmartOffice.Hub.Services
                     .OrderByDescending(contact => contact.RelationScore)
                     .FirstOrDefault();
                 var primaryStore = stores.FirstOrDefault(store => StoreKind(store) == "ost") ?? stores.FirstOrDefault();
-                var seedGroups = contacts
-                    .Where(contact => contact.IsGroup && (contact.IsRelatedToSelf || contact.Sources.Contains("mail_recipient") || contact.RecipientCount > 0))
+                var relatedGroups = contacts
+                    .Where(contact => contact.IsGroup && contact.IsRelatedToSelf)
                     .OrderByDescending(contact => contact.IsRelatedToSelf)
                     .ThenByDescending(contact => contact.RelationScore)
                     .ThenBy(contact => contact.DisplayName)
-                    .ToList();
-                var groups = ExpandProfileGroups(seedGroups, contacts)
-                    .Take(48)
-                    .Select(CloneAddressBookContact)
-                    .ToList();
-                var groupMembers = groups
-                    .SelectMany(group => group.MemberSmtpAddresses.Select(email => (Email: NormalizeEmail(email), Group: group.SmtpAddress)))
-                    .Where(item => !string.IsNullOrWhiteSpace(item.Email))
                     .ToList();
                 var contactsByKey = contacts
                     .SelectMany(contact => ContactKeys(contact).Select(key => (Key: key, Contact: contact)))
                     .Where(item => !string.IsNullOrWhiteSpace(item.Key))
                     .GroupBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(group => group.Key, group => group.First().Contact, StringComparer.OrdinalIgnoreCase);
+                var directGroupKeys = self?.MemberOfGroupSmtpAddresses
+                    .Select(NormalizeEmail)
+                    .Where(key => !string.IsNullOrWhiteSpace(key))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var directGroups = relatedGroups
+                    .Where(group => directGroupKeys.Contains(NormalizeEmail(group.SmtpAddress))
+                        || group.MemberSmtpAddresses.Select(NormalizeEmail).Any(email => selfEmails.Contains(email)))
+                    .ToList();
+                var groups = (directGroups.Count > 0 ? directGroups : relatedGroups)
+                    .Take(8)
+                    .Select(CloneAddressBookContact)
+                    .ToList();
+                var groupMembers = groups
+                    .SelectMany(group => group.MemberSmtpAddresses.Select(email => (Email: NormalizeEmail(email), Group: group.SmtpAddress)))
+                    .Where(item => !string.IsNullOrWhiteSpace(item.Email))
+                    .ToList();
                 var sameGroupPeople = groupMembers
                     .Select(item => contactsByKey.TryGetValue(item.Email, out var contact) ? CloneAddressBookContact(contact) : ContactShell(item.Email, false))
-                    .Where(contact => !contact.IsGroup && !contact.IsLikelySelf)
+                    .Concat(self is null ? Enumerable.Empty<AddressBookContactDto>() : new[] { CloneAddressBookContact(self) })
+                    .Where(contact => !contact.IsGroup)
                     .GroupBy(contact => AddressBookContactKey(contact), StringComparer.OrdinalIgnoreCase)
                     .Select(group => group.First())
-                    .OrderByDescending(contact => contact.IsRelatedToSelf)
+                    .OrderByDescending(contact => contact.IsLikelySelf)
+                    .ThenByDescending(contact => contact.IsRelatedToSelf)
                     .ThenByDescending(contact => contact.RelationScore)
                     .ThenBy(contact => contact.DisplayName)
-                    .Take(24)
+                    .Take(48)
                     .ToList();
 
                 return new OutlookProfileDto
                 {
                     State = "ready",
-                    Message = $"Profile is ready from {_mails.Count} loaded mail item(s).",
+                    Message = $"個人資訊已整理完成，已納入 {_mails.Count} 封郵件。",
                     MailboxName = primaryStore?.DisplayName ?? self?.DisplayName ?? string.Empty,
                     SmtpAddress = self?.SmtpAddress ?? StoreEmail(primaryStore) ?? string.Empty,
                     SelfContact = self is null ? null : CloneAddressBookContact(self),

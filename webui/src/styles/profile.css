@@ -49,6 +49,10 @@
   overflow: hidden;
 }
 
+.profile-columns.member-focused {
+  grid-template-columns: minmax(260px, 0.8fr) minmax(360px, 1.4fr) minmax(260px, 0.8fr);
+}
+
 .profile-section {
   display: grid;
   align-content: start;
@@ -120,6 +124,28 @@
   background: var(--surface-2);
   color: var(--text-main);
   text-align: left;
+}
+
+.profile-row.group-row {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border-subtle));
+  background: var(--surface-selected);
+}
+
+.profile-row.member-row {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 10px 12px;
+}
+
+.profile-row.member-row.self {
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface-1));
+}
+
+.profile-row.member-row > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .profile-scroll-list {
