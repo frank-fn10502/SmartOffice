@@ -45,6 +45,7 @@ const groupTreeMessage = ref('')
 const groupTreeRoot = ref<RecipientTreeNode | null>(null)
 const groupTreeProps = { label: 'label', children: 'children' }
 const groupTreeNodes = computed(() => groupTreeRoot.value ? [groupTreeRoot.value] : [])
+const groupTreeExpandedKeys = computed(() => groupTreeRoot.value ? [groupTreeRoot.value.key] : [])
 
 const {
   addMailCategoryDraft,
@@ -380,7 +381,7 @@ async function expandGroupTreeNode(node: RecipientTreeNode) {
         :data="groupTreeNodes"
         :props="groupTreeProps"
         node-key="key"
-        default-expand-all
+        :default-expanded-keys="groupTreeExpandedKeys"
       >
         <template #default="{ data }">
           <div class="recipient-tree-node">

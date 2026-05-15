@@ -138,14 +138,6 @@ body.mail-dragging * {
   box-shadow: inset 4px 0 0 var(--accent);
 }
 
-.mail-card-row.has-group-recipient {
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 56%, var(--warning));
-}
-
-.mail-card-row.has-group-recipient.selected {
-  box-shadow: inset 4px 0 0 var(--accent), inset 8px 0 0 color-mix(in srgb, var(--accent) 56%, var(--warning));
-}
-
 .mail-card-row.selected .mail-row-main strong {
   color: var(--accent-strong);
 }

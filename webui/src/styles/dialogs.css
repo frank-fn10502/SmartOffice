@@ -109,7 +109,22 @@
 }
 
 .recipient-tree-dialog.el-dialog {
+  display: flex;
+  flex-direction: column;
+  height: min(620px, calc(100vh - 48px));
+  max-height: calc(100vh - 48px);
+  margin-top: 24px;
+  margin-bottom: 24px;
+  overflow: hidden;
   border-radius: 8px;
+}
+
+.recipient-tree-dialog .el-dialog__body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .recipient-tree-summary {
@@ -117,6 +132,7 @@
   gap: 8px;
   min-width: 0;
   margin-bottom: 12px;
+  justify-items: start;
 }
 
 .recipient-tree-summary strong,
@@ -126,20 +142,41 @@
   overflow-wrap: anywhere;
 }
 
+.recipient-tree-summary .el-tag {
+  max-width: 100%;
+}
+
 .recipient-tree {
-  max-height: min(460px, calc(100vh - 260px));
+  min-height: 0;
+  height: 100%;
   overflow: auto;
   border: 1px solid #e5edf5;
   border-radius: 8px;
   padding: 8px;
 }
 
+.recipient-tree .el-tree-node__content {
+  align-items: stretch;
+  height: auto;
+  min-height: 54px;
+  padding: 4px 0;
+}
+
+.recipient-tree .el-tree-node__expand-icon {
+  align-self: center;
+  flex: 0 0 auto;
+}
+
 .recipient-tree-node {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: start;
   gap: 8px;
   min-width: 0;
   width: 100%;
+  min-height: 46px;
+  padding: 5px 8px;
+  box-sizing: border-box;
 }
 
 .recipient-tree-node > span {
@@ -160,6 +197,15 @@
 .recipient-tree-node small {
   color: #667085;
   font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.recipient-tree-node .el-tag,
+.recipient-tree-node .el-button {
+  align-self: start;
+  justify-self: end;
+  max-width: 96px;
+  flex: 0 0 auto;
 }
 
 .dialog-mail-title {
