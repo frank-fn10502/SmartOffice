@@ -37,9 +37,8 @@ namespace SmartOffice.Hub.Services
                     if (string.IsNullOrWhiteSpace(key)) continue;
                     var index = _addressBookContacts.FindIndex(existing =>
                         string.Equals(AddressBookContactKey(existing), key, StringComparison.OrdinalIgnoreCase));
-                    var clone = CloneAddressBookContact(contact);
-                    if (index >= 0) _addressBookContacts[index] = clone;
-                    else _addressBookContacts.Add(clone);
+                    if (index >= 0) _addressBookContacts[index] = MergeCachedAddressBookContact(_addressBookContacts[index], contact);
+                    else _addressBookContacts.Add(CloneAddressBookContact(contact));
                 }
             }
         }
@@ -239,9 +238,8 @@ namespace SmartOffice.Hub.Services
             if (string.IsNullOrWhiteSpace(key)) return;
             var index = _addressBookContacts.FindIndex(existing =>
                 string.Equals(AddressBookContactKey(existing), key, StringComparison.OrdinalIgnoreCase));
-            var clone = CloneAddressBookContact(contact);
-            if (index >= 0) _addressBookContacts[index] = clone;
-            else _addressBookContacts.Add(clone);
+            if (index >= 0) _addressBookContacts[index] = MergeCachedAddressBookContact(_addressBookContacts[index], contact);
+            else _addressBookContacts.Add(CloneAddressBookContact(contact));
         }
 
         private void MergeGroupExpansionIntoContact(string groupKey, AddressBookGroupExpansionState state)
@@ -346,6 +344,7 @@ namespace SmartOffice.Hub.Services
             {
                 var memberContact = GetOrCreateContact(contacts, member);
                 memberContact?.AddMail("group_member", mail);
+                AddRecipientGroupMembership(contact, memberContact, member);
             }
         }
 
@@ -373,6 +372,7 @@ namespace SmartOffice.Hub.Services
             {
                 var memberContact = GetOrCreateContact(contacts, member);
                 memberContact?.AddCalendar("group_member", calendarEvent);
+                AddRecipientGroupMembership(contact, memberContact, member);
             }
         }
 
@@ -583,7 +583,7 @@ namespace SmartOffice.Hub.Services
             return new AddressBookGroupMembersResponse
             {
                 State = state.State,
-                Message = state.State == "completed" ? "Group members loaded from Hub cache." : "Group members are loading.",
+                Message = state.State == "completed" ? "群組成員已載入。" : "正在載入群組成員。",
                 GroupKey = state.GroupKey,
                 GroupSmtpAddress = state.GroupSmtpAddress,
                 RequestId = state.RequestId,

@@ -11,6 +11,7 @@ namespace SmartOffice.Hub.Services
         private readonly OutlookCommandQueue _commandQueue;
         private readonly Dictionary<string, AddressListProgress> _addressListProgress = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _requestedGroups = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _requestedRelations = new(StringComparer.OrdinalIgnoreCase);
 
         public OutlookAddressBookBackgroundSyncService(
             MailStore mailStore,
@@ -32,6 +33,13 @@ namespace SmartOffice.Hub.Services
 
         private async Task<bool> TryDoOneStepAsync(CancellationToken ct)
         {
+            var nextContextRelation = NextRelationToResolve(onlyUserVisibleContext: true);
+            if (nextContextRelation is not null)
+            {
+                await ResolveRelationAsync(nextContextRelation, ct);
+                return true;
+            }
+
             var nextContextGroup = NextGroupToExpand(onlyUserVisibleContext: true);
             if (nextContextGroup is not null)
             {
@@ -62,7 +70,22 @@ namespace SmartOffice.Hub.Services
                 return true;
             }
 
+            var nextRelation = NextRelationToResolve(onlyUserVisibleContext: false);
+            if (nextRelation is not null)
+            {
+                await ResolveRelationAsync(nextRelation, ct);
+                return true;
+            }
+
             return false;
+        }
+
+        private AddressBookContactDto? NextRelationToResolve(bool onlyUserVisibleContext)
+        {
+            return _mailStore.GetAddressBookContacts(take: 0)
+                .Where(contact => ContactNeedsRelationLookup(contact))
+                .Where(contact => !onlyUserVisibleContext || HasUserVisibleOutlookContext(contact))
+                .FirstOrDefault(contact => !_requestedRelations.Contains(ContactKey(contact)));
         }
 
         private AddressBookContactDto? NextGroupToExpand(bool onlyUserVisibleContext)
@@ -70,12 +93,32 @@ namespace SmartOffice.Hub.Services
             return _mailStore.GetAddressBookContacts(take: 0)
                 .Where(contact => contact.IsGroup && !contact.GroupMembersLoaded && !contact.GroupMembersLoading)
                 .Where(contact => !onlyUserVisibleContext || HasUserVisibleOutlookContext(contact))
-                .FirstOrDefault(contact => _requestedGroups.Add(GroupKey(contact)));
+                .FirstOrDefault(contact => !_requestedGroups.Contains(GroupKey(contact)));
+        }
+
+        private async Task ResolveRelationAsync(AddressBookContactDto contact, CancellationToken ct)
+        {
+            var result = await _commandQueue.ExecuteAsync(new PendingCommand
+            {
+                Type = "address_book_relation_lookup",
+                AddressBookRelationLookupRequest = new AddressBookRelationLookupRequest
+                {
+                    TargetKind = contact.IsGroup ? "group" : "person",
+                    Id = contact.Id,
+                    DisplayName = contact.DisplayName,
+                    SmtpAddress = contact.SmtpAddress,
+                    Email = contact.SmtpAddress,
+                    GroupId = contact.IsGroup ? contact.Id : string.Empty,
+                    GroupSmtpAddress = contact.IsGroup ? contact.SmtpAddress : string.Empty,
+                    Take = 200,
+                },
+            }, ct: ct);
+            if (result.Success) _requestedRelations.Add(ContactKey(contact));
         }
 
         private async Task FetchGroupMembersAsync(AddressBookContactDto group, CancellationToken ct)
         {
-            await _commandQueue.ExecuteAsync(new PendingCommand
+            var result = await _commandQueue.ExecuteAsync(new PendingCommand
             {
                 Type = "fetch_address_book_group_members",
                 AddressBookGroupMembersRequest = new AddressBookGroupMembersRequest
@@ -85,6 +128,7 @@ namespace SmartOffice.Hub.Services
                     MaxMembers = 5000,
                 },
             }, ct: ct);
+            if (result.Success) _requestedGroups.Add(GroupKey(group));
         }
 
         private async Task FetchOneAddressListPageAsync(AddressBookRootDto root, CancellationToken ct)
@@ -134,6 +178,21 @@ namespace SmartOffice.Hub.Services
             return string.IsNullOrWhiteSpace(contact.SmtpAddress)
                 ? (contact.Id ?? contact.DisplayName ?? string.Empty).Trim().ToLowerInvariant()
                 : contact.SmtpAddress.Trim().ToLowerInvariant();
+        }
+
+        private static string ContactKey(AddressBookContactDto contact)
+        {
+            return string.IsNullOrWhiteSpace(contact.SmtpAddress)
+                ? (contact.Id ?? contact.RawAddress ?? contact.DisplayName ?? string.Empty).Trim().ToLowerInvariant()
+                : contact.SmtpAddress.Trim().ToLowerInvariant();
+        }
+
+        private static bool ContactNeedsRelationLookup(AddressBookContactDto contact)
+        {
+            if (string.IsNullOrWhiteSpace(ContactKey(contact))) return false;
+            if (contact.IsGroup)
+                return contact.MemberOfGroupSmtpAddresses.Count == 0;
+            return contact.IsLikelySelf || (contact.MemberOfGroupSmtpAddresses.Count == 0 && HasUserVisibleOutlookContext(contact));
         }
 
         private static bool HasUserVisibleOutlookContext(AddressBookContactDto contact)
