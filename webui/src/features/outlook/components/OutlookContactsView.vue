@@ -177,9 +177,8 @@ function emptyContact(email: string, isGroup = false): AddressBookContactDto {
 async function loadContacts() {
   if (loadingContacts.value) return
   loadingContacts.value = true
-  loadMessage.value = '正在載入 Outlook 通訊錄來源...'
+  loadMessage.value = '正在載入目前 Outlook view 的聯絡人...'
   try {
-    const response = await outlookApi.requestAddressBookRoots()
     contacts.value = []
     addressBookRoots.value = []
     selectedRoot.value = null
@@ -187,6 +186,8 @@ async function loadContacts() {
     addressListHasMore.value = false
     addressListTotal.value = 0
     selectedContact.value = null
+    await loadKnownContacts()
+    const response = await outlookApi.requestAddressBookRoots()
     await streamAddressBookRootsFromRequest(response)
     const firstRoot = addressBookRoots.value[0]
     if (firstRoot) {
@@ -244,7 +245,7 @@ async function loadAddressListEntriesPage(root: AddressBookRootDto, offset = 0) 
   addressListOffset.value = page.offset + page.contacts.length
   addressListHasMore.value = page.hasMore
   addressListTotal.value = page.totalCount
-  contacts.value = offset > 0 ? [...contacts.value, ...page.contacts] : page.contacts
+  upsertContacts(page.contacts)
   selectedContact.value = selectedContact.value && contacts.value.some((contact) => contactKey(contact) === contactKey(selectedContact.value!))
     ? selectedContact.value
     : contacts.value[0] ?? null
